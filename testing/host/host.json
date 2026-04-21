@@ -1,0 +1,7 @@
+{
+  "name": "com.testing.tabprinter",
+  "description": "Prints open Chrome tab URLs",
+  "path": "__LAUNCHER__",
+  "type": "stdio",
+  "allowed_origins": ["chrome-extension://__EXTENSION_ID__/"]
+}

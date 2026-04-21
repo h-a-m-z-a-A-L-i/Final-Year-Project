@@ -1,0 +1,8 @@
+{
+  "name": "com.testing.tabprinter",
+  "description": "Prints open Chrome tab URLs",
+  "path": "D:\\FYP\\normal-chrome\\testing\\host\\launcher.cmd",
+  "type": "stdio",
+  "allowed_origins": ["chrome-extension://kpgffbnnihefokomkllcnenpdcllaapb/"]
+}
+

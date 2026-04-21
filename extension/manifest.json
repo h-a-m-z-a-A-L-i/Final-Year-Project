@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Kaggle Background Notebook Scraper",
+  "version": "0.1.0",
+  "description": "Scrapes Kaggle notebook input/output data from the Jupyter iframe in the background.",
+  "permissions": [
+    "tabs",
+    "scripting",
+    "nativeMessaging"
+  ],
+  "host_permissions": [
+    "*://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*/*"
+      ],
+      "js": [
+        "kaggle_tab_watcher.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "Kaggle Background Scraper"
+  }
+}

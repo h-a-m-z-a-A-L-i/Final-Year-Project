@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Tab URL Printer",
+  "version": "1.0",
+  "description": "Prints all open tab URLs to a local Python script via Native Messaging.",
+  "permissions": ["tabs", "nativeMessaging", "scripting"],
+  "host_permissions": ["*://*/*"],
+  "background": {
+    "service_worker": "background.js"
+  }
+}

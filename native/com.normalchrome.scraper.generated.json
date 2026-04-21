@@ -1,0 +1,9 @@
+{
+    "name":  "com.normalchrome.scraper",
+    "description":  "Native host for Kaggle background notebook scraper",
+    "path":  "D:\\FYP\\normal-chrome\\native\\run_host.generated.cmd",
+    "type":  "stdio",
+    "allowed_origins":  [
+                            "chrome-extension://nfoahjhfpmceioajnnpoahhfgfgkpodd/"
+                        ]
+}

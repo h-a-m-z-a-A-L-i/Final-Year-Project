@@ -1,0 +1,552 @@
+{
+  "tabUrl": "https://www.kaggle.com/code/codekey/feature-engineering/edit",
+  "title": "__notebook_source__",
+  "lastUpdated": "2026-03-28T15:51:43.798854+00:00",
+  "cells": [
+    {
+      "index": 1,
+      "input": "## Missing ValuesMissing values occurs in dataset when some of the informations is not stored for a variableThere are 3 mechanisms",
+      "output": ""
+    },
+    {
+      "index": 2,
+      "input": "### 1 Missing Completely at Random, MCAR:Missing completely at random (MCAR) is a type of missing data mechanism in which the probability of a value being missing is unrelated to both the observed data and the missing data. In other words, if the data is MCAR, the missing values are randomly distributed throughout the dataset, and there is no systematic reason for why they are missing.For example, in a survey about the prevalence of a certain disease, the missing data might be MCAR if the survey participants with missing values for certain questions were selected randomly and their missing responses are not related to their disease status or any other variables measured in the survey.",
+      "output": ""
+    },
+    {
+      "index": 3,
+      "input": "### 2. Missing at Random MAR:Missing at Random (MAR) is a type of missing data mechanism in which the probability of a value being missing depends only on the observed data, but not on the missing data itself. In other words, if the data is MAR, the missing values are systematically related to the observed data, but not to the missing data.Here are a few examples of missing at random:Income data: Suppose you are collecting income data from a group of people, but some participants choose not to report their income. If the decision to report or not report income is related to the participant's age or gender, but not to their income level, then the data is missing at random.Medical data: Suppose you are collecting medical data on patients, including their blood pressure, but some patients do not report their blood pressure. If the patients who do not report their blood pressure are more likely to be younger or have healthier lifestyles, but the missingness is not related to their actual blood pressure values, then the data is missing at random.",
+      "output": ""
+    },
+    {
+      "index": 4,
+      "input": "## 3. Missing data not at random (MNAR) It is a type of missing data mechanism where the probability of missing values depends on the value of the missing data itself. In other words, if the data is MNAR, the missingness is not random and is dependent on unobserved or unmeasured factors that are associated with the missing values.For example, suppose you are collecting data on the income and job satisfaction of employees in a company. If employees who are less satisfied with their jobs are more likely to refuse to report their income, then the data is not missing at random. In this case, the missingness is dependent on job satisfaction, which is not directly observed or measured.",
+      "output": ""
+    },
+    {
+      "index": 5,
+      "input": "## Examples",
+      "output": ""
+    },
+    {
+      "index": 6,
+      "input": "import seaborn as sns",
+      "output": ""
+    },
+    {
+      "index": 7,
+      "input": "df=sns.load_dataset('titanic')",
+      "output": ""
+    },
+    {
+      "index": 8,
+      "input": "df.head()",
+      "output": "[40]:\n, , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , ,\n\tsurvived\tpclass\tsex\tage\tsibsp\tparch\tfare\tembarked\tclass\twho\tadult_male\tdeck\tembark_town\talive\talone\n0\t0\t3\tmale\t22.0\t1\t0\t7.2500\tS\tThird\tman\tTrue\tNaN\tSouthampton\tno\tFalse\n1\t1\t1\tfemale\t38.0\t1\t0\t71.2833\tC\tFirst\twoman\tFalse\tC\tCherbourg\tyes\tFalse\n2\t1\t3\tfemale\t26.0\t0\t0\t7.9250\tS\tThird\twoman\tFalse\tNaN\tSouthampton\tyes\tTrue\n3\t1\t1\tfemale\t35.0\t1\t0\t53.1000\tS\tFirst\twoman\tFalse\tC\tSouthampton\tyes\tFalse\n4\t0\t3\tmale\t35.0\t0\t0\t8.0500\tS\tThird\tman\tTrue\tNaN\tSouthampton\tno\tTrue\n,"
+    },
+    {
+      "index": 9,
+      "input": "## Check missing values\ndf.isnull().sum()",
+      "output": "[43]:\nsurvived         0\n,pclass           0\n,sex              0\n,age            177\n,sibsp            0\n,parch            0\n,fare             0\n,embarked         2\n,class            0\n,who              0\n,adult_male       0\n,deck           688\n,embark_town      2\n,alive            0\n,alone            0\n,dtype: int64"
+    },
+    {
+      "index": 10,
+      "input": "## Delete the rows or data point to handle missing values\n\n\ndf.shape",
+      "output": "[44]:\n(891, 15)"
+    },
+    {
+      "index": 11,
+      "input": "df.dropna().shape",
+      "output": "[45]:\n(182, 15)"
+    },
+    {
+      "index": 12,
+      "input": "## Column wise deletion\ndf.dropna(axis=1)",
+      "output": "[47]:\n, , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , ,\n\tsurvived\tpclass\tsex\tsibsp\tparch\tfare\tclass\twho\tadult_male\talive\talone\n0\t0\t3\tmale\t1\t0\t7.2500\tThird\tman\tTrue\tno\tFalse\n1\t1\t1\tfemale\t1\t0\t71.2833\tFirst\twoman\tFalse\tyes\tFalse\n2\t1\t3\tfemale\t0\t0\t7.9250\tThird\twoman\tFalse\tyes\tTrue\n3\t1\t1\tfemale\t1\t0\t53.1000\tFirst\twoman\tFalse\tyes\tFalse\n4\t0\t3\tmale\t0\t0\t8.0500\tThird\tman\tTrue\tno\tTrue\n...\t...\t...\t...\t...\t...\t...\t...\t...\t...\t...\t...\n886\t0\t2\tmale\t0\t0\t13.0000\tSecond\tman\tTrue\tno\tTrue\n887\t1\t1\tfemale\t0\t0\t30.0000\tFirst\twoman\tFalse\tyes\tTrue\n888\t0\t3\tfemale\t1\t2\t23.4500\tThird\twoman\tFalse\tno\tFalse\n889\t1\t1\tmale\t0\t0\t30.0000\tFirst\tman\tTrue\tyes\tTrue\n890\t0\t3\tmale\t0\t0\t7.7500\tThird\tman\tTrue\tno\tTrue\n,\n\n891 rows × 11 columns\n\n,"
+    },
+    {
+      "index": 13,
+      "input": "## Imputation Missing Values### 1- Mean Value Imputation",
+      "output": ""
+    },
+    {
+      "index": 14,
+      "input": "sns.histplot(df['age'],kde=True)",
+      "output": "[49]:\n<AxesSubplot: xlabel='age', ylabel='Count'>"
+    },
+    {
+      "index": 15,
+      "input": "df['Age_mean']=df['age'].fillna(df['age'].mean())",
+      "output": ""
+    },
+    {
+      "index": 16,
+      "input": "df[['Age_mean','age']]",
+      "output": "[54]:\n, , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , ,\n\tAge_mean\tage\n0\t22.000000\t22.0\n1\t38.000000\t38.0\n2\t26.000000\t26.0\n3\t35.000000\t35.0\n4\t35.000000\t35.0\n...\t...\t...\n886\t27.000000\t27.0\n887\t19.000000\t19.0\n888\t29.699118\tNaN\n889\t26.000000\t26.0\n890\t32.000000\t32.0\n,\n\n891 rows × 2 columns\n\n,"
+    },
+    {
+      "index": 17,
+      "input": "## MEan Imputation Works Well when we have normally distributed data",
+      "output": ""
+    },
+    {
+      "index": 18,
+      "input": "### 2. Median Value Imputation- If we have outliers in the dataset",
+      "output": ""
+    },
+    {
+      "index": 19,
+      "input": "df['age_median']=df['age'].fillna(df['age'].median())",
+      "output": ""
+    },
+    {
+      "index": 20,
+      "input": "df[['age_median','Age_mean','age']]",
+      "output": "[58]:\n, , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , ,\n\tage_median\tAge_mean\tage\n0\t22.0\t22.000000\t22.0\n1\t38.0\t38.000000\t38.0\n2\t26.0\t26.000000\t26.0\n3\t35.0\t35.000000\t35.0\n4\t35.0\t35.000000\t35.0\n...\t...\t...\t...\n886\t27.0\t27.000000\t27.0\n887\t19.0\t19.000000\t19.0\n888\t28.0\t29.699118\tNaN\n889\t26.0\t26.000000\t26.0\n890\t32.0\t32.000000\t32.0\n,\n\n891 rows × 3 columns\n\n,"
+    },
+    {
+      "index": 21,
+      "input": "### 3. Mode Imputation Technqiue--Categorical values",
+      "output": ""
+    },
+    {
+      "index": 22,
+      "input": "df[df['embarked'].isnull()]",
+      "output": "[59]:\n, , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , ,\n\tsurvived\tpclass\tsex\tage\tsibsp\tparch\tfare\tembarked\tclass\twho\tadult_male\tdeck\tembark_town\talive\talone\tAge_median\tAge_mean\tage_median\n61\t1\t1\tfemale\t38.0\t0\t0\t80.0\tNaN\tFirst\twoman\tFalse\tB\tNaN\tyes\tTrue\t38.0\t38.0\t38.0\n829\t1\t1\tfemale\t62.0\t0\t0\t80.0\tNaN\tFirst\twoman\tFalse\tB\tNaN\tyes\tTrue\t62.0\t62.0\t62.0\n,"
+    },
+    {
+      "index": 23,
+      "input": "df['embarked'].unique()",
+      "output": "[60]:\narray(['S', 'C', 'Q', nan], dtype=object)"
+    },
+    {
+      "index": 24,
+      "input": "mode_value=df[df['embarked'].notna()]['embarked'].mode()[0]",
+      "output": ""
+    },
+    {
+      "index": 25,
+      "input": "df['embarked_mode']=df['embarked'].fillna(mode_value)",
+      "output": ""
+    },
+    {
+      "index": 26,
+      "input": "df[['embarked_mode','embarked']]",
+      "output": "[68]:\n, , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , ,\n\tembarked_mode\tembarked\n0\tS\tS\n1\tC\tC\n2\tS\tS\n3\tS\tS\n4\tS\tS\n...\t...\t...\n886\tS\tS\n887\tS\tS\n888\tS\tS\n889\tC\tC\n890\tQ\tQ\n,\n\n891 rows × 2 columns\n\n,"
+    },
+    {
+      "index": 27,
+      "input": "df['embarked_mode'].isnull().sum()",
+      "output": "[69]:\n0"
+    },
+    {
+      "index": 28,
+      "input": "df['embarked'].isnull().sum()",
+      "output": "[70]:\n2"
+    },
+    {
+      "index": 29,
+      "input": "# Handling Imbalanced dataset## upsampling## Downsampling",
+      "output": ""
+    },
+    {
+      "index": 30,
+      "input": "import pandas as pd\nimport numpy as np\n\n\nnp.random.seed(123)\n\n\nn_samples = 1000\nclass_0_ratio = 0.9\nn_class_0 = int(n_samples * class_0_ratio)\nn_class_1 = int(n_samples-n_class_0)",
+      "output": ""
+    },
+    {
+      "index": 31,
+      "input": "n_class_0,  n_class_1",
+      "output": "[17]:\n(900, 100)"
+    },
+    {
+      "index": 32,
+      "input": "## Dataframe with imbalanced datset",
+      "output": ""
+    },
+    {
+      "index": 33,
+      "input": "class_0 = pd.DataFrame({\n    'Feature_1': np.random.normal(loc = 0, scale = 1, size = n_class_0),\n    'Feature_2': np.random.normal(loc = 0, scale = 1, size = n_class_0),\n'target':[0]*n_class_0\n})\n\n\nclass_1 = pd.DataFrame({\n    'Feature_1': np.random.normal(loc = 2, scale = 1, size = n_class_1),\n    'Feature_2': np.random.normal(loc = 2, scale = 1, size = n_class_1),\n'target':[1]*n_class_1\n})",
+      "output": ""
+    },
+    {
+      "index": 34,
+      "input": "# Concat\ndf = pd.concat([class_0, class_1], ignore_index = True)",
+      "output": ""
+    },
+    {
+      "index": 35,
+      "input": "#Shuffle\ndf = df.sample(frac = 1, random_state = 42).reset_index(drop = True)",
+      "output": ""
+    },
+    {
+      "index": 36,
+      "input": "df['target'].value_counts(\n    \n)",
+      "output": "[30]:\ntarget\n0    900\n1    100\nName: count, dtype: int64"
+    },
+    {
+      "index": 37,
+      "input": "# up sampling\ndf.majority = df[df['target']==0]\ndf.minority = df[df['target']==1]",
+      "output": "/tmp/ipykernel_37/116532100.py:2: UserWarning: Pandas doesn't allow columns to be created via a new attribute name - see https://pandas.pydata.org/pandas-docs/stable/indexing.html#attribute-access\n  df.majority = df[df['target']==0]\n/tmp/ipykernel_37/116532100.py:3: UserWarning: Pandas doesn't allow columns to be created via a new attribute name - see https://pandas.pydata.org/pandas-docs/stable/indexing.html#attribute-access\n  df.minority = df[df['target']==1]"
+    },
+    {
+      "index": 38,
+      "input": "# We will try to artificially increase minority datapoints to majority\nfrom sklearn.utils import resample\ndf_minority_upsampled = resample(df.minority, replace = True, # Sampling with replacement\n                                n_samples = len(df.majority),\n                                random_state = 42)",
+      "output": ""
+    },
+    {
+      "index": 39,
+      "input": "df_minority_upsampled.shape # (900) points",
+      "output": "[34]:\n(900, 3)"
+    },
+    {
+      "index": 40,
+      "input": "df_minority_upsampled.value_counts()",
+      "output": "[39]:\nFeature_1  Feature_2  target\n0.868043    2.309863  1         19\n0.605291    1.862623  1         18\n2.399896   -0.840847  1         18\n0.446422    2.342423  1         16\n1.364350    1.535966  1         16\n                                ..\n1.804892    2.842652  1          4\n0.666001    1.894732  1          4\n1.487494    3.310876  1          4\n1.495417    3.190354  1          4\n1.996591    1.826408  1          3\nName: count, Length: 100, dtype: int64"
+    },
+    {
+      "index": 41,
+      "input": "df_upsampled = pd.concat([df.majority, df_minority_upsampled])",
+      "output": ""
+    },
+    {
+      "index": 42,
+      "input": "df_upsampled['target'].value_counts() # 900=0, 900=1",
+      "output": "[42]:\ntarget\n0    900\n1    900\nName: count, dtype: int64"
+    },
+    {
+      "index": 43,
+      "input": "## Down sampling",
+      "output": ""
+    },
+    {
+      "index": 44,
+      "input": "import pandas as pd\nimport numpy as np\n\n\nnp.random.seed(123)\n\n\nn_samples = 1000\nclass_0_ratio = 0.9\nn_class_0 = int(n_samples * class_0_ratio)\nn_class_1 = int(n_samples-n_class_0) \n\n\nclass_0 = pd.DataFrame({\n    'Feature_1': np.random.normal(loc = 0, scale = 1, size = n_class_0),\n    'Feature_2': np.random.normal(loc = 0, scale = 1, size = n_class_0),\n'target':[0]*n_class_0\n})\n\n\nclass_1 = pd.DataFrame({\n    'Feature_1': np.random.normal(loc = 2, scale = 1, size = n_class_1),\n    'Feature_2': np.random.normal(loc = 2, scale = 1, size = n_class_1),\n'target':[1]*n_class_1\n})",
+      "output": "[44]:\n(    Feature_1  Feature_2  target\n 0    1.699768   2.139033       1\n 1    1.367739   2.025577       1\n 2    1.795683   1.803557       1\n 3    2.213696   3.312255       1\n 4    3.033878   3.187417       1\n ..        ...        ...     ...\n 95   1.376371   2.845701       1\n 96   2.239810   0.880077       1\n 97   1.131760   1.640703       1\n 98   2.902006   0.390305       1\n 99   2.697490   2.013570       1\n \n [100 rows x 3 columns],\n      Feature_1  Feature_2  target\n 0    -1.085631   0.551302       0\n 1     0.997345   0.419589       0\n 2     0.282978   1.815652       0\n 3    -1.506295  -0.252750       0\n 4    -0.578600  -0.292004       0\n ..         ...        ...     ...\n 895   0.238761  -0.003155       0\n 896  -1.106386  -0.430660       0\n 897   0.366732  -0.146416       0\n 898   1.023906   1.160176       0\n 899  -0.210056  -0.641512       0\n \n [900 rows x 3 columns])"
+    },
+    {
+      "index": 45,
+      "input": "df.target.value_counts()",
+      "output": "[46]:\ntarget\n0    900\n1    100\nName: count, dtype: int64"
+    },
+    {
+      "index": 46,
+      "input": "# down sampling\ndf.majority = df[df['target']==0]\ndf.minority = df[df['target']==1]",
+      "output": ""
+    },
+    {
+      "index": 47,
+      "input": "# We will try to artificially increase minority datapoints to majority\nfrom sklearn.utils import resample\ndf_majority_downsampled = resample(df.majority, replace = False, # Sampling with replacement\n                                n_samples = len(df.minority),\n                                random_state = 42)",
+      "output": ""
+    },
+    {
+      "index": 48,
+      "input": "df_majority_downsampled",
+      "output": "[49]:\n\tFeature_1\tFeature_2\ttarget\n78\t1.333191\t0.847339\t0\n924\t1.516974\t-0.067502\t0\n262\t-1.363472\t-0.909327\t0\n663\t1.101526\t-0.303880\t0\n47\t-0.788166\t1.642498\t0\n...\t...\t...\t...\n444\t1.502581\t-0.476602\t0\n84\t-0.013604\t2.165701\t0\n220\t1.316606\t-1.186887\t0\n707\t0.456271\t-0.785719\t0\n843\t0.379401\t0.470264\t0\n\n100 rows × 3 columns"
+    },
+    {
+      "index": 49,
+      "input": "df_downsampled = pd.concat([df.minority, df_majority_downsampled])",
+      "output": ""
+    },
+    {
+      "index": 50,
+      "input": "df_downsampled",
+      "output": "[51]:\n\tFeature_1\tFeature_2\ttarget\n13\t2.572843\t1.274827\t1\n14\t2.909031\t2.669214\t1\n27\t4.125817\t1.784590\t1\n28\t1.795683\t1.803557\t1\n29\t1.402209\t2.775845\t1\n...\t...\t...\t...\n444\t1.502581\t-0.476602\t0\n84\t-0.013604\t2.165701\t0\n220\t1.316606\t-1.186887\t0\n707\t0.456271\t-0.785719\t0\n843\t0.379401\t0.470264\t0\n\n200 rows × 3 columns"
+    },
+    {
+      "index": 51,
+      "input": "df_downsampled.target.value_counts()",
+      "output": "[53]:\ntarget\n1    100\n0    100\nName: count, dtype: int64"
+    },
+    {
+      "index": 52,
+      "input": "# Using SMOTE (Synthetic minority oversampled techniqe)",
+      "output": ""
+    },
+    {
+      "index": 53,
+      "input": "import pandas as pd\nimport numpy as np\nfrom sklearn.datasets import make_classification\n\n\nx,y = make_classification(n_samples = 1000, n_redundant = 0, \n                         n_features = 2, n_clusters_per_class = 1,\n                         weights = [0.90], random_state = 12)",
+      "output": ""
+    },
+    {
+      "index": 54,
+      "input": "df1 = pd.DataFrame(x, columns = ['f1', 'f2'])\ndf2 = pd.DataFrame(y, columns = ['target'])\nfinal = pd.concat([df1, df2], axis =1)\nfinal.head()",
+      "output": "[13]:\n\tf1\tf2\ttarget\n0\t-0.762898\t-0.706808\t0\n1\t-1.075436\t-1.051162\t0\n2\t-0.610115\t-0.909802\t0\n3\t-2.023284\t-0.428945\t1\n4\t-0.812921\t-1.316206\t0"
+    },
+    {
+      "index": 55,
+      "input": "final.target.value_counts()",
+      "output": "[14]:\ntarget\n0    900\n1    100\nName: count, dtype: int64"
+    },
+    {
+      "index": 56,
+      "input": "import matplotlib.pyplot as plt\n\n\nplt.scatter(final['f1'], final['f2'], c = final['target']);",
+      "output": ""
+    },
+    {
+      "index": 57,
+      "input": "import imblearn",
+      "output": ""
+    },
+    {
+      "index": 58,
+      "input": "from imblearn.over_sampling import SMOTE",
+      "output": ""
+    },
+    {
+      "index": 59,
+      "input": "oversample= SMOTE()",
+      "output": ""
+    },
+    {
+      "index": 60,
+      "input": "x,y = oversample.fit_resample(final[['f1','f2']],final['target'])",
+      "output": ""
+    },
+    {
+      "index": 61,
+      "input": "x.shape",
+      "output": "[23]:\n(1800, 2)"
+    },
+    {
+      "index": 62,
+      "input": "y.shape",
+      "output": "[24]:\n(1800,)"
+    },
+    {
+      "index": 63,
+      "input": "len(y[y==0]),len(y[y==1])",
+      "output": "[26]:\n(900, 900)"
+    },
+    {
+      "index": 64,
+      "input": "df1 = pd.DataFrame(x, columns = ['f1', 'f2'])\ndf2 = pd.DataFrame(y, columns = ['target'])\noversampl_df = pd.concat([df1, df2], axis =1)\nfinal.head()",
+      "output": "[27]:\n\tf1\tf2\ttarget\n0\t-0.762898\t-0.706808\t0\n1\t-1.075436\t-1.051162\t0\n2\t-0.610115\t-0.909802\t0\n3\t-2.023284\t-0.428945\t1\n4\t-0.812921\t-1.316206\t0"
+    },
+    {
+      "index": 65,
+      "input": "import matplotlib.pyplot as plt\n\n\nplt.scatter(oversampl_df['f1'], oversampl_df['f2'], c = oversampl_df['target']);",
+      "output": ""
+    },
+    {
+      "index": 66,
+      "input": "# 5 Number value in box-plot",
+      "output": ""
+    },
+    {
+      "index": 67,
+      "input": "# Sample data with no outlier\nlst_marks = [32,54,76,46,35,14,97,58,40,92,58,45,13,49,75,46,77,34,98,55,71,42]\nminimum,Q1,median,Q3,maximun = np.quantile(lst_marks,[0,0.25,0.50,0.75,1.0])",
+      "output": ""
+    },
+    {
+      "index": 68,
+      "input": "minimum,Q1,median,Q3,maximun",
+      "output": "[33]:\n(13.0, 40.5, 51.5, 74.0, 98.0)"
+    },
+    {
+      "index": 69,
+      "input": "IQR = Q3-Q1\nprint(IQR)",
+      "output": "33.5"
+    },
+    {
+      "index": 70,
+      "input": "lower_fence = Q1 - 1.5*(IQR)\nhigher_fence = Q3 + 1.5*(IQR)",
+      "output": ""
+    },
+    {
+      "index": 71,
+      "input": "lower_fence,higher_fence",
+      "output": "[37]:\n(-9.75, 124.25)"
+    },
+    {
+      "index": 72,
+      "input": "import seaborn as sns\n# box\nsns.boxplot(lst_marks)",
+      "output": "[38]:\n<Axes: >"
+    },
+    {
+      "index": 73,
+      "input": "# With outliers\nlst_marks = [-100,-200,32,54,76,46,35,14,97,58,40,92,58,45,13,49,75,46,77,34,98,55,71,42,100,200]\nsns.boxplot(lst_marks)",
+      "output": "[40]:\n<Axes: >"
+    },
+    {
+      "index": 74,
+      "input": "# Data Encoding",
+      "output": ""
+    },
+    {
+      "index": 75,
+      "input": "## Nominal or One-hot-encoding### Dont do it if you have many categories in a variable as it makes it a sparced matrix which leads to overfitting# Converts categorical data into numerical",
+      "output": ""
+    },
+    {
+      "index": 76,
+      "input": "import pandas as pd\ndf = pd.DataFrame({\n    'color':['red','green','blue','green','red']\n})\ndf",
+      "output": "[42]:\n\tcolor\n0\tred\n1\tgreen\n2\tblue\n3\tgreen\n4\tred"
+    },
+    {
+      "index": 77,
+      "input": "from sklearn.preprocessing import OneHotEncoder\nencoder = OneHotEncoder()\nencoded = encoder.fit_transform(df[['color']]).toarray()\nencoded",
+      "output": "[46]:\narray([[0., 0., 1.],\n       [0., 1., 0.],\n       [1., 0., 0.],\n       [0., 1., 0.],\n       [0., 0., 1.]])"
+    },
+    {
+      "index": 78,
+      "input": "encoded_df = pd.DataFrame(encoded, columns = encoder.get_feature_names_out())\nencoded_df",
+      "output": "[47]:\n\tcolor_blue\tcolor_green\tcolor_red\n0\t0.0\t0.0\t1.0\n1\t0.0\t1.0\t0.0\n2\t1.0\t0.0\t0.0\n3\t0.0\t1.0\t0.0\n4\t0.0\t0.0\t1.0"
+    },
+    {
+      "index": 79,
+      "input": "# For new data but data must be from previous categories\nencoder.transform([['blue']]).toarray()",
+      "output": "/usr/local/lib/python3.11/dist-packages/sklearn/utils/validation.py:2739: UserWarning: X does not have valid feature names, but OneHotEncoder was fitted with feature names\n  warnings.warn(\n\n[49]:\narray([[1., 0., 0.]])"
+    },
+    {
+      "index": 80,
+      "input": "pd.concat([df,encoded_df],axis = 1)",
+      "output": "[50]:\n\tcolor\tcolor_blue\tcolor_green\tcolor_red\n0\tred\t0.0\t0.0\t1.0\n1\tgreen\t0.0\t1.0\t0.0\n2\tblue\t1.0\t0.0\t0.0\n3\tgreen\t0.0\t1.0\t0.0\n4\tred\t0.0\t0.0\t1.0"
+    },
+    {
+      "index": 81,
+      "input": "df = sns.load_dataset('tips')",
+      "output": ""
+    },
+    {
+      "index": 82,
+      "input": "encoded = encoder.fit_transform(df[['sex','smoker','day',\n                                  'time']]).toarray()",
+      "output": ""
+    },
+    {
+      "index": 83,
+      "input": "encoded_df = pd.DataFrame(encoded, columns = encoder.get_feature_names_out())\nencoded_df",
+      "output": "[60]:\n\tsex_Female\tsex_Male\tsmoker_No\tsmoker_Yes\tday_Fri\tday_Sat\tday_Sun\tday_Thur\ttime_Dinner\ttime_Lunch\n0\t1.0\t0.0\t1.0\t0.0\t0.0\t0.0\t1.0\t0.0\t1.0\t0.0\n1\t0.0\t1.0\t1.0\t0.0\t0.0\t0.0\t1.0\t0.0\t1.0\t0.0\n2\t0.0\t1.0\t1.0\t0.0\t0.0\t0.0\t1.0\t0.0\t1.0\t0.0\n3\t0.0\t1.0\t1.0\t0.0\t0.0\t0.0\t1.0\t0.0\t1.0\t0.0\n4\t1.0\t0.0\t1.0\t0.0\t0.0\t0.0\t1.0\t0.0\t1.0\t0.0\n...\t...\t...\t...\t...\t...\t...\t...\t...\t...\t...\n239\t0.0\t1.0\t1.0\t0.0\t0.0\t1.0\t0.0\t0.0\t1.0\t0.0\n240\t1.0\t0.0\t0.0\t1.0\t0.0\t1.0\t0.0\t0.0\t1.0\t0.0\n241\t0.0\t1.0\t0.0\t1.0\t0.0\t1.0\t0.0\t0.0\t1.0\t0.0\n242\t0.0\t1.0\t1.0\t0.0\t0.0\t1.0\t0.0\t0.0\t1.0\t0.0\n243\t1.0\t0.0\t1.0\t0.0\t0.0\t0.0\t0.0\t1.0\t1.0\t0.0\n\n244 rows × 10 columns"
+    },
+    {
+      "index": 84,
+      "input": "df.time.value_counts()",
+      "output": "[62]:\ntime\nDinner    176\nLunch      68\nName: count, dtype: int64"
+    },
+    {
+      "index": 85,
+      "input": "encoded_df.time_Lunch.value_counts()",
+      "output": "[66]:\ntime_Lunch\n0.0    176\n1.0     68\nName: count, dtype: int64"
+    },
+    {
+      "index": 86,
+      "input": "pd.concat([df,encoded_df],axis=1)",
+      "output": "[69]:\n\ttotal_bill\ttip\tsex\tsmoker\tday\ttime\tsize\tsex_Female\tsex_Male\tsmoker_No\tsmoker_Yes\tday_Fri\tday_Sat\tday_Sun\tday_Thur\ttime_Dinner\ttime_Lunch\n0\t16.99\t1.01\tFemale\tNo\tSun\tDinner\t2\t1.0\t0.0\t1.0\t0.0\t0.0\t0.0\t1.0\t0.0\t1.0\t0.0\n1\t10.34\t1.66\tMale\tNo\tSun\tDinner\t3\t0.0\t1.0\t1.0\t0.0\t0.0\t0.0\t1.0\t0.0\t1.0\t0.0\n2\t21.01\t3.50\tMale\tNo\tSun\tDinner\t3\t0.0\t1.0\t1.0\t0.0\t0.0\t0.0\t1.0\t0.0\t1.0\t0.0\n3\t23.68\t3.31\tMale\tNo\tSun\tDinner\t2\t0.0\t1.0\t1.0\t0.0\t0.0\t0.0\t1.0\t0.0\t1.0\t0.0\n4\t24.59\t3.61\tFemale\tNo\tSun\tDinner\t4\t1.0\t0.0\t1.0\t0.0\t0.0\t0.0\t1.0\t0.0\t1.0\t0.0\n...\t...\t...\t...\t...\t...\t...\t...\t...\t...\t...\t...\t...\t...\t...\t...\t...\t...\n239\t29.03\t5.92\tMale\tNo\tSat\tDinner\t3\t0.0\t1.0\t1.0\t0.0\t0.0\t1.0\t0.0\t0.0\t1.0\t0.0\n240\t27.18\t2.00\tFemale\tYes\tSat\tDinner\t2\t1.0\t0.0\t0.0\t1.0\t0.0\t1.0\t0.0\t0.0\t1.0\t0.0\n241\t22.67\t2.00\tMale\tYes\tSat\tDinner\t2\t0.0\t1.0\t0.0\t1.0\t0.0\t1.0\t0.0\t0.0\t1.0\t0.0\n242\t17.82\t1.75\tMale\tNo\tSat\tDinner\t2\t0.0\t1.0\t1.0\t0.0\t0.0\t1.0\t0.0\t0.0\t1.0\t0.0\n243\t18.78\t3.00\tFemale\tNo\tThur\tDinner\t2\t1.0\t0.0\t1.0\t0.0\t0.0\t0.0\t0.0\t1.0\t1.0\t0.0\n\n244 rows × 17 columns"
+    },
+    {
+      "index": 87,
+      "input": "# Label encoding## Unique value for each label## 1=red,2=green,3=blue",
+      "output": ""
+    },
+    {
+      "index": 88,
+      "input": "import pandas as pd\ndf = pd.DataFrame({\n    'color':['red','green','blue','green','red']\n})\ndf",
+      "output": "[70]:\n\tcolor\n0\tred\n1\tgreen\n2\tblue\n3\tgreen\n4\tred"
+    },
+    {
+      "index": 89,
+      "input": "from sklearn.preprocessing import LabelEncoder\nlbl_encoder = LabelEncoder()",
+      "output": ""
+    },
+    {
+      "index": 90,
+      "input": "lbl_encoder.fit_transform(df[['color']])\n# Encoded in alphabatical order",
+      "output": "/usr/local/lib/python3.11/dist-packages/sklearn/preprocessing/_label.py:110: DataConversionWarning: A column-vector y was passed when a 1d array was expected. Please change the shape of y to (n_samples, ), for example using ravel().\n  y = column_or_1d(y, warn=True)\n\n[72]:\narray([2, 1, 0, 1, 2])"
+    },
+    {
+      "index": 91,
+      "input": "# To check which value is assigned\nlbl_encoder.transform([['blue']])",
+      "output": "/usr/local/lib/python3.11/dist-packages/sklearn/preprocessing/_label.py:129: DataConversionWarning: A column-vector y was passed when a 1d array was expected. Please change the shape of y to (n_samples, ), for example using ravel().\n  y = column_or_1d(y, dtype=self.classes_.dtype, warn=True)\n\n[73]:\narray([0])"
+    },
+    {
+      "index": 92,
+      "input": "# Problem : When we feed this data to model it thinks that red is greater than blue or green greater as it got numbers so this should not happen ## But if there is any condition like where  that order or rank of data matters# Ordinal Encoding## High_school = 1 , college = 2, Graduate = 3, post_grad = 4",
+      "output": ""
+    },
+    {
+      "index": 93,
+      "input": "df = pd.DataFrame({\n    'cat':['small','medium','large','medium','small','medium']\n})",
+      "output": ""
+    },
+    {
+      "index": 94,
+      "input": "from sklearn.preprocessing import OrdinalEncoder",
+      "output": ""
+    },
+    {
+      "index": 95,
+      "input": "encoder = OrdinalEncoder(categories = [['small','medium','large']]) # Rank order\nencoder.fit_transform(df[['cat']])",
+      "output": "[94]:\narray([[0.],\n       [1.],\n       [2.],\n       [1.],\n       [0.],\n       [1.]])"
+    },
+    {
+      "index": 96,
+      "input": "encoder.transform([['small']])",
+      "output": "/usr/local/lib/python3.11/dist-packages/sklearn/utils/validation.py:2739: UserWarning: X does not have valid feature names, but OrdinalEncoder was fitted with feature names\n  warnings.warn(\n\n[96]:\narray([[0.]])"
+    },
+    {
+      "index": 97,
+      "input": "# Target guided ordinal Encoding## we want to categorize based on a parameter value ie mean ,median",
+      "output": ""
+    },
+    {
+      "index": 98,
+      "input": "dff = pd.DataFrame({\n    'city':['Lahore','Karachi','Fsd','Lahore','Okara','Karachi'],\n    'price':[222,345,654,432,765,444]\n})\ndff",
+      "output": "[97]:\n\tcity\tprice\n0\tLahore\t222\n1\tKarachi\t345\n2\tFsd\t654\n3\tLahore\t432\n4\tOkara\t765\n5\tKarachi\t444"
+    },
+    {
+      "index": 99,
+      "input": "mean_price = dff.groupby('city')['price'].mean().to_dict()\n# Groupby based on city price part\nmean_price",
+      "output": "[100]:\n{'Fsd': 654.0, 'Karachi': 394.5, 'Lahore': 327.0, 'Okara': 765.0}"
+    },
+    {
+      "index": 100,
+      "input": "dff['city_encoded'] = dff.city.map(mean_price)",
+      "output": ""
+    },
+    {
+      "index": 101,
+      "input": "dff",
+      "output": "[104]:\n\tcity\tprice\tcity_encoded\n0\tLahore\t222\t327.0\n1\tKarachi\t345\t394.5\n2\tFsd\t654\t654.0\n3\tLahore\t432\t327.0\n4\tOkara\t765\t765.0\n5\tKarachi\t444\t394.5"
+    },
+    {
+      "index": 102,
+      "input": "dff[['price','city_encoded']]",
+      "output": "[105]:\n\tprice\tcity_encoded\n0\t222\t327.0\n1\t345\t394.5\n2\t654\t654.0\n3\t432\t327.0\n4\t765\t765.0\n5\t444\t394.5"
+    },
+    {
+      "index": 103,
+      "input": "df = sns.load_dataset('tips')",
+      "output": ""
+    },
+    {
+      "index": 104,
+      "input": "df",
+      "output": "[107]:\n\ttotal_bill\ttip\tsex\tsmoker\tday\ttime\tsize\n0\t16.99\t1.01\tFemale\tNo\tSun\tDinner\t2\n1\t10.34\t1.66\tMale\tNo\tSun\tDinner\t3\n2\t21.01\t3.50\tMale\tNo\tSun\tDinner\t3\n3\t23.68\t3.31\tMale\tNo\tSun\tDinner\t2\n4\t24.59\t3.61\tFemale\tNo\tSun\tDinner\t4\n...\t...\t...\t...\t...\t...\t...\t...\n239\t29.03\t5.92\tMale\tNo\tSat\tDinner\t3\n240\t27.18\t2.00\tFemale\tYes\tSat\tDinner\t2\n241\t22.67\t2.00\tMale\tYes\tSat\tDinner\t2\n242\t17.82\t1.75\tMale\tNo\tSat\tDinner\t2\n243\t18.78\t3.00\tFemale\tNo\tThur\tDinner\t2\n\n244 rows × 7 columns"
+    },
+    {
+      "index": 105,
+      "input": "mean_bill = df.groupby('time')['total_bill'].mean().to_dict()\nmean_bill",
+      "output": "/tmp/ipykernel_37/3159298108.py:1: FutureWarning: The default of observed=False is deprecated and will be changed to True in a future version of pandas. Pass observed=False to retain current behavior or observed=True to adopt the future default and silence this warning.\n  mean_bill = df.groupby('time')['total_bill'].mean().to_dict()\n\n[109]:\n{'Lunch': 17.168676470588235, 'Dinner': 20.79715909090909}"
+    },
+    {
+      "index": 106,
+      "input": "df['time_encoded'] = df.time.map(mean_bill)",
+      "output": ""
+    },
+    {
+      "index": 107,
+      "input": "df",
+      "output": "[111]:\n\ttotal_bill\ttip\tsex\tsmoker\tday\ttime\tsize\ttime_encoded\n0\t16.99\t1.01\tFemale\tNo\tSun\tDinner\t2\t20.797159\n1\t10.34\t1.66\tMale\tNo\tSun\tDinner\t3\t20.797159\n2\t21.01\t3.50\tMale\tNo\tSun\tDinner\t3\t20.797159\n3\t23.68\t3.31\tMale\tNo\tSun\tDinner\t2\t20.797159\n4\t24.59\t3.61\tFemale\tNo\tSun\tDinner\t4\t20.797159\n...\t...\t...\t...\t...\t...\t...\t...\t...\n239\t29.03\t5.92\tMale\tNo\tSat\tDinner\t3\t20.797159\n240\t27.18\t2.00\tFemale\tYes\tSat\tDinner\t2\t20.797159\n241\t22.67\t2.00\tMale\tYes\tSat\tDinner\t2\t20.797159\n242\t17.82\t1.75\tMale\tNo\tSat\tDinner\t2\t20.797159\n243\t18.78\t3.00\tFemale\tNo\tThur\tDinner\t2\t20.797159\n\n244 rows × 8 columns"
+    },
+    {
+      "index": 108,
+      "input": "df[['time_encoded','total_bill']]",
+      "output": "[112]:\n\ttime_encoded\ttotal_bill\n0\t20.797159\t16.99\n1\t20.797159\t10.34\n2\t20.797159\t21.01\n3\t20.797159\t23.68\n4\t20.797159\t24.59\n...\t...\t...\n239\t20.797159\t29.03\n240\t20.797159\t27.18\n241\t20.797159\t22.67\n242\t20.797159\t17.82\n243\t20.797159\t18.78\n\n244 rows × 2 columns"
+    },
+    {
+      "index": 109,
+      "input": "",
+      "output": ""
+    }
+  ]
+}
