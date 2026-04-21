@@ -720,7 +720,7 @@
         } catch (_) {}
     }
 
-    function startToggleDrag(clientX, clientY, pointerId = null) {
+    function startToggleDrag(clientX, clientY) {
         const rect = toggleBtn.getBoundingClientRect();
         isDraggingToggle = true;
         dragMoved = false;
@@ -728,9 +728,13 @@
         startY = clientY;
         startLeft = rect.left;
         startTop = rect.top;
-        if (pointerId !== null) {
-            try { toggleBtn.setPointerCapture(pointerId); } catch(_) {}
-        }
+        
+        // Prevent iframes from stealing mouse events during drag
+        document.querySelectorAll('iframe').forEach(iframe => {
+            iframe.dataset.cpOldPe = iframe.style.pointerEvents;
+            iframe.style.pointerEvents = 'none';
+        });
+
         applyTogglePosition(startLeft, startTop);
         toggleBtn.style.cursor = 'grabbing';
     }
@@ -753,6 +757,12 @@
         isDraggingToggle = false;
         toggleBtn.style.cursor = 'grab';
 
+        // Restore iframe pointer events
+        document.querySelectorAll('iframe').forEach(iframe => {
+            iframe.style.pointerEvents = iframe.dataset.cpOldPe || '';
+            delete iframe.dataset.cpOldPe;
+        });
+
         if (dragMoved) {
             const rect = toggleBtn.getBoundingClientRect();
             const pos = clampTogglePosition(rect.left, rect.top);
@@ -770,20 +780,20 @@
         applyTogglePosition(pos.left, pos.top);
     });
 
-    toggleBtn.addEventListener('pointerdown', (e) => {
-        if (e.pointerType === 'mouse' && e.button !== 0) return;
+    toggleBtn.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
         if (e.detail < DOUBLE_CLICK_GRAB_DETAIL) return;
         e.preventDefault();
         suppressNextClick = true;
-        startToggleDrag(e.clientX, e.clientY, e.pointerId);
+        startToggleDrag(e.clientX, e.clientY);
     });
 
-    document.addEventListener('pointermove', (e) => {
+    document.addEventListener('mousemove', (e) => {
         if (!isDraggingToggle) return;
         moveToggleDrag(e.clientX, e.clientY);
     });
 
-    document.addEventListener('pointerup', (e) => {
+    document.addEventListener('mouseup', () => {
         endToggleDrag();
     });
 
