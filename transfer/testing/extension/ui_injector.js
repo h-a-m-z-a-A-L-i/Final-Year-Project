@@ -679,6 +679,7 @@
     let startY = 0;
     let startLeft = 0;
     let startTop = 0;
+    const DRAG_START_THRESHOLD = 8;
 
     function clampTogglePosition(left, top) {
         const maxLeft = Math.max(0, window.innerWidth - toggleBtn.offsetWidth);
@@ -730,7 +731,7 @@
         if (!isDraggingToggle) return;
         const dx = clientX - startX;
         const dy = clientY - startY;
-        if (!dragMoved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+        if (!dragMoved && (Math.abs(dx) > DRAG_START_THRESHOLD || Math.abs(dy) > DRAG_START_THRESHOLD)) {
             dragMoved = true;
         }
 
@@ -762,11 +763,17 @@
     });
 
     toggleBtn.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
         e.preventDefault();
         startToggleDrag(e.clientX, e.clientY);
     });
 
     document.addEventListener('mousemove', (e) => {
+        if (!isDraggingToggle) return;
+        if ((e.buttons & 1) !== 1) {
+            endToggleDrag();
+            return;
+        }
         moveToggleDrag(e.clientX, e.clientY);
     });
 
@@ -781,6 +788,7 @@
     }, { passive: true });
 
     document.addEventListener('touchmove', (e) => {
+        if (!isDraggingToggle) return;
         if (!e.touches || e.touches.length === 0) return;
         const t = e.touches[0];
         moveToggleDrag(t.clientX, t.clientY);
@@ -788,6 +796,20 @@
 
     document.addEventListener('touchend', () => {
         endToggleDrag();
+    });
+
+    document.addEventListener('touchcancel', () => {
+        endToggleDrag();
+    });
+
+    window.addEventListener('blur', () => {
+        endToggleDrag();
+    });
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            endToggleDrag();
+        }
     });
 
     toggleBtn.onclick = () => {

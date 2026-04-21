@@ -1,6 +1,32 @@
 {
   "tabUrl": "https://www.kaggle.com/code/codekey/testing-only/edit",
-  "title": "",
-  "lastUpdated": "2026-04-05T07:12:20.585282+00:00",
-  "cells": []
+  "title": "__notebook_source__",
+  "lastUpdated": "2026-04-21T14:01:12.292077+00:00",
+  "cells": [
+    {
+      "index": 1,
+      "input": "# This Python 3 environment comes with many helpful analytics libraries installed# It is defined by the kaggle/python Docker image: https://github.com/kaggle/docker-python# For example, here's several helpful packages to loadimport numpy as np # linear algebraimport pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)# Input data files are available in the read-only \"../input/\" directory# For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directoryimport osfor dirname, _, filenames in os.walk('/kaggle/input'):    for filename in filenames:        print(os.path.join(dirname, filename))# You can write up to 20GB to the current directory (/kaggle/working/) that gets preserved as output when you create a version using \"Save & Run All\" # You can also write temporary files to /kaggle/temp/, but they won't be saved outside of the current session",
+      "output": ""
+    },
+    {
+      "index": 2,
+      "input": "dcklmdskc",
+      "output": "---------------------------------------------------------------------------\nNameError                                 Traceback (most recent call last)\n/tmp/ipykernel_55/4168643109.py in <cell line: 0>()\n----> 1 dcklmdskc\n\nNameError: name 'dcklmdskc' is not defined"
+    },
+    {
+      "index": 3,
+      "input": "",
+      "output": ""
+    },
+    {
+      "index": 4,
+      "input": "hamza",
+      "output": "---------------------------------------------------------------------------\nNameError                                 Traceback (most recent call last)\n/tmp/ipykernel_55/4086308014.py in <cell line: 0>()\n----> 1 hamza\n\nNameError: name 'hamza' is not defined"
+    },
+    {
+      "index": 5,
+      "input": "",
+      "output": ""
+    }
+  ]
 }

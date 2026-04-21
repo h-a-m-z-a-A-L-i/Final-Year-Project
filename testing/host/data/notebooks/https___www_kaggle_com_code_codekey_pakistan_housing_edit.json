@@ -1,6 +1,122 @@
 {
   "tabUrl": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
-  "title": "",
-  "lastUpdated": "2026-04-13T00:49:38.300150+00:00",
-  "cells": []
+  "title": "__notebook_source__",
+  "lastUpdated": "2026-04-21T14:29:48.660300+00:00",
+  "cells": [
+    {
+      "index": 1,
+      "input": "import pandas as pd\ndf = pd.read_csv('/kaggle/input/datasets/jillanisofttech/pakistan-house-price-dataset/zameen-updated.csv')",
+      "output": ""
+    },
+    {
+      "index": 2,
+      "input": "df.head()",
+      "output": "[2]:\n\tproperty_id\tlocation_id\tpage_url\tproperty_type\tprice\tlocation\tcity\tprovince_name\tlatitude\tlongitude\tbaths\tarea\tpurpose\tbedrooms\tdate_added\tagency\tagent\tArea Type\tArea Size\tArea Category\n0\t237062\t3325\thttps://www.zameen.com/Property/g_10_g_10_2_gr...\tFlat\t10000000\tG-10\tIslamabad\tIslamabad Capital\t33.679890\t73.012640\t2\t4 Marla\tFor Sale\t2\t02-04-2019\tNaN\tNaN\tMarla\t4.0\t0-5 Marla\n1\t346905\t3236\thttps://www.zameen.com/Property/e_11_2_service...\tFlat\t6900000\tE-11\tIslamabad\tIslamabad Capital\t33.700993\t72.971492\t3\t5.6 Marla\tFor Sale\t3\t05-04-2019\tNaN\tNaN\tMarla\t5.6\t5-10 Marla\n2\t386513\t764\thttps://www.zameen.com/Property/islamabad_g_15...\tHouse\t16500000\tG-15\tIslamabad\tIslamabad Capital\t33.631486\t72.926559\t6\t8 Marla\tFor Sale\t5\t07-17-2019\tNaN\tNaN\tMarla\t8.0\t5-10 Marla\n3\t656161\t340\thttps://www.zameen.com/Property/islamabad_bani...\tHouse\t43500000\tBani Gala\tIslamabad\tIslamabad Capital\t33.707573\t73.151199\t4\t2 Kanal\tFor Sale\t4\t04-05-2019\tNaN\tNaN\tKanal\t2.0\t1-5 Kanal\n4\t841645\t3226\thttps://www.zameen.com/Property/dha_valley_dha...\tHouse\t7000000\tDHA Defence\tIslamabad\tIslamabad Capital\t33.492591\t73.301339\t3\t8 Marla\tFor Sale\t3\t07-10-2019\tEasy Property\tMuhammad Junaid Ceo Muhammad Shahid Director\tMarla\t8.0\t5-10 Marla"
+    },
+    {
+      "index": 3,
+      "input": "df.info()",
+      "output": "<class 'pandas.core.frame.DataFrame'>\nRangeIndex: 168446 entries, 0 to 168445\nData columns (total 20 columns):\n #   Column         Non-Null Count   Dtype  \n---  ------         --------------   -----  \n 0   property_id    168446 non-null  int64  \n 1   location_id    168446 non-null  int64  \n 2   page_url       168446 non-null  object \n 3   property_type  168446 non-null  object \n 4   price          168446 non-null  int64  \n 5   location       168446 non-null  object \n 6   city           168446 non-null  object \n 7   province_name  168446 non-null  object \n 8   latitude       168446 non-null  float64\n 9   longitude      168446 non-null  float64\n 10  baths          168446 non-null  int64  \n 11  area           168446 non-null  object \n 12  purpose        168446 non-null  object \n 13  bedrooms       168446 non-null  int64  \n 14  date_added     168446 non-null  object \n 15  agency         124375 non-null  object \n 16  agent          124374 non-null  object \n 17  Area Type      168446 non-null  object \n 18  Area Size      168446 non-null  float64\n 19  Area Category  168446 non-null  object \ndtypes: float64(3), int64(5), object(12)\nmemory usage: 25.7+ MB"
+    },
+    {
+      "index": 4,
+      "input": "df1 = df.copy()",
+      "output": ""
+    },
+    {
+      "index": 5,
+      "input": "columns_to_drop = ['property_id', 'location_id', 'page_url', 'area']\ndf1.drop(columns=columns_to_drop, inplace=True)\n\n\n# Verify they're gone\nprint(df1.columns.tolist())",
+      "output": "['property_type', 'price', 'location', 'city', 'province_name', 'latitude', 'longitude', 'baths', 'purpose', 'bedrooms', 'date_added', 'agency', 'agent', 'Area Type', 'Area Size', 'Area Category']"
+    },
+    {
+      "index": 6,
+      "input": "# Fill missing agency and agent with \"Unknown\"\ndf['agency'].fillna('Unknown', inplace=True)\ndf['agent'].fillna('Unknown', inplace=True)\n\n\n# Verify\nprint(df[['agency', 'agent']].isnull().sum())",
+      "output": "agency    0\nagent     0\ndtype: int64\n\n/tmp/ipykernel_55/2227575167.py:2: FutureWarning: A value is trying to be set on a copy of a DataFrame or Series through chained assignment using an inplace method.\nThe behavior will change in pandas 3.0. This inplace method will never work because the intermediate object on which we are setting values always behaves as a copy.\n\nFor example, when doing 'df[col].method(value, inplace=True)', try using 'df.method({col: value}, inplace=True)' or df[col] = df[col].method(value) instead, to perform the operation inplace on the original object.\n\n\n  df['agency'].fillna('Unknown', inplace=True)\n/tmp/ipykernel_55/2227575167.py:3: FutureWarning: A value is trying to be set on a copy of a DataFrame or Series through chained assignment using an inplace method.\nThe behavior will change in pandas 3.0. This inplace method will never work because the intermediate object on which we are setting values always behaves as a copy.\n\nFor example, when doing 'df[col].method(value, inplace=True)', try using 'df.method({col: value}, inplace=True)' or df[col] = df[col].method(value) instead, to perform the operation inplace on the original object.\n\n\n  df['agent'].fillna('Unknown', inplace=True)"
+    },
+    {
+      "index": 7,
+      "input": "Based on Pakistani real estate, common units are:Marla (1 Marla = 272.25 sq ft)Kanal (1 Kanal = 5445 sq ft, which is 20 Marlas)Square Feet (already in sq ft)Square Yard (1 sq yd = 9 sq ft)Possibly others like Acre (1 acre = 43560 sq ft) if present.",
+      "output": ""
+    },
+    {
+      "index": 8,
+      "input": "print(df1['Area Type'].value_counts())",
+      "output": "Area Type\nMarla    137769\nKanal     30677\nName: count, dtype: int64"
+    },
+    {
+      "index": 9,
+      "input": "conversion = {\n    'Marla': 272.25,\n    'Kanal': 5445,\n}",
+      "output": ""
+    },
+    {
+      "index": 10,
+      "input": "# Create new column 'area_sqft' by multiplying Area Size by conversion factor\ndf1['area_sqft'] = df1.apply(\n    lambda row: row['Area Size'] * conversion.get(row['Area Type'], 1), \n    axis=1\n)\n\n\n# Verify a few rows\nprint(df1[['Area Type', 'Area Size', 'area_sqft']].head(10))",
+      "output": "Area Type  Area Size  area_sqft\n0     Marla        4.0    1089.00\n1     Marla        5.6    1524.60\n2     Marla        8.0    2178.00\n3     Kanal        2.0   10890.00\n4     Marla        8.0    2178.00\n5     Kanal        1.6    8712.00\n6     Kanal        1.0    5445.00\n7     Marla        6.2    1687.95\n8     Kanal        1.0    5445.00\n9     Kanal        1.0    5445.00"
+    },
+    {
+      "index": 11,
+      "input": "df1",
+      "output": "[10]:\n\tproperty_type\tprice\tlocation\tcity\tprovince_name\tlatitude\tlongitude\tbaths\tpurpose\tbedrooms\tdate_added\tagency\tagent\tArea Type\tArea Size\tArea Category\tarea_sqft\n0\tFlat\t10000000\tG-10\tIslamabad\tIslamabad Capital\t33.679890\t73.012640\t2\tFor Sale\t2\t02-04-2019\tNaN\tNaN\tMarla\t4.0\t0-5 Marla\t1089.00\n1\tFlat\t6900000\tE-11\tIslamabad\tIslamabad Capital\t33.700993\t72.971492\t3\tFor Sale\t3\t05-04-2019\tNaN\tNaN\tMarla\t5.6\t5-10 Marla\t1524.60\n2\tHouse\t16500000\tG-15\tIslamabad\tIslamabad Capital\t33.631486\t72.926559\t6\tFor Sale\t5\t07-17-2019\tNaN\tNaN\tMarla\t8.0\t5-10 Marla\t2178.00\n3\tHouse\t43500000\tBani Gala\tIslamabad\tIslamabad Capital\t33.707573\t73.151199\t4\tFor Sale\t4\t04-05-2019\tNaN\tNaN\tKanal\t2.0\t1-5 Kanal\t10890.00\n4\tHouse\t7000000\tDHA Defence\tIslamabad\tIslamabad Capital\t33.492591\t73.301339\t3\tFor Sale\t3\t07-10-2019\tEasy Property\tMuhammad Junaid Ceo Muhammad Shahid Director\tMarla\t8.0\t5-10 Marla\t2178.00\n...\t...\t...\t...\t...\t...\t...\t...\t...\t...\t...\t...\t...\t...\t...\t...\t...\t...\n168441\tHouse\t26500000\tGadap Town\tKarachi\tSindh\t25.029909\t67.137192\t0\tFor Sale\t6\t07-18-2019\tAl Shahab Enterprises\tShahmir\tMarla\t9.6\t5-10 Marla\t2613.60\n168442\tHouse\t12500000\tGadap Town\tKarachi\tSindh\t25.017951\t67.136393\t0\tFor Sale\t3\t07-18-2019\tAl Shahab Enterprises\tShahmir\tMarla\t8.0\t5-10 Marla\t2178.00\n168443\tHouse\t27000000\tGadap Town\tKarachi\tSindh\t25.015384\t67.116330\t0\tFor Sale\t6\t07-18-2019\tAl Shahab Enterprises\tShahmir\tMarla\t9.6\t5-10 Marla\t2613.60\n168444\tHouse\t11000000\tGadap Town\tKarachi\tSindh\t25.013265\t67.120818\t0\tFor Sale\t3\t07-18-2019\tAl Shahab Enterprises\tShahmir\tMarla\t7.8\t5-10 Marla\t2123.55\n168445\tHouse\t9000000\tBahria Town Karachi\tKarachi\tSindh\t25.113565\t67.353811\t3\tFor Sale\t3\t07-18-2019\tZPN Real Estate & Builders\tAli Raza\tMarla\t9.4\t5-10 Marla\t2559.15\n\n168446 rows × 17 columns"
+    },
+    {
+      "index": 12,
+      "input": "# Convert to datetime\ndf1['date_added'] = pd.to_datetime(df1['date_added'], format='%m-%d-%Y')\n\n\n# Extract features\ndf1['year'] = df1['date_added'].dt.year\ndf1['month'] = df1['date_added'].dt.month\ndf1['day_of_week'] = df1['date_added'].dt.dayofweek\n\n\n# Optionally drop original date column\ndf1.drop('date_added', axis=1, inplace=True)",
+      "output": ""
+    },
+    {
+      "index": 13,
+      "input": "df.info()\ndf.describe()",
+      "output": "<class 'pandas.core.frame.DataFrame'>\nRangeIndex: 168446 entries, 0 to 168445\nData columns (total 20 columns):\n #   Column         Non-Null Count   Dtype  \n---  ------         --------------   -----  \n 0   property_id    168446 non-null  int64  \n 1   location_id    168446 non-null  int64  \n 2   page_url       168446 non-null  object \n 3   property_type  168446 non-null  object \n 4   price          168446 non-null  int64  \n 5   location       168446 non-null  object \n 6   city           168446 non-null  object \n 7   province_name  168446 non-null  object \n 8   latitude       168446 non-null  float64\n 9   longitude      168446 non-null  float64\n 10  baths          168446 non-null  int64  \n 11  area           168446 non-null  object \n 12  purpose        168446 non-null  object \n 13  bedrooms       168446 non-null  int64  \n 14  date_added     168446 non-null  object \n 15  agency         168446 non-null  object \n 16  agent          168446 non-null  object \n 17  Area Type      168446 non-null  object \n 18  Area Size      168446 non-null  float64\n 19  Area Category  168446 non-null  object \ndtypes: float64(3), int64(5), object(12)\nmemory usage: 25.7+ MB\n\n[12]:\n\tproperty_id\tlocation_id\tprice\tlatitude\tlongitude\tbaths\tbedrooms\tArea Size\ncount\t1.684460e+05\t168446.000000\t1.684460e+05\t168446.000000\t168446.000000\t168446.000000\t168446.000000\t168446.000000\nmean\t1.559626e+07\t4375.936395\t1.776576e+07\t29.859519\t71.239804\t2.874227\t3.179422\t5.892188\nstd\t2.251207e+06\t3776.561581\t3.531003e+07\t3.807870\t3.133042\t2.463400\t1.971401\t5.778327\nmin\t8.657500e+04\t1.000000\t0.000000e+00\t11.052446\t25.906027\t0.000000\t0.000000\t0.000000\n25%\t1.488320e+07\t1058.000000\t1.750000e+05\t24.948536\t67.130363\t0.000000\t2.000000\t3.000000\n50%\t1.665851e+07\t3286.000000\t8.500000e+06\t31.459784\t73.056182\t3.000000\t3.000000\t5.000000\n75%\t1.708662e+07\t7220.000000\t1.950000e+07\t33.560887\t73.259870\t4.000000\t4.000000\t8.000000\nmax\t1.735772e+07\t14220.000000\t2.000000e+09\t73.184088\t80.161430\t403.000000\t68.000000\t800.000000"
+    },
+    {
+      "index": 14,
+      "input": "Area Category → optional. It’s a binned version of area (e.g., \"0-5 Marla\"). You can keep it as a categorical feature if it might help the model, or drop it if you prefer a single numeric area. I suggest keeping it for now and later checking feature importance.",
+      "output": ""
+    },
+    {
+      "index": 15,
+      "input": "df1.drop(['Area Type', 'Area Size'], axis=1, inplace=True)",
+      "output": ""
+    },
+    {
+      "index": 16,
+      "input": "# 1. Check for zero or negative values\nnumeric_cols = ['price', 'baths', 'bedrooms', 'area_sqft']\nfor col in numeric_cols:\n    invalid = df1[df1[col] <= 0]\n    if not invalid.empty:\n        print(f\"{col}: {len(invalid)} rows with <= 0\")\n        print(invalid[[col]].head())\n    else:\n        print(f\"{col}: all positive\")\n\n\n# 2. Check for extreme outliers (optional, but good to know)\n# Use percentiles to see the range\nprint(df1[numeric_cols].describe(percentiles=[0.01, 0.99]))",
+      "output": "price: 3 rows with <= 0\n        price\n66537       0\n91608       0\n132855      0\nbaths: 42382 rows with <= 0\n    baths\n12      0\n19      0\n47      0\n49      0\n54      0\nbedrooms: 22704 rows with <= 0\n    bedrooms\n12         0\n19         0\n47         0\n60         0\n83         0\narea_sqft: 12 rows with <= 0\n        area_sqft\n29631         0.0\n38288         0.0\n115388        0.0\n128223        0.0\n130493        0.0\n              price          baths       bedrooms     area_sqft\ncount  1.684460e+05  168446.000000  168446.000000  1.684460e+05\nmean   1.776576e+07       2.874227       3.179422  3.252030e+03\nstd    3.531003e+07       2.463400       1.971401  2.460602e+04\nmin    0.000000e+00       0.000000       0.000000  0.000000e+00\n1%     1.500000e+04       0.000000       0.000000  4.900500e+02\n50%    8.500000e+06       3.000000       3.000000  1.932975e+03\n99%    1.600000e+08       8.000000       9.000000  1.361250e+04\nmax    2.000000e+09     403.000000      68.000000  4.356000e+06"
+    },
+    {
+      "index": 17,
+      "input": "The output shows that there are rows with zero or negative values in key numeric columns. This is common in real estate datasets—often zeros indicate missing data, \"price on call\" listings, or data entry errors. Since we have a large dataset (168k rows), filtering out these invalid rows is a reasonable approach.1. Remove Invalid RowsWe'll filter df1 to keep only rows where:price > 0baths > 0bedrooms > 0area_sqft > 0",
+      "output": ""
+    },
+    {
+      "index": 18,
+      "input": "# Filter out invalid rows\ndf_clean = df1[\n    (df1['price'] > 0) &\n    (df1['baths'] > 0) &\n    (df1['bedrooms'] > 0) &\n    (df1['area_sqft'] > 0)\n].copy()\n\n\nprint(f\"Original rows: {len(df1)}\")\nprint(f\"Rows after cleaning: {len(df_clean)}\")\nprint(f\"Rows removed: {len(df1) - len(df_clean)}\")",
+      "output": "Original rows: 168446\nRows after cleaning: 125613\nRows removed: 42833"
+    },
+    {
+      "index": 19,
+      "input": "import matplotlib.pyplot as plt\nimport seaborn as sns\n\n\nfig, axes = plt.subplots(2, 2, figsize=(14, 10))\n\n\nsns.histplot(df_clean['price'], bins=100, ax=axes[0,0])\naxes[0,0].set_title('Price Distribution')\nsns.boxplot(x=df_clean['price'], ax=axes[0,1])\naxes[0,1].set_title('Price Boxplot')\n\n\nsns.histplot(df_clean['area_sqft'], bins=100, ax=axes[1,0])\naxes[1,0].set_title('Area (sqft) Distribution')\nsns.boxplot(x=df_clean['area_sqft'], ax=axes[1,1])\naxes[1,1].set_title('Area Boxplot')\n\n\nplt.tight_layout()\nplt.show()",
+      "output": ""
+    },
+    {
+      "index": 20,
+      "input": "fig, axes = plt.subplots(1, 2, figsize=(12, 4))\nsns.boxplot(x=df_clean['baths'], ax=axes[0])\naxes[0].set_title('Baths')\nsns.boxplot(x=df_clean['bedrooms'], ax=axes[1])\naxes[1].set_title('Bedrooms')\nplt.show()",
+      "output": ""
+    },
+    {
+      "index": 21,
+      "input": "# Calculate 99th percentiles\nprice_99 = df_clean['price'].quantile(0.99)\narea_99 = df_clean['area_sqft'].quantile(0.99)\n\n\nprint(f\"99th percentile price: {price_99:,.0f}\")\nprint(f\"99th percentile area: {area_99:,.0f}\")\n\n\n# Cap values\ndf_clean['price_capped'] = df_clean['price'].clip(upper=price_99)\ndf_clean['area_sqft_capped'] = df_clean['area_sqft'].clip(upper=area_99)\n\n\n# Or you can replace the original columns if you prefer\ndf_clean['price'] = df_clean['price'].clip(upper=price_99)\ndf_clean['area_sqft'] = df_clean['area_sqft'].clip(upper=area_99)",
+      "output": "99th percentile price: 152,440,000\n99th percentile area: 11,979"
+    },
+    {
+      "index": 22,
+      "input": "fig, axes = plt.subplots(1, 2, figsize=(12, 4))\nsns.histplot(df_clean['price'], bins=100, ax=axes[0])\naxes[0].set_title('Price (capped)')\nsns.histplot(df_clean['area_sqft'], bins=100, ax=axes[1])\naxes[1].set_title('Area (capped)')\nplt.show()",
+      "output": ""
+    },
+    {
+      "index": 23,
+      "input": "",
+      "output": ""
+    }
+  ]
 }
