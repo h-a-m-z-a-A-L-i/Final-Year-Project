@@ -386,7 +386,9 @@
             cursor: grab;
             z-index: 10000000;
             box-shadow: 0 4px 12px var(--cp-shadow);
-            transition: all 0.2s ease;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+            will-change: left, top;
+            touch-action: none;
             align-items: center;
             justify-content: center;
         }
@@ -680,10 +682,24 @@
     let startLeft = 0;
     let startTop = 0;
     const DRAG_START_THRESHOLD = 8;
+    const DOUBLE_PRESS_MS = 350;
+    const DOUBLE_PRESS_DISTANCE_PX = 12;
+    let lastMouseDownTs = 0;
+    let lastMouseDownX = 0;
+    let lastMouseDownY = 0;
+    let activePointerId = null;
+    let toggleBtnWidth = 50;
+    let toggleBtnHeight = 50;
+
+    function refreshToggleMetrics() {
+        const rect = toggleBtn.getBoundingClientRect();
+        toggleBtnWidth = Math.max(1, Math.round(rect.width || 0)) || 50;
+        toggleBtnHeight = Math.max(1, Math.round(rect.height || 0)) || 50;
+    }
 
     function clampTogglePosition(left, top) {
-        const maxLeft = Math.max(0, window.innerWidth - toggleBtn.offsetWidth);
-        const maxTop = Math.max(0, window.innerHeight - toggleBtn.offsetHeight);
+        const maxLeft = Math.max(0, window.innerWidth - toggleBtnWidth);
+        const maxTop = Math.max(0, window.innerHeight - toggleBtnHeight);
         return {
             left: Math.min(Math.max(0, left), maxLeft),
             top: Math.min(Math.max(0, top), maxTop)
@@ -715,14 +731,18 @@
         } catch (_) {}
     }
 
-    function startToggleDrag(clientX, clientY) {
+    function startToggleDrag(clientX, clientY, pointerId) {
+        refreshToggleMetrics();
         const rect = toggleBtn.getBoundingClientRect();
         isDraggingToggle = true;
         dragMoved = false;
+        activePointerId = pointerId;
         startX = clientX;
         startY = clientY;
         startLeft = rect.left;
         startTop = rect.top;
+        toggleBtn.style.transition = 'none';
+        toggleBtn.style.transform = 'none';
         applyTogglePosition(startLeft, startTop);
         toggleBtn.style.cursor = 'grabbing';
     }
@@ -735,14 +755,26 @@
             dragMoved = true;
         }
 
-        const next = clampTogglePosition(startLeft + dx, startTop + dy);
-        toggleBtn.style.left = `${next.left}px`;
-        toggleBtn.style.top = `${next.top}px`;
+        toggleBtn.style.left = `${startLeft + dx}px`;
+        toggleBtn.style.top = `${startTop + dy}px`;
     }
 
     function endToggleDrag() {
+        if (!isDraggingToggle && activePointerId == null) return;
+
+        if (activePointerId != null) {
+            try {
+                if (toggleBtn.hasPointerCapture(activePointerId)) {
+                    toggleBtn.releasePointerCapture(activePointerId);
+                }
+            } catch (_) {}
+            activePointerId = null;
+        }
+
         if (!isDraggingToggle) return;
         isDraggingToggle = false;
+        toggleBtn.style.transition = 'transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease';
+        toggleBtn.style.transform = '';
         toggleBtn.style.cursor = 'grab';
 
         if (dragMoved) {
@@ -753,52 +785,55 @@
         }
     }
 
+    refreshToggleMetrics();
     restoreTogglePosition();
 
     window.addEventListener('resize', () => {
+        refreshToggleMetrics();
         if (!toggleBtn.style.left || !toggleBtn.style.top) return;
         const rect = toggleBtn.getBoundingClientRect();
         const pos = clampTogglePosition(rect.left, rect.top);
         applyTogglePosition(pos.left, pos.top);
     });
 
-    toggleBtn.addEventListener('mousedown', (e) => {
-        if (e.button !== 0) return;
+    toggleBtn.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        if (e.pointerType !== 'mouse' && !e.isPrimary) return;
+        const now = Date.now();
+        const dx = e.clientX - lastMouseDownX;
+        const dy = e.clientY - lastMouseDownY;
+        const withinTime = (now - lastMouseDownTs) <= DOUBLE_PRESS_MS;
+        const withinDistance = (dx * dx + dy * dy) <= (DOUBLE_PRESS_DISTANCE_PX * DOUBLE_PRESS_DISTANCE_PX);
+
+        lastMouseDownTs = now;
+        lastMouseDownX = e.clientX;
+        lastMouseDownY = e.clientY;
+
+        if (!(withinTime && withinDistance)) return;
         e.preventDefault();
-        startToggleDrag(e.clientX, e.clientY);
+        try {
+            toggleBtn.setPointerCapture(e.pointerId);
+        } catch (_) {}
+        startToggleDrag(e.clientX, e.clientY, e.pointerId);
     });
 
-    document.addEventListener('mousemove', (e) => {
+    toggleBtn.addEventListener('pointermove', (e) => {
         if (!isDraggingToggle) return;
-        if ((e.buttons & 1) !== 1) {
-            endToggleDrag();
-            return;
-        }
+        if (activePointerId !== e.pointerId) return;
         moveToggleDrag(e.clientX, e.clientY);
     });
 
-    document.addEventListener('mouseup', () => {
+    toggleBtn.addEventListener('pointerup', (e) => {
+        if (activePointerId !== e.pointerId) return;
         endToggleDrag();
     });
 
-    toggleBtn.addEventListener('touchstart', (e) => {
-        if (!e.touches || e.touches.length === 0) return;
-        const t = e.touches[0];
-        startToggleDrag(t.clientX, t.clientY);
-    }, { passive: true });
-
-    document.addEventListener('touchmove', (e) => {
-        if (!isDraggingToggle) return;
-        if (!e.touches || e.touches.length === 0) return;
-        const t = e.touches[0];
-        moveToggleDrag(t.clientX, t.clientY);
-    }, { passive: true });
-
-    document.addEventListener('touchend', () => {
+    toggleBtn.addEventListener('pointercancel', (e) => {
+        if (activePointerId !== e.pointerId) return;
         endToggleDrag();
     });
 
-    document.addEventListener('touchcancel', () => {
+    toggleBtn.addEventListener('lostpointercapture', () => {
         endToggleDrag();
     });
 
@@ -812,13 +847,20 @@
         }
     });
 
-    toggleBtn.onclick = () => {
+    toggleBtn.addEventListener('click', (e) => {
         if (dragMoved) {
             dragMoved = false;
             return;
         }
+        if (e.detail > 1) {
+            return;
+        }
         wrapper.classList.toggle('active');
-    };
+    });
+
+    toggleBtn.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+    });
 
     const input = wrapper.querySelector('#chat-input');
     const sendBtn = wrapper.querySelector('#chat-send');

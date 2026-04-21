@@ -680,6 +680,11 @@
     let startLeft = 0;
     let startTop = 0;
     const DRAG_START_THRESHOLD = 8;
+    const DOUBLE_CLICK_GRAB_DETAIL = 2;
+    const CLICK_TOGGLE_DELAY_MS = 220;
+    let suppressNextClick = false;
+    let clickToggleTimer = null;
+    let lastTouchStartAt = 0;
 
     function clampTogglePosition(left, top) {
         const maxLeft = Math.max(0, window.innerWidth - toggleBtn.offsetWidth);
@@ -715,7 +720,7 @@
         } catch (_) {}
     }
 
-    function startToggleDrag(clientX, clientY) {
+    function startToggleDrag(clientX, clientY, pointerId = null) {
         const rect = toggleBtn.getBoundingClientRect();
         isDraggingToggle = true;
         dragMoved = false;
@@ -723,6 +728,9 @@
         startY = clientY;
         startLeft = rect.left;
         startTop = rect.top;
+        if (pointerId !== null) {
+            try { toggleBtn.setPointerCapture(pointerId); } catch(_) {}
+        }
         applyTogglePosition(startLeft, startTop);
         toggleBtn.style.cursor = 'grabbing';
     }
@@ -762,28 +770,35 @@
         applyTogglePosition(pos.left, pos.top);
     });
 
-    toggleBtn.addEventListener('mousedown', (e) => {
-        if (e.button !== 0) return;
+    toggleBtn.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        if (e.detail < DOUBLE_CLICK_GRAB_DETAIL) return;
         e.preventDefault();
-        startToggleDrag(e.clientX, e.clientY);
+        suppressNextClick = true;
+        startToggleDrag(e.clientX, e.clientY, e.pointerId);
     });
 
-    document.addEventListener('mousemove', (e) => {
+    document.addEventListener('pointermove', (e) => {
         if (!isDraggingToggle) return;
-        if ((e.buttons & 1) !== 1) {
-            endToggleDrag();
-            return;
-        }
         moveToggleDrag(e.clientX, e.clientY);
     });
 
-    document.addEventListener('mouseup', () => {
+    document.addEventListener('pointerup', (e) => {
         endToggleDrag();
     });
 
     toggleBtn.addEventListener('touchstart', (e) => {
         if (!e.touches || e.touches.length === 0) return;
+        const now = Date.now();
+        if (now - lastTouchStartAt > 320) {
+            lastTouchStartAt = now;
+            return;
+        }
+        lastTouchStartAt = 0;
         const t = e.touches[0];
+        suppressNextClick = true;
+        // Pointer events handle the cross-iframe tracking via setPointerCapture, 
+        // but we still support touchstart for the double-tap logic in some environments.
         startToggleDrag(t.clientX, t.clientY);
     }, { passive: true });
 
@@ -812,13 +827,36 @@
         }
     });
 
-    toggleBtn.onclick = () => {
+    toggleBtn.addEventListener('click', (e) => {
         if (dragMoved) {
             dragMoved = false;
             return;
         }
-        wrapper.classList.toggle('active');
-    };
+        if (suppressNextClick || e.detail >= DOUBLE_CLICK_GRAB_DETAIL) {
+            suppressNextClick = false;
+            if (clickToggleTimer) {
+                clearTimeout(clickToggleTimer);
+                clickToggleTimer = null;
+            }
+            return;
+        }
+        if (clickToggleTimer) {
+            clearTimeout(clickToggleTimer);
+            clickToggleTimer = null;
+        }
+        clickToggleTimer = window.setTimeout(() => {
+            wrapper.classList.toggle('active');
+            clickToggleTimer = null;
+        }, CLICK_TOGGLE_DELAY_MS);
+    });
+
+    toggleBtn.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        if (clickToggleTimer) {
+            clearTimeout(clickToggleTimer);
+            clickToggleTimer = null;
+        }
+    });
 
     const input = wrapper.querySelector('#chat-input');
     const sendBtn = wrapper.querySelector('#chat-send');
