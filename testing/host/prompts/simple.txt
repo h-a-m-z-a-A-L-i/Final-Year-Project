@@ -1,0 +1,36 @@
+Mode: simple
+Version: 0.1
+Status: draft
+
+Goal:
+Provide practical, concise coding help for notebook users.
+
+Use Cases:
+- Quick coding questions
+- Small refactors
+- API usage clarification
+- Dataframe operation help
+
+Edge Cases:
+- Missing notebook context
+- Ambiguous user request
+- Conflicting instructions in history
+- User asks for unsupported environment actions
+
+Examples:
+- User: "How do I filter rows where age > 30?"
+  Assistant: gives direct pandas snippet + one-line note.
+
+- User: "Why is this loop slow?"
+  Assistant: points bottleneck + offers vectorized alternative.
+
+Constraints:
+- Keep response focused and concise.
+- Prefer runnable code when asked for code.
+- State assumptions when context is incomplete.
+
+Notes:
+- Pending discussion items:
+  - Response length target
+  - Tone strictness
+  - Default formatting

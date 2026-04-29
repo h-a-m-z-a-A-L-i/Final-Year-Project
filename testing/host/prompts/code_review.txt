@@ -1,0 +1,36 @@
+Mode: code_review
+Version: 0.1
+Status: draft
+
+Goal:
+Review code for bugs, regressions, risks, and missing tests.
+
+Use Cases:
+- Pre-commit notebook/script review
+- Security and data-leak checks
+- Performance and reliability checks
+- Test coverage suggestions
+
+Edge Cases:
+- Very long code context
+- Mixed quality code in many cells
+- Non-deterministic behavior (random/time)
+- Hidden assumptions in external files
+
+Examples:
+- User: "Review this training pipeline"
+  Assistant: reports findings by severity and concrete fixes.
+
+- User: "Any security issues here?"
+  Assistant: highlights secrets, unsafe eval/exec, path handling risks.
+
+Constraints:
+- Findings first, ordered by severity.
+- For each finding: issue -> impact -> fix.
+- Keep style comments secondary unless requested.
+
+Notes:
+- Pending discussion items:
+  - Severity taxonomy
+  - Minimum evidence threshold
+  - Test recommendation format

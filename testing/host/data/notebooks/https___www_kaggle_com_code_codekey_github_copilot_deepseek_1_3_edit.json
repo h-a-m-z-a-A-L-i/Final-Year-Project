@@ -1,12 +1,12 @@
 {
   "tabUrl": "https://www.kaggle.com/code/codekey/github-copilot-deepseek-1-3/edit",
   "title": "__notebook_source__",
-  "lastUpdated": "2026-04-21T16:37:30.986371+00:00",
+  "lastUpdated": "2026-04-28T13:34:20.746251+00:00",
   "cells": [
     {
       "index": 1,
-      "input": "# ================== CELL 1: Model Loading ==================\n!pip install -q fastapi uvicorn transformers torch accelerate bitsandbytes pyngrok nest-asyncio\n\n\nimport torch\nfrom transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig\n\n\nmodel_name = \"deepseek-ai/deepseek-coder-1.3b-instruct\"\n\n\nquant_config = BitsAndBytesConfig(\n    load_in_4bit=True,\n    bnb_4bit_compute_dtype=torch.float16,\n    bnb_4bit_use_double_quant=True,\n    bnb_4bit_quant_type=\"nf4\"\n)\n\n\nprint(f\"Loading {model_name}...\")\n\n\ntokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)\n\n\nif tokenizer.pad_token is None:\n    tokenizer.pad_token = tokenizer.eos_token\n\n\nmodel = AutoModelForCausalLM.from_pretrained(\n    model_name,\n    quantization_config=quant_config,\n    device_map=\"auto\",\n    trust_remote_code=True,\n    torch_dtype=torch.float16,\n    use_cache=True\n)\nmodel.eval()\n\n\nprint(\"✅ Model loaded successfully!\")",
-      "output": "Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.\n\nLoading deepseek-ai/deepseek-coder-1.3b-instruct...\n\n`torch_dtype` is deprecated! Use `dtype` instead!\n\n✅ Model loaded successfully!"
+      "input": "",
+      "output": ""
     },
     {
       "index": 2,
@@ -40,13 +40,18 @@
     },
     {
       "index": 8,
-      "input": "from fastapi import FastAPI, HTTPException, Query\nfrom fastapi.responses import StreamingResponse, JSONResponse\nfrom pydantic import BaseModel, Field\nfrom typing import Any, Dict, List, Optional\nimport threading\nimport uuid\nimport traceback\nimport torch\nfrom transformers import TextIteratorStreamer, StoppingCriteria, StoppingCriteriaList\n\n\n# Assumes model and tokenizer are already loaded in earlier cell\ndevice = \"cuda\" if torch.cuda.is_available() else \"cpu\"\n\n\napp = FastAPI(title=\"Notebook LLM API\")\n\n\nSESSION_STORE: Dict[str, List[Dict[str, str]]] = {}\nSTOP_EVENTS: Dict[str, threading.Event] = {}\nMAX_SESSION_MESSAGES = 60\n\n\nclass GenerateRequest(BaseModel):\n    prompt: Optional[str] = None\n    user_prompt: Optional[str] = None\n    query: Optional[str] = None\n    input: Optional[str] = None\n    session_id: Optional[str] = None\n    temperature: float = 0.7\n    max_new_tokens: int = 512\n    top_p: float = 0.9\n    repetition_penalty: float = 1.0\n    stream: bool = False\n\n\nclass StopOnEvent(StoppingCriteria):\n    def __init__(self, event: threading.Event):\n        self.event = event\n\n\n    def __call__(self, input_ids, scores, **kwargs):",
+      "input": "",
       "output": ""
     },
     {
       "index": 9,
-      "input": "# ================== CELL 3: Start Server & ngrok ==================\nimport uvicorn\nimport threading\nimport time\nfrom pyngrok import ngrok\n\n\ndef run_server():\n    uvicorn.run(app, host=\"0.0.0.0\", port=8000, log_level=\"info\")\n\n\nserver_thread = threading.Thread(target=run_server, daemon=True)\nserver_thread.start()\n\n\ntime.sleep(2)\n\n\nNGROK_AUTH_TOKEN = \"3AI9OWDE3aXoIvlRbBIICBlo4Ur_7uVYv7Bp193sPiarvYLp6\"\nngrok.set_auth_token(NGROK_AUTH_TOKEN)\npublic_url = ngrok.connect(8000).public_url\nprint(f\"\\n✅ Public URL: {public_url}/generate\")\nprint(f\"   Health:      {public_url}/health\")\nprint(f\"   Stop:        {public_url}/stop?session_id=<id>\\n\")\n\n\ntry:\n    while True:\n        time.sleep(1)\nexcept KeyboardInterrupt:\n    ngrok.kill()\n    print(\"\\n🛑 Server stopped.\")",
-      "output": "INFO:     Started server process [361]\nINFO:     Waiting for application startup.\nINFO:     Application startup complete.\nERROR:    [Errno 98] error while attempting to bind on address ('0.0.0.0', 8000): address already in use\nINFO:     Waiting for application shutdown.\nINFO:     Application shutdown complete.\n\n\n✅ Public URL: https://palacelike-lainey-unsinged.ngrok-free.dev/generate\n   Health:      https://palacelike-lainey-unsinged.ngrok-free.dev/health\n   Stop:        https://palacelike-lainey-unsinged.ngrok-free.dev/stop?session_id=<id>\n\nINFO:     103.150.155.27:0 - \"POST /generate HTTP/1.1\" 200 OK\nINFO:     103.150.155.27:0 - \"POST /generate HTTP/1.1\" 200 OK\nINFO:     103.150.155.27:0 - \"POST /generate HTTP/1.1\" 200 OK\nINFO:     103.150.155.27:0 - \"POST /generate HTTP/1.1\" 200 OK\nINFO:     103.150.155.27:0 - \"POST /generate HTTP/1.1\" 200 OK\nINFO:     103.150.155.27:0 - \"POST /generate HTTP/1.1\" 200 OK\nINFO:     103.150.155.27:0 - \"POST /generate HTTP/1.1\" 200 OK\nINFO:     103.150.155.27:0 - \"POST /generate HTTP/1.1\" 200 OK\nINFO:     103.150.155.27:0 - \"POST /generate HTTP/1.1\" 200 OK\nINFO:     103.150.155.27:0 - \"POST /generate HTTP/1.1\" 200 OK"
+      "input": "",
+      "output": ""
+    },
+    {
+      "index": 10,
+      "input": "",
+      "output": ""
     }
   ]
 }

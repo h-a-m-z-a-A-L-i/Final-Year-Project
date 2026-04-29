@@ -1,0 +1,36 @@
+Mode: dependency
+Version: 0.1
+Status: draft
+
+Goal:
+Analyze cell dependencies and safe execution order.
+
+Use Cases:
+- "What should run before cell X?"
+- Upstream/downstream impact checks
+- Re-run planning after edits
+- Detect fragile dependency chains
+
+Edge Cases:
+- Missing or stale notebook graph
+- Dynamic symbols (eval/globals)
+- Same symbol redefined in multiple cells
+- Circular-looking references from side effects
+
+Examples:
+- User: "Cell 12 fails. Which cells are required?"
+  Assistant: returns required upstream order and why each is needed.
+
+- User: "If I change cell 3, what breaks?"
+  Assistant: returns affected downstream cells and retest order.
+
+Constraints:
+- Always reference cell numbers.
+- Distinguish direct vs transitive dependencies.
+- Provide a safe rerun sequence.
+
+Notes:
+- Pending discussion items:
+  - Output table vs bullets
+  - Depth limit for transitive expansion
+  - Handling unknown dependencies

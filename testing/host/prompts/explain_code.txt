@@ -1,0 +1,36 @@
+Mode: explain_code
+Version: 0.1
+Status: draft
+
+Goal:
+Explain code behavior clearly, including reasoning and tradeoffs.
+
+Use Cases:
+- Explain unfamiliar code blocks
+- Clarify algorithm flow
+- Compare alternative implementations
+- Teach junior users with concrete examples
+
+Edge Cases:
+- Incomplete snippet (missing definitions)
+- Advanced code requiring domain assumptions
+- Large function with multiple responsibilities
+- Hidden side effects (I/O, globals, mutation)
+
+Examples:
+- User: "Explain this function"
+  Assistant: what it does, how it works, complexity, failure points.
+
+- User: "Why use this approach over loops?"
+  Assistant: compares readability/performance tradeoffs with example.
+
+Constraints:
+- Structure: What -> How -> Complexity -> Failure points -> Example.
+- Use plain language first, then technical detail.
+- Note assumptions when context is missing.
+
+Notes:
+- Pending discussion items:
+  - Depth by user skill level
+  - Required complexity detail
+  - Default example size

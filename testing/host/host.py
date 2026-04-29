@@ -1,10 +1,12 @@
-import json, struct, sys, threading, re, sqlite3, os, ast, requests, uuid
+import json, struct, sys, threading, re, sqlite3, os, ast, uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
+from cerebras.cloud.sdk import Cerebras
 
 # ========== CONFIGURATION ==========
-NGROK_URL = os.environ.get("NORMALCHROME_GENERATE_URL", "https://palacelike-lainey-unsinged.ngrok-free.dev/generate")
+CEREBRAS_API_KEY = os.environ.get("CEREBRAS_API_KEY", "csk-fymhm39cvety8km89tpkwdeyekvxt6jteknjej435ptw42he")
+CEREBRAS_MODEL = os.environ.get("CEREBRAS_MODEL", "qwen-3-235b-a22b-instruct-2507")
 DATA_ROOT = Path(__file__).parent / "data"
 CHAT_MEMORY_DB = DATA_ROOT / "sessions" / "chat_history.sqlite3"
 SCRAPED_DIR = DATA_ROOT / "notebooks"
@@ -20,6 +22,7 @@ _HASHES_LOCK = threading.Lock()
 _SEND_LOCK = threading.Lock()
 _ACTIVE_STREAMS = {}
 _ACTIVE_STREAMS_LOCK = threading.Lock()
+_CEREBRAS_CLIENT = Cerebras(api_key=CEREBRAS_API_KEY)
 
 # Set up dependency mode path with fallbacks.
 _WS_ROOT = Path(__file__).resolve().parents[2]
@@ -393,62 +396,139 @@ def send_msg(obj):
         sys.stdout.buffer.write(struct.pack("<I", len(data)) + data)
         sys.stdout.buffer.flush()
 
-def _stop_url(base_url: str) -> str:
-    try:
-        parsed = urlparse(base_url)
-        if parsed.scheme and parsed.netloc:
-            return urlunparse((parsed.scheme, parsed.netloc, "/stop", "", "", ""))
-    except Exception:
-        pass
-    if "/generate" in base_url:
-        return base_url.replace("/generate", "/stop")
-    return base_url.rstrip("/") + "/stop"
-
 def _signal_remote_stop(session_id: str):
-    sid = str(session_id or "").strip()
-    if not sid:
-        return
+    # No remote stop endpoint is needed with direct SDK streaming.
+    return
+
+def _chunk_text_from_event(event) -> str:
+    def _extract_text(value) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return value
+        if isinstance(value, list):
+            out = []
+            for part in value:
+                if isinstance(part, dict):
+                    t = part.get("text") or part.get("content") or ""
+                else:
+                    t = getattr(part, "text", None) or getattr(part, "content", "")
+                t = _extract_text(t)
+                if t:
+                    out.append(t)
+            return "".join(out)
+        if isinstance(value, dict):
+            return _extract_text(value.get("text") or value.get("content") or "")
+        return str(getattr(value, "text", None) or getattr(value, "content", "") or "")
+
     try:
-        requests.post(_stop_url(NGROK_URL), params={"session_id": sid}, timeout=5)
-    except Exception as e:
-        log(f"Stop signal warning for session {sid}: {e}")
+        choices = getattr(event, "choices", None) or []
+        if not choices:
+            return ""
+        delta = getattr(choices[0], "delta", None)
+        if delta is None:
+            return ""
+        return _extract_text(getattr(delta, "content", None))
+    except Exception:
+        return ""
+
+def _final_text_from_response(response) -> str:
+    def _extract_text(value) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return value
+        if isinstance(value, list):
+            out = []
+            for part in value:
+                if isinstance(part, dict):
+                    t = part.get("text") or part.get("content") or ""
+                else:
+                    t = getattr(part, "text", None) or getattr(part, "content", "")
+                t = _extract_text(t)
+                if t:
+                    out.append(t)
+            return "".join(out)
+        if isinstance(value, dict):
+            return _extract_text(value.get("text") or value.get("content") or "")
+        return str(getattr(value, "text", None) or getattr(value, "content", "") or "")
+
+    try:
+        choices = getattr(response, "choices", None) or []
+        if not choices:
+            if hasattr(response, "model_dump"):
+                dumped = response.model_dump()
+                d_choices = dumped.get("choices") or []
+                if d_choices:
+                    msg = d_choices[0].get("message") or {}
+                    return _extract_text(msg.get("content"))
+            return ""
+        message = getattr(choices[0], "message", None)
+        if message is not None:
+            text = _extract_text(getattr(message, "content", None))
+            if text:
+                return text
+        if hasattr(response, "model_dump"):
+            dumped = response.model_dump()
+            d_choices = dumped.get("choices") or []
+            if d_choices:
+                msg = d_choices[0].get("message") or {}
+                return _extract_text(msg.get("content"))
+        return ""
+    except Exception:
+        return ""
 
 def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode):
-    payload = {
-        "prompt": prompt,
-        "history": history,
-        "context": context,
-        "mode": mode,
-        "stream": True,
-        "session_id": session_id,
-    }
-
     full_text = ""
     active_key = str(tab_id)
 
     try:
-        log(f"AI Stream Request for {url} (session={session_id})")
-        with requests.post(NGROK_URL, json=payload, timeout=(10, 300), stream=True) as r:
-            if r.status_code != 200:
-                raise Exception(f"External API Error: {r.status_code} - {r.text[:120]}")
+        log(f"AI Stream Request for {url} (session={session_id}, model={CEREBRAS_MODEL})")
 
-            for chunk in r.iter_content(chunk_size=None, decode_unicode=True):
-                with _ACTIVE_STREAMS_LOCK:
-                    state = _ACTIVE_STREAMS.get(active_key)
-                if not state or state.get("stopped"):
-                    break
+        messages = []
+        if context:
+            messages.append({
+                "role": "system",
+                "content": f"Mode: {mode}\n\nContext:\n{context}",
+            })
+        for h in history or []:
+            role = str(h.get("role", "")).strip().lower()
+            content = str(h.get("content", ""))
+            if role in {"user", "assistant", "system"} and content:
+                messages.append({"role": role, "content": content})
+        messages.append({"role": "user", "content": str(prompt or "")})
 
-                if not chunk:
-                    continue
+        stream = _CEREBRAS_CLIENT.chat.completions.create(
+            messages=messages,
+            model=CEREBRAS_MODEL,
+            stream=True,
+        )
 
-                full_text += chunk
-                send_msg({
-                    "type": "CHAT_STREAM",
-                    "delta": chunk,
-                    "tabId": tab_id,
-                    "url": url,
-                    "sessionId": session_id,
-                })
+        for event in stream:
+            with _ACTIVE_STREAMS_LOCK:
+                state = _ACTIVE_STREAMS.get(active_key)
+            if not state or state.get("stopped"):
+                break
+
+            chunk = _chunk_text_from_event(event)
+            if not chunk:
+                continue
+
+            full_text += chunk
+            send_msg({
+                "type": "CHAT_STREAM",
+                "delta": chunk,
+                "tabId": tab_id,
+                "url": url,
+                "sessionId": session_id,
+            })
+
+        if not full_text.strip():
+            response = _CEREBRAS_CLIENT.chat.completions.create(
+                messages=messages,
+                model=CEREBRAS_MODEL,
+            )
+            full_text = _final_text_from_response(response)
 
         final_text = full_text.strip()
         if final_text:

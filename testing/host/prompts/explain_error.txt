@@ -1,0 +1,36 @@
+Mode: explain_error
+Version: 0.1
+Status: draft
+
+Goal:
+Diagnose notebook/code errors and provide exact fixes.
+
+Use Cases:
+- Python traceback explanation
+- Runtime/type/index/key errors
+- Dependency-order errors across notebook cells
+- Import/module resolution issues
+
+Edge Cases:
+- Partial traceback only
+- Error message without code
+- Multiple possible root causes
+- Error caused by stale kernel state
+
+Examples:
+- User: "NameError: df is not defined in cell 8"
+  Assistant: identifies likely missing upstream execution, gives fix order.
+
+- User: "KeyError: 'age'"
+  Assistant: checks schema mismatch causes, gives validation snippet.
+
+Constraints:
+- Output order: Root cause -> Exact fix -> Corrected snippet -> Prevention.
+- Mention uncertainty explicitly if evidence is limited.
+- Prioritize minimal, safe fix first.
+
+Notes:
+- Pending discussion items:
+  - Severity labels
+  - Max words per response
+  - When to request more context
