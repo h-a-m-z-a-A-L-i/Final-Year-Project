@@ -9,6 +9,8 @@ from cerebras.cloud.sdk import Cerebras
 TRACKER_PATH = Path(__file__).with_name("token_tracker.txt")
 HISTORY_PATH = Path(__file__).with_name("conversation_history.json")
 USER_PROMPT = os.environ.get("SMOKE_PROMPT", "hi")
+DAILY_TOKEN_LIMIT = int(os.environ.get("DAILY_TOKEN_LIMIT", "1000000"))
+WARNING_THRESHOLD = int(os.environ.get("WARNING_THRESHOLD", "900000"))
 
 client = Cerebras(api_key="csk-ewkx5h936d82wx33hej36cv22nymk5x9f95dhxxk62c9h2yc")
 
@@ -16,7 +18,24 @@ client = Cerebras(api_key="csk-ewkx5h936d82wx33hej36cv22nymk5x9f95dhxxk62c9h2yc"
 def _parse_args():
     parser = argparse.ArgumentParser(description="Cerebras smoke chat with persistent history")
     parser.add_argument("--prompt", default=None, help="Optional first prompt before interactive loop")
+    parser.add_argument("--daily-limit", type=int, default=DAILY_TOKEN_LIMIT, help="Daily token limit (default 1M)")
+    parser.add_argument("--warn-at", type=int, default=WARNING_THRESHOLD, help="Warn when tokens exceed this (default 900K)")
     return parser.parse_args()
+
+
+def _get_current_tokens() -> int:
+    _, _, total = _load_totals(TRACKER_PATH)
+    return total
+
+
+def _check_token_budget(current_tokens: int, daily_limit: int, warn_threshold: int) -> bool:
+    remaining = daily_limit - current_tokens
+    if current_tokens >= daily_limit:
+        print(f"[RATE LIMIT] Daily token limit ({daily_limit}) exceeded! Current: {current_tokens}")
+        return False
+    if current_tokens >= warn_threshold:
+        print(f"[WARNING] Token usage is high. Current: {current_tokens}/{daily_limit} ({100*current_tokens//daily_limit}% used). Remaining: {remaining}")
+    return True
 
 def _load_history(path: Path):
     if not path.exists():
@@ -149,17 +168,28 @@ def _ask_once(prompt_text: str):
 def main():
     args = _parse_args()
     first_prompt = str(args.prompt).strip() if args.prompt else USER_PROMPT.strip()
+    daily_limit = max(100000, int(args.daily_limit))
+    warn_at = max(50000, int(args.warn_at))
 
     print("Interactive chat started. Press Ctrl+C to stop.")
+    print(f"Token budget: {daily_limit} (warn at {warn_at})")
 
     # Send one initial prompt (CLI prompt if provided, otherwise env/default), then keep asking.
     if first_prompt:
+        current_tokens = _get_current_tokens()
+        if not _check_token_budget(current_tokens, daily_limit, warn_at):
+            print("Skipping request due to token limit.")
+            return
         print(f"You: {first_prompt}")
         _ask_once(first_prompt)
 
     while True:
         typed = input("You: ").strip()
         if not typed:
+            continue
+        current_tokens = _get_current_tokens()
+        if not _check_token_budget(current_tokens, daily_limit, warn_at):
+            print("Skipping request due to token limit. Press Ctrl+C to exit.")
             continue
         _ask_once(typed)
 
