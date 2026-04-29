@@ -6,13 +6,33 @@ from datetime import datetime, timezone
 from pathlib import Path
 from cerebras.cloud.sdk import Cerebras
 
+
+def _load_dotenv(env_path: Path):
+    if not env_path.is_file():
+        return
+    try:
+        for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key and key not in os.environ:
+                os.environ[key] = value
+    except Exception:
+        pass
+
 TRACKER_PATH = Path(__file__).with_name("token_tracker.txt")
 HISTORY_PATH = Path(__file__).with_name("conversation_history.json")
 USER_PROMPT = os.environ.get("SMOKE_PROMPT", "hi")
 DAILY_TOKEN_LIMIT = int(os.environ.get("DAILY_TOKEN_LIMIT", "1000000"))
 WARNING_THRESHOLD = int(os.environ.get("WARNING_THRESHOLD", "900000"))
 
-client = Cerebras(api_key="csk-ewkx5h936d82wx33hej36cv22nymk5x9f95dhxxk62c9h2yc")
+_load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+
+API_KEY = os.environ.get("CEREBRAS_API_KEY", "").strip()
+client = Cerebras(api_key=API_KEY) if API_KEY else None
 
 
 def _parse_args():
@@ -132,36 +152,50 @@ def _update_tracker(path: Path, prompt_t: int, completion_t: int, total_t: int):
 
 
 def _ask_once(prompt_text: str):
+    if client is None:
+        print("Assistant: Missing CEREBRAS_API_KEY environment variable.")
+        return
+
     history = _load_history(HISTORY_PATH)
     history.append({"role": "user", "content": prompt_text})
     # Retry on 429 / queue_exceeded until we get a valid response.
     while True:
         try:
-            chat_completion = client.chat.completions.create(
+            stream = client.chat.completions.create(
                 messages=history,
                 model="qwen-3-235b-a22b-instruct-2507",
+                stream=True,
             )
             break
         except Exception as ex:
             err = str(ex)
             if "429" in err or "queue_exceeded" in err or "too_many_requests_error" in err:
-                print(f"Assistant: Queue is busy right now. Retrying in 1.5s... ({err})")
-                time.sleep(1.5)
+                print(f"Assistant: Queue is busy right now. Retrying in 2.5s... ({err})")
+                time.sleep(2.5)
                 continue
             else:
                 print(f"Assistant: Request failed, but chat is still running. ({err})")
                 return
 
-    clean_text = _extract_assistant_text(chat_completion)
-    if clean_text:
-        print(f"Assistant: {clean_text}")
-        history.append({"role": "assistant", "content": clean_text})
+    full_text = ""
+    print("Assistant: ", end="", flush=True)
+    for chunk in stream:
+        delta_content = chunk.choices[0].delta.content or ""
+        if delta_content:
+            full_text += delta_content
+            print(delta_content, end="", flush=True)
+    print()  # newline after streaming completes
+
+    if full_text.strip():
+        history.append({"role": "assistant", "content": full_text.strip()})
     else:
-        print("Assistant: No assistant content extracted.")
+        print("Assistant: No content extracted.")
 
     _save_history(HISTORY_PATH, history)
 
-    p_toks, c_toks, t_toks = _read_usage(chat_completion)
+    # Note: Token usage not available in streaming response; estimate or track separately
+    # For now, we'll use a placeholder until final message is received
+    p_toks, c_toks, t_toks = 0, 0, len(full_text.split())  # rough estimation
     _update_tracker(TRACKER_PATH, p_toks, c_toks, t_toks)
 
 

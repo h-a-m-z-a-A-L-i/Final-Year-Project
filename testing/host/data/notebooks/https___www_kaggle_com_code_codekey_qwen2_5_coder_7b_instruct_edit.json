@@ -1,47 +1,47 @@
 {
   "tabUrl": "https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit",
   "title": "__notebook_source__",
-  "lastUpdated": "2026-04-29T13:45:46.687630+00:00",
+  "lastUpdated": "2026-04-29T17:08:21.040902+00:00",
   "cells": [
     {
       "index": 1,
-      "input": "",
-      "output": ""
+      "input": "from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig\nimport torch\n\n\n# Define quantization config (example: 4-bit)\nquant_config = BitsAndBytesConfig(\n    load_in_4bit=True,\n    bnb_4bit_compute_dtype=torch.float16,\n    bnb_4bit_use_double_quant=True,\n    bnb_4bit_quant_type=\"nf4\"\n)\n\n\n# model_name = \"Qwen/Qwen2.5-Coder-7B-Instruct\"\nmodel_name = \"Qwen/Qwen2.5-Coder-1.5B-Instruct\"\n\n\n# Load tokenizer\ntokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)\n\n\n# Load model with quantization\nmodel = AutoModelForCausalLM.from_pretrained(\n    model_name,\n    quantization_config=quant_config,\n    device_map=\"auto\",\n    trust_remote_code=True\n)",
+      "output": "Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.\n\nLoading widget..."
     },
     {
       "index": 2,
-      "input": "",
+      "input": "<div class=\"lm-Widget jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-selected jp-toolbar-overlap jp-mod-active\" aria-label=\"Code Cell Content with Output\" data-windowed-list-index=\"0\" tabindex=\"0\" data-bootstrap=\"done\" data-uuid=\"40dca531-65ad-42f7-8100-9464e0e4b98d\" id=\"40dca531-65ad-42f7-8100-9464e0e4b98d\"><div class=\"lm-Widget jp-CellHeader jp-Cell-header\"></div><div class=\"lm-Widget lm-Panel jp-Cell-inputWrapper\"><div class=\"lm-Widget jp-Collapser jp-InputCollapser jp-Cell-inputCollapser\"><div class=\"jp-Collapser-child\"></div></div><div class=\"lm-Widget jp-InputArea jp-Cell-inputArea\" style=\"--neutral-layer-card-container: #333333; --neutral-layer-floating: #4a4a4a; --neutral-layer-1: #3b3b3b; --neutral-layer-2: #333333; --neutral-layer-3: #2b2b2b; --neutral-layer-4: #242424; --fill-color: #3b3b3b; --accent-fill-rest: #3195e4; --accent-fill-hover: #36a0f4; --accent-fill-active: #2b87cf; --accent-fill-focus: #3195e4; --accent-foreground-rest: #4eabf5; --accent-foreground-hover: #6ab9f7; --accent-foreground-active: #3aa2f4; --accent-foreground-focus: #4eabf5; --neutral-fill-rest: #4c4c4c; --neutral-fill-hover: #545454; --neutral-fill-active: #474747; --neutral-fill-focus: #3b3b3b; --neutral-fill-input-rest: #3b3b3b; --neutral-fill-input-hover: #3b3b3b; --neutral-fill-input-active: #3b3b3b; --neutral-fill-input-focus: #3b3b3b; --neutral-fill-stealth-rest: #3b3b3b; --neutral-fill-stealth-hover: #474747; --neutral-fill-stealth-active: #424242; --neutral-fill-stealth-focus: #3b3b3b; --neutral-fill-strong-rest: #a7a7a7; --neutral-fill-strong-hover: #bbbbbb; --neutral-fill-strong-active: #9a9a9a; --neutral-fill-strong-focus: #a7a7a7; --neutral-fill-layer-rest: #424242; --focus-stroke-outer: #929292; --focus-stroke-inner: #0d3e65; --neutral-foreground-hint: #a7a7a7; --neutral-foreground-rest: #ffffff; --neutral-stroke-rest: #7a7a7a; --neutral-stroke-hover: #a1a1a1; --neutral-stroke-active: #636363; --neutral-stroke-focus: #7a7a7a; --neutral-stroke-divider-rest: #4f4f4f; --error-fill-rest: #e34e43; --error-fill-hover: #f5564b; --error-fill-active: #cd4\n</pre></div></div><div class=\"lm-Widget lm-Panel jp-OutputArea-child\"><div class=\"lm-Widget jp-OutputPrompt jp-OutputArea-prompt\"></div><div class=\"lm-Widget lm-Panel jp-OutputArea-output\">Loading widget...</div></div><div class=\"jp-OutputArea-promptOverlay\"></div></div></div><div class=\"lm-Widget jp-CellFooter jp-Cell-footer\"></div></div>",
       "output": ""
     },
     {
       "index": 3,
-      "input": "",
+      "input": "hamza",
       "output": ""
     },
     {
       "index": 4,
-      "input": "",
+      "input": "al\nlkcnlakcnl",
       "output": ""
     },
     {
       "index": 5,
-      "input": "",
+      "input": "from pyngrok import ngrok\n\n\nngrok.kill()",
       "output": ""
     },
     {
       "index": 6,
-      "input": "",
-      "output": ""
+      "input": "!pip install nest_asyncio\nimport nest_asyncio\nnest_asyncio.apply()",
+      "output": "Requirement already satisfied: nest_asyncio in /usr/local/lib/python3.12/dist-packages (1.6.0)"
     },
     {
       "index": 7,
-      "input": "",
-      "output": ""
+      "input": "from fastapi import FastAPI\nfrom fastapi.responses import StreamingResponse\nfrom pydantic import BaseModel\nimport uvicorn\nimport torch\nimport asyncio\nimport nest_asyncio\nfrom threading import Thread\nfrom transformers import TextIteratorStreamer\nfrom pyngrok import ngrok\n\n\n# ------------------ FastAPI App ------------------\napp = FastAPI()\n\n\n# ------------------ Request Model ------------------\nclass GenerateRequest(BaseModel):\n    prompt: str\n    max_new_tokens: int = 512\n    temperature: float = 0.3\n\n\n# ------------------ Streaming Endpoint ------------------\n@app.post(\"/generate\")\nasync def generate(req: GenerateRequest):\n\n\n    async def stream_generator():\n\n\n        # 1️⃣ Build chat format\n        messages = [\n            {\"role\": \"system\", \"content\": \"You are a coding assistant.\"},\n            {\"role\": \"user\", \"content\": req.prompt}\n        ]\n\n\n        prompt_str = tokenizer.apply_chat_template(\n            messages,\n            tokenize=False,\n            add_generation_prompt=True\n        )\n\n\n        # 2️⃣ Tokenize safely\n        inputs = tokenizer(\n            prompt_str,\n            return_tensors=\"pt\",\n            truncation=True,\n            max_length=4096\n        )\n\n\n        input_ids = inputs[\"input_ids\"].to(model.device)\n        attention_mask = inputs[\"attention_mask\"].to(model.device)\n\n\n        # 3️⃣ Create streamer\n        streamer = TextIteratorStreamer(\n            tokenizer,\n            skip_prompt=True,\n            skip_special_tokens=True\n        )\n\n\n        generation_kwargs = dict(",
+      "output": "🚀 Public URL: https://palacelike-lainey-unsinged.ngrok-free.dev/generate\nHealth Check: https://palacelike-lainey-unsinged.ngrok-free.dev/health\n\nINFO:     Started server process [642]\nINFO:     Waiting for application startup.\nINFO:     Application startup complete.\nINFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)\n\nINFO:     154.192.78.20:0 - \"POST /generate HTTP/1.1\" 200 OK\nINFO:     154.192.78.20:0 - \"POST /generate HTTP/1.1\" 200 OK\nINFO:     154.192.78.20:0 - \"POST /generate HTTP/1.1\" 200 OK\nINFO:     154.192.78.20:0 - \"GET /generate/health HTTP/1.1\" 404 Not Found\nINFO:     154.192.78.20:0 - \"GET /health/health HTTP/1.1\" 404 Not Found\nINFO:     154.192.78.20:0 - \"GET /health HTTP/1.1\" 200 OK\nINFO:     154.192.78.20:0 - \"POST /generate HTTP/1.1\" 200 OK\nINFO:     154.192.78.20:0 - \"POST /generate HTTP/1.1\" 200 OK\nINFO:     154.192.78.20:0 - \"POST /generate HTTP/1.1\" 200 OK\nINFO:     154.192.78.20:0 - \"POST /generate HTTP/1.1\" 200 OK\nINFO:     154.192.78.20:0 - \"POST /generate HTTP/1.1\" 200 OK\nINFO:     154.192.78.20:0 - \"POST /generate HTTP/1.1\" 200 OK"
     },
     {
       "index": 8,
-      "input": "",
-      "output": ""
+      "input": "from fastapi import FastAPI\nfrom pydantic import BaseModel\nimport uvicorn\nimport torch\nfrom pyngrok import ngrok\n\n\n\n\napp = FastAPI()\n\n\nclass GenerateRequest(BaseModel):\n    prompt: str\n    max_new_tokens: int = 512\n    temperature: float = 0.3\n\n\n@app.post(\"/generate\")\nasync def generate(req: GenerateRequest):\n    messages = [\n        {\"role\": \"system\", \"content\": \"You are a coding assistant.\"},\n        {\"role\": \"user\", \"content\": req.prompt}\n    ]\n    text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)\n    inputs = tokenizer(text, return_tensors=\"pt\").to(model.device)\n    outputs = model.generate(\n        **inputs,\n        max_new_tokens=req.max_new_tokens,\n        temperature=req.temperature,\n        do_sample=True\n    )\n    response = tokenizer.decode(outputs[0][inputs['input_ids'].shape[1]:], skip_special_tokens=True)\n    torch.cuda.empty_cache()  # Clear GPU memory\n    return {\"response\": response}\n\n\n# Start server in background\nimport asyncio\nimport nest_asyncio\nnest_asyncio.apply()\n\n\nasync def run_server():\n    config = uvicorn.Config(app, host=\"0.0.0.0\", port=8000)\n    server = uvicorn.Server(config)\n    await server.serve()\n\n\nasyncio.create_task(run_server())\n\n\n# Expose with ngrok\nngrok.set_auth_token(\"3AI9OWDE3aXoIvlRbBIICBlo4Ur_7uVYv7Bp193sPiarvYLp6\")\npublic_url = ngrok.connect(8000).public_url\nprint(f\"Public URL: {public_url}/generate\")",
+      "output": "Public URL: https://palacelike-lainey-unsinged.ngrok-free.dev/generate\n\nINFO:     Started server process [418]\nINFO:     Waiting for application startup.\nINFO:     Application startup complete.\nINFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)\n\nINFO:     154.192.78.20:0 - \"POST /generate HTTP/1.1\" 200 OK\nINFO:     154.192.78.20:0 - \"POST /generate HTTP/1.1\" 200 OK\nINFO:     154.192.78.20:0 - \"POST /generate HTTP/1.1\" 200 OK\nINFO:     154.192.78.20:0 - \"POST /generate HTTP/1.1\" 200 OK\nINFO:     154.192.78.20:0 - \"POST /generate HTTP/1.1\" 200 OK\nINFO:     154.192.78.20:0 - \"POST /generate HTTP/1.1\" 200 OK"
     },
     {
       "index": 9,

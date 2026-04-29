@@ -1,29 +1,58 @@
 import json, struct, sys, threading, re, sqlite3, os, ast, uuid
-from datetime import datetime, timezone
+import time
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 from cerebras.cloud.sdk import Cerebras
 
+def _load_dotenv(env_path: Path):
+    if not env_path.is_file():
+        return
+    try:
+        for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key and key not in os.environ:
+                os.environ[key] = value
+    except Exception:
+        pass
+
 # ========== CONFIGURATION ==========
-CEREBRAS_API_KEY = os.environ.get("CEREBRAS_API_KEY", "csk-fymhm39cvety8km89tpkwdeyekvxt6jteknjej435ptw42he")
+_load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+CEREBRAS_API_KEY = os.environ.get("CEREBRAS_API_KEY", "").strip()
 CEREBRAS_MODEL = os.environ.get("CEREBRAS_MODEL", "qwen-3-235b-a22b-instruct-2507")
+TEMPERATURE = float(os.environ.get("CEREBRAS_TEMPERATURE", "0.5"))
+TOP_P = float(os.environ.get("CEREBRAS_TOP_P", "1.0"))
 DATA_ROOT = Path(__file__).parent / "data"
 CHAT_MEMORY_DB = DATA_ROOT / "sessions" / "chat_history.sqlite3"
 SCRAPED_DIR = DATA_ROOT / "notebooks"
 HASHES_PATH = DATA_ROOT / "meta" / "hashes.json"
 LOG_PATH = DATA_ROOT / "logs" / "host.log"
+RATE_LIMIT_TRACKER = DATA_ROOT / "meta" / "rate_limit_tracker.json"
 DB_TIMEOUT_SECONDS = 10
 MAX_HISTORY_MESSAGES = 24
 MAX_CONTEXT_CHARS = 1800
 MAX_PROFILE_FACTS = 12
 ALLOWED_MODES = {"simple", "explain_error", "dependency", "code_review", "explain_code"}
 
+# Free-tier limits.
+TPM_LIMIT = int(os.environ.get("CEREBRAS_TPM_LIMIT", "60000"))
+TPH_LIMIT = int(os.environ.get("CEREBRAS_TPH_LIMIT", "1000000"))
+TPD_LIMIT = int(os.environ.get("CEREBRAS_TPD_LIMIT", "1000000"))
+RPM_LIMIT = int(os.environ.get("CEREBRAS_RPM_LIMIT", "30"))
+RPH_LIMIT = int(os.environ.get("CEREBRAS_RPH_LIMIT", "900"))
+RPD_LIMIT = int(os.environ.get("CEREBRAS_RPD_LIMIT", "14400"))
+
 _HASHES_LOCK = threading.Lock()
 _SEND_LOCK = threading.Lock()
 _ACTIVE_STREAMS = {}
 _ACTIVE_STREAMS_LOCK = threading.Lock()
-_CEREBRAS_CLIENT = Cerebras(api_key=CEREBRAS_API_KEY)
-
+_RATE_LOCK = threading.Lock()
+_CEREBRAS_CLIENT = Cerebras(api_key=CEREBRAS_API_KEY) if CEREBRAS_API_KEY else None
 # Set up dependency mode path with fallbacks.
 _WS_ROOT = Path(__file__).resolve().parents[2]
 _DEP_CANDIDATES = [
@@ -400,6 +429,24 @@ def _signal_remote_stop(session_id: str):
     # No remote stop endpoint is needed with direct SDK streaming.
     return
 
+def _close_stream_handle(stream):
+    if stream is None:
+        return
+    for attr in ("close", "aclose", "cancel"):
+        try:
+            closer = getattr(stream, attr, None)
+            if callable(closer):
+                closer()
+                return
+        except Exception:
+            continue
+
+def _stop_active_stream(state: dict | None):
+    if not state:
+        return
+    state["stopped"] = True
+    _close_stream_handle(state.get("stream"))
+
 def _chunk_text_from_event(event) -> str:
     def _extract_text(value) -> str:
         if value is None:
@@ -478,9 +525,160 @@ def _final_text_from_response(response) -> str:
     except Exception:
         return ""
 
+def _load_rate_tracker() -> dict:
+    if not RATE_LIMIT_TRACKER.exists():
+        return {"events": []}
+    try:
+        data = json.loads(RATE_LIMIT_TRACKER.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return {"events": []}
+        # Backward compatibility for older tracker shape.
+        legacy = data.get("requests", []) if isinstance(data.get("requests", []), list) else []
+        events = data.get("events", []) if isinstance(data.get("events", []), list) else []
+        if legacy and not events:
+            for item in legacy:
+                ts = item.get("timestamp")
+                if ts:
+                    events.append({
+                        "id": str(uuid.uuid4()),
+                        "timestamp": ts,
+                        "tokens": int(item.get("tokens", 0) or 0),
+                        "requests": int(item.get("requests", 1) or 1),
+                    })
+        data["events"] = events
+        return data
+    except Exception:
+        return {"events": []}
+
+def _save_rate_tracker(data: dict):
+    _atomic_write_json(RATE_LIMIT_TRACKER, data)
+
+def _prune_rate_tracker(data: dict) -> dict:
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    pruned = []
+    for event in data.get("events", []):
+        try:
+            ts = datetime.fromisoformat(str(event.get("timestamp", "")))
+        except Exception:
+            continue
+        if ts >= cutoff:
+            pruned.append(event)
+    data["events"] = pruned
+    return data
+
+def _record_request_attempt(attempt_id: str):
+    with _RATE_LOCK:
+        tracker = _prune_rate_tracker(_load_rate_tracker())
+        tracker.setdefault("events", []).append({
+            "id": attempt_id,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "tokens": 0,
+            "requests": 1,
+        })
+        _save_rate_tracker(tracker)
+
+def _finalize_request_attempt(attempt_id: str, tokens: int):
+    with _RATE_LOCK:
+        tracker = _prune_rate_tracker(_load_rate_tracker())
+        for event in reversed(tracker.get("events", [])):
+            if event.get("id") == attempt_id:
+                event["tokens"] = int(tokens)
+                break
+        _save_rate_tracker(tracker)
+
+def _rate_usage(events: list):
+    now = datetime.now(timezone.utc)
+    one_min = now - timedelta(minutes=1)
+    one_hour = now - timedelta(hours=1)
+    one_day = now - timedelta(hours=24)
+
+    tpm = rpm = tph = rph = tpd = rpd = 0
+    for event in events:
+        try:
+            ts = datetime.fromisoformat(str(event.get("timestamp", "")))
+        except Exception:
+            continue
+        tokens = int(event.get("tokens", 0) or 0)
+        reqs = int(event.get("requests", 1) or 1)
+        if ts >= one_min:
+            tpm += tokens
+            rpm += reqs
+        if ts >= one_hour:
+            tph += tokens
+            rph += reqs
+        if ts >= one_day:
+            tpd += tokens
+            rpd += reqs
+    return tpm, rpm, tph, rph, tpd, rpd
+
+def _wait_for_request_slot():
+    while True:
+        with _RATE_LOCK:
+            tracker = _prune_rate_tracker(_load_rate_tracker())
+            events = tracker.get("events", [])
+            now = datetime.now(timezone.utc)
+            one_min = now - timedelta(minutes=1)
+            one_hour = now - timedelta(hours=1)
+            one_day = now - timedelta(hours=24)
+
+            rpm = sum(1 for e in events if datetime.fromisoformat(str(e.get("timestamp", ""))) >= one_min)
+            rph = sum(1 for e in events if datetime.fromisoformat(str(e.get("timestamp", ""))) >= one_hour)
+            rpd = sum(1 for e in events if datetime.fromisoformat(str(e.get("timestamp", ""))) >= one_day)
+
+            if rpm < RPM_LIMIT and rph < RPH_LIMIT and rpd < RPD_LIMIT:
+                _save_rate_tracker(tracker)
+                return
+
+            waits = []
+            if rpm >= RPM_LIMIT:
+                oldest = min(datetime.fromisoformat(e["timestamp"]) for e in events if datetime.fromisoformat(e["timestamp"]) >= one_min)
+                waits.append((oldest + timedelta(minutes=1) - now).total_seconds())
+            if rph >= RPH_LIMIT:
+                oldest = min(datetime.fromisoformat(e["timestamp"]) for e in events if datetime.fromisoformat(e["timestamp"]) >= one_hour)
+                waits.append((oldest + timedelta(hours=1) - now).total_seconds())
+            if rpd >= RPD_LIMIT:
+                oldest = min(datetime.fromisoformat(e["timestamp"]) for e in events if datetime.fromisoformat(e["timestamp"]) >= one_day)
+                waits.append((oldest + timedelta(hours=24) - now).total_seconds())
+
+        sleep_for = max(0.1, max(waits) if waits else 0.1)
+        log(f"Rate limit slot wait: {sleep_for:.2f}s")
+        time.sleep(sleep_for)
+
+def _check_token_limits() -> tuple[bool, str]:
+    with _RATE_LOCK:
+        tracker = _prune_rate_tracker(_load_rate_tracker())
+        tpm, rpm, tph, rph, tpd, rpd = _rate_usage(tracker.get("events", []))
+        _save_rate_tracker(tracker)
+
+    violations = []
+    if tpm >= TPM_LIMIT:
+        violations.append(f"TPM {tpm}/{TPM_LIMIT}")
+    if tph >= TPH_LIMIT:
+        violations.append(f"TPH {tph}/{TPH_LIMIT}")
+    if tpd >= TPD_LIMIT:
+        violations.append(f"TPD {tpd}/{TPD_LIMIT}")
+    if rpm >= RPM_LIMIT:
+        violations.append(f"RPM {rpm}/{RPM_LIMIT}")
+    if rph >= RPH_LIMIT:
+        violations.append(f"RPH {rph}/{RPH_LIMIT}")
+    if rpd >= RPD_LIMIT:
+        violations.append(f"RPD {rpd}/{RPD_LIMIT}")
+    if violations:
+        return False, " | ".join(violations)
+    return True, ""
+
 def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode):
     full_text = ""
     active_key = str(tab_id)
+    attempt_id = ""
+    state = None
+
+    if _CEREBRAS_CLIENT is None:
+        err = "Missing CEREBRAS_API_KEY environment variable."
+        log(err)
+        send_msg({"type": "CHAT_RESPONSE", "error": err, "tabId": tab_id, "url": url, "sessionId": session_id})
+        send_msg({"type": "CHAT_STREAM_END", "error": err, "stopped": False, "tabId": tab_id, "url": url, "sessionId": session_id})
+        return
 
     try:
         log(f"AI Stream Request for {url} (session={session_id}, model={CEREBRAS_MODEL})")
@@ -498,11 +696,34 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode)
                 messages.append({"role": role, "content": content})
         messages.append({"role": "user", "content": str(prompt or "")})
 
-        stream = _CEREBRAS_CLIENT.chat.completions.create(
-            messages=messages,
-            model=CEREBRAS_MODEL,
-            stream=True,
-        )
+        while True:
+            _wait_for_request_slot()
+            attempt_id = str(uuid.uuid4())
+            _record_request_attempt(attempt_id)
+            allowed, details = _check_token_limits()
+            if not allowed:
+                raise Exception(f"Local rate limit hit: {details}")
+            try:
+                stream = _CEREBRAS_CLIENT.chat.completions.create(
+                    messages=messages,
+                    model=CEREBRAS_MODEL,
+                    stream=True,
+                    temperature=TEMPERATURE,
+                    top_p=TOP_P,
+                )
+                break
+            except Exception as stream_error:
+                err = str(stream_error)
+                if "429" in err or "queue_exceeded" in err or "too_many_requests_error" in err:
+                    log("Queue busy. Retrying in 2.5s...")
+                    time.sleep(2.5)
+                    continue
+                raise
+
+        with _ACTIVE_STREAMS_LOCK:
+            state = _ACTIVE_STREAMS.get(active_key)
+            if state is not None:
+                state["stream"] = stream
 
         for event in stream:
             with _ACTIVE_STREAMS_LOCK:
@@ -523,20 +744,27 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode)
                 "sessionId": session_id,
             })
 
-        if not full_text.strip():
+        with _ACTIVE_STREAMS_LOCK:
+            state = _ACTIVE_STREAMS.get(active_key) or state or {}
+            was_stopped = bool(state.get("stopped"))
+
+        if not was_stopped and not full_text.strip():
             response = _CEREBRAS_CLIENT.chat.completions.create(
                 messages=messages,
                 model=CEREBRAS_MODEL,
+                temperature=TEMPERATURE,
+                top_p=TOP_P,
             )
             full_text = _final_text_from_response(response)
 
         final_text = full_text.strip()
-        if final_text:
-            memory_store.append(url, "assistant", final_text, session_id=session_id)
+        # Estimate tokens for local limiter accounting in stream mode.
+        estimated_tokens = len(str(prompt or "").split()) + len(final_text.split())
+        if attempt_id:
+            _finalize_request_attempt(attempt_id, estimated_tokens)
 
-        with _ACTIVE_STREAMS_LOCK:
-            state = _ACTIVE_STREAMS.get(active_key) or {}
-            was_stopped = bool(state.get("stopped"))
+        if final_text and not was_stopped:
+            memory_store.append(url, "assistant", final_text, session_id=session_id)
 
         send_msg({
             "type": "CHAT_STREAM_END",
@@ -550,6 +778,8 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode)
     except Exception as e:
         err_text = f"Error: {e}"
         log(f"AI Stream Error: {e}")
+        if attempt_id:
+            _finalize_request_attempt(attempt_id, 0)
         memory_store.append(url, "assistant", err_text, session_id=session_id)
         send_msg({"type": "CHAT_RESPONSE", "error": str(e), "tabId": tab_id, "url": url, "sessionId": session_id})
         send_msg({"type": "CHAT_STREAM_END", "error": str(e), "stopped": False, "tabId": tab_id, "url": url, "sessionId": session_id})
@@ -849,8 +1079,7 @@ def main():
             active_key = str(tab_id)
             with _ACTIVE_STREAMS_LOCK:
                 prev = _ACTIVE_STREAMS.get(active_key)
-                if prev:
-                    prev["stopped"] = True
+                _stop_active_stream(prev)
             if prev and prev.get("sessionId"):
                 _signal_remote_stop(prev.get("sessionId"))
 
@@ -876,7 +1105,7 @@ def main():
             with _ACTIVE_STREAMS_LOCK:
                 state = _ACTIVE_STREAMS.get(active_key)
                 if state:
-                    state["stopped"] = True
+                    _stop_active_stream(state)
                     if not session_id:
                         session_id = str(state.get("sessionId") or "")
             _signal_remote_stop(session_id)
@@ -989,6 +1218,7 @@ def initialize():
     CHAT_MEMORY_DB.parent.mkdir(parents=True, exist_ok=True)
     HASHES_PATH.parent.mkdir(parents=True, exist_ok=True)
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    RATE_LIMIT_TRACKER.parent.mkdir(parents=True, exist_ok=True)
     if _DEP_FALLBACK:
         log("Dependency modules not found; using built-in fallback dependency engine.")
     elif not _DEP_AVAILABLE:

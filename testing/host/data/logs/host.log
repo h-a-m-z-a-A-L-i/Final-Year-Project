@@ -6856,3 +6856,107 @@
 [13:54:26] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
 [14:08:47] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
 [14:08:56] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[15:35:33] Chrome disconnected.
+[15:35:46] Dependency modules not found; using built-in fallback dependency engine.
+[15:35:46] === Local Data Registry Organized ===
+[15:35:46] === Structured Scraper + AI Host started ===
+[15:35:46] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[15:35:46] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[15:35:51] AI Stream Request for https://www.kaggle.com/code/codekey/testing-only/edit (session=ed375b5e-224a-477b-9ac4-2a6e7acf3a6e, model=qwen-3-235b-a22b-instruct-2507)
+[15:35:51] AI Stream Error: Error code: 401 - {'message': 'Wrong API Key', 'type': 'invalid_request_error', 'param': 'api_key', 'code': 'wrong_api_key'}
+[15:35:53] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[15:38:59] Chrome disconnected.
+[15:39:03] Dependency modules not found; using built-in fallback dependency engine.
+[15:39:03] === Local Data Registry Organized ===
+[15:39:03] === Structured Scraper + AI Host started ===
+[15:45:48] Chrome disconnected.
+[15:45:52] Dependency modules not found; using built-in fallback dependency engine.
+[15:45:52] === Local Data Registry Organized ===
+[15:45:52] === Structured Scraper + AI Host started ===
+[15:45:57] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[15:45:57] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[15:46:02] AI Stream Request for https://www.kaggle.com/code/codekey/testing-only/edit (session=692839a2-6498-4dd2-9173-5184226f2e01, model=qwen-3-235b-a22b-instruct-2507)
+[15:46:02] AI Stream Error: Error code: 401 - {'message': 'Wrong API Key', 'type': 'invalid_request_error', 'param': 'api_key', 'code': 'wrong_api_key'}
+[15:46:07] AI Stream Request for https://www.kaggle.com/code/codekey/testing-only/edit (session=692839a2-6498-4dd2-9173-5184226f2e01, model=qwen-3-235b-a22b-instruct-2507)
+[15:46:07] AI Stream Error: Error code: 401 - {'message': 'Wrong API Key', 'type': 'invalid_request_error', 'param': 'api_key', 'code': 'wrong_api_key'}
+[15:46:09] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[15:46:10] AI Stream Request for https://www.kaggle.com/code/codekey/testing-only/edit (session=692839a2-6498-4dd2-9173-5184226f2e01, model=qwen-3-235b-a22b-instruct-2507)
+[15:46:10] AI Stream Error: Error code: 401 - {'message': 'Wrong API Key', 'type': 'invalid_request_error', 'param': 'api_key', 'code': 'wrong_api_key'}
+[15:46:13] AI Stream Request for https://www.kaggle.com/code/codekey/testing-only/edit (session=692839a2-6498-4dd2-9173-5184226f2e01, model=qwen-3-235b-a22b-instruct-2507)
+[15:46:13] AI Stream Error: Error code: 401 - {'message': 'Wrong API Key', 'type': 'invalid_request_error', 'param': 'api_key', 'code': 'wrong_api_key'}
+[15:46:15] AI Stream Request for https://www.kaggle.com/code/codekey/testing-only/edit (session=692839a2-6498-4dd2-9173-5184226f2e01, model=qwen-3-235b-a22b-instruct-2507)
+[15:46:15] AI Stream Error: Error code: 401 - {'message': 'Wrong API Key', 'type': 'invalid_request_error', 'param': 'api_key', 'code': 'wrong_api_key'}
+[15:46:18] AI Stream Request for https://www.kaggle.com/code/codekey/testing-only/edit (session=692839a2-6498-4dd2-9173-5184226f2e01, model=qwen-3-235b-a22b-instruct-2507)
+[15:46:19] AI Stream Error: Error code: 401 - {'message': 'Wrong API Key', 'type': 'invalid_request_error', 'param': 'api_key', 'code': 'wrong_api_key'}
+[15:52:24] Chrome disconnected.
+[15:52:28] Dependency modules not found; using built-in fallback dependency engine.
+[15:52:28] === Local Data Registry Organized ===
+[15:52:28] === Structured Scraper + AI Host started ===
+[15:52:29] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[15:52:29] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[15:52:35] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[15:52:40] AI Stream Request for https://www.kaggle.com/code/codekey/testing-only/edit (session=692839a2-6498-4dd2-9173-5184226f2e01, model=qwen-3-235b-a22b-instruct-2507)
+[15:52:41] AI Stream Error: Error code: 403 - {'detail': 'Not authenticated'}
+[15:52:45] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[15:53:43] Chrome disconnected.
+[15:53:45] Dependency modules not found; using built-in fallback dependency engine.
+[15:53:45] === Local Data Registry Organized ===
+[15:53:45] === Structured Scraper + AI Host started ===
+[15:53:47] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[15:53:47] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[15:53:52] Missing CEREBRAS_API_KEY environment variable.
+[15:53:53] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[15:54:03] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[15:57:09] Chrome disconnected.
+[15:57:13] Dependency modules not found; using built-in fallback dependency engine.
+[15:57:13] === Local Data Registry Organized ===
+[15:57:13] === Structured Scraper + AI Host started ===
+[15:57:16] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[15:57:16] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[15:57:19] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[15:57:21] AI Stream Request for https://www.kaggle.com/code/codekey/testing-only/edit (session=692839a2-6498-4dd2-9173-5184226f2e01, model=qwen-3-235b-a22b-instruct-2507)
+[15:57:29] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[15:57:43] AI Stream Request for https://www.kaggle.com/code/codekey/testing-only/edit (session=692839a2-6498-4dd2-9173-5184226f2e01, model=qwen-3-235b-a22b-instruct-2507)
+[15:57:43] AI Stream Error: Error code: 429 - {'message': "We're experiencing high traffic right now! Please try again soon.", 'type': 'too_many_requests_error', 'param': 'queue', 'code': 'queue_exceeded'}
+[15:59:40] Chrome disconnected.
+[15:59:44] Dependency modules not found; using built-in fallback dependency engine.
+[15:59:44] === Local Data Registry Organized ===
+[15:59:44] === Structured Scraper + AI Host started ===
+[15:59:44] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[15:59:44] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[15:59:51] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[15:59:55] AI Stream Request for https://www.kaggle.com/code/codekey/testing-only/edit (session=692839a2-6498-4dd2-9173-5184226f2e01, model=qwen-3-235b-a22b-instruct-2507)
+[15:59:56] Queue busy. Retrying in 2.5s...
+[16:00:59] Queue busy. Retrying in 2.5s...
+[16:02:26] AI Stream Request for https://www.kaggle.com/code/codekey/testing-only/edit (session=692839a2-6498-4dd2-9173-5184226f2e01, model=qwen-3-235b-a22b-instruct-2507)
+[16:02:27] Queue busy. Retrying in 2.5s...
+[16:02:47] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[16:02:47] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[16:02:55] AI Stream Request for https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit (session=default, model=qwen-3-235b-a22b-instruct-2507)
+[16:02:55] Queue busy. Retrying in 2.5s...
+[16:03:01] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[16:03:30] Queue busy. Retrying in 2.5s...
+[16:05:31] AI Stream Request for https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit (session=default, model=qwen-3-235b-a22b-instruct-2507)
+[16:05:31] Queue busy. Retrying in 2.5s...
+[16:06:54] AI Stream Request for https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit (session=default, model=qwen-3-235b-a22b-instruct-2507)
+[16:07:21] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[16:07:30] AI Stream Request for https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit (session=default, model=qwen-3-235b-a22b-instruct-2507)
+[16:07:31] Queue busy. Retrying in 2.5s...
+[16:08:34] Queue busy. Retrying in 2.5s...
+[16:09:37] Queue busy. Retrying in 2.5s...
+[16:10:14] AI Stream Request for https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit (session=default, model=qwen-3-235b-a22b-instruct-2507)
+[16:10:14] Queue busy. Retrying in 2.5s...
+[16:10:26] AI Stream Request for https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit (session=default, model=qwen-3-235b-a22b-instruct-2507)
+[16:10:26] Queue busy. Retrying in 2.5s...
+[16:11:17] Queue busy. Retrying in 2.5s...
+[16:11:40] Queue busy. Retrying in 2.5s...
+[16:11:45] AI Stream Request for https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit (session=default, model=qwen-3-235b-a22b-instruct-2507)
+[16:12:20] Queue busy. Retrying in 2.5s...
+[16:12:30] Queue busy. Retrying in 2.5s...
+[16:13:59] AI Stream Request for https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit (session=default, model=qwen-3-235b-a22b-instruct-2507)
+[16:14:33] AI Stream Error: Error code: 429 - {'message': "We're experiencing high traffic right now! Please try again soon.", 'type': 'too_many_requests_error', 'param': 'queue', 'code': 'queue_exceeded'}
+[16:21:41] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[16:23:31] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[16:23:57] AI Stream Request for https://www.kaggle.com/code/codekey/testing-only/edit (session=3be7f4cb-a9af-4f64-96a5-147e42fc6c72, model=qwen-3-235b-a22b-instruct-2507)
+[16:23:58] Queue busy. Retrying in 2.5s...
+[17:08:21] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
