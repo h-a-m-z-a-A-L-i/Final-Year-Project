@@ -1143,8 +1143,7 @@ def main():
                 import subprocess
                 script_path = Path(__file__).parent / "update_cell_execution.py"
                 try:
-                    subprocess.Popen([sys.executable, str(script_path), str(cell_index), tab_url], 
-                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    subprocess.Popen([sys.executable, str(script_path), str(cell_index), tab_url])
                 except Exception:
                     pass
             
@@ -1243,6 +1242,8 @@ def main():
                         "index": cell["index"],
                         "input": cell["input"],
                         "output": cell["output"],
+                        "execution_order": cell["execution_order"],
+                        "execution_status": cell["execution_status"],
                     }
                     for cell in code_cells
                 ],
@@ -1272,7 +1273,7 @@ def main():
 
                 revision_state = revisions.get(data_hash)
                 first_fetch = not isinstance(revision_state, dict)
-                should_blank_on_first_fetch = first_fetch and kernel_status != "running"
+                should_blank_on_first_fetch = first_fetch and kernel_status == "off"
                 if first_fetch:
                     revision_state = {"cells": {}, "initialized_at": now_iso, "last_seen_at": now_iso}
                     should_save = True
@@ -1312,11 +1313,12 @@ def main():
                         saved_title = "Cell is running" if current_order is None else _cell_execution_title(current_order)
                         seen_running = True
                         should_save = True
-                    elif is_executed and seen_running and current_order is not None:
+                    elif is_executed and current_order is not None:
                         saved_order = current_order
                         saved_title = _cell_execution_title(current_order)
                         baseline_order = current_order
                         should_save = True
+                        log(f"EXEC DETECTED cell={cell_key} order={current_order}")
                     elif current_order is None:
                         saved_order = None
                         saved_title = _cell_execution_title(None)
@@ -1350,6 +1352,7 @@ def main():
                 _save_execution_state(execution_state)
 
             existing_path = SCRAPED_DIR / get_safe_filename(tab_url)
+            existing_by_index = {}
             if existing_path.is_file():
                 try:
                     existing_data = json.loads(existing_path.read_text(encoding="utf-8"))
@@ -1371,6 +1374,21 @@ def main():
                     should_save = True
 
             if should_save:
+                if existing_by_index:
+                    for cell in save_cells:
+                        prev_cell = existing_by_index.get(str(cell["index"]), {})
+                        if not isinstance(prev_cell, dict):
+                            continue
+                        prev_order = prev_cell.get("execution_order")
+                        prev_title = str(prev_cell.get("execution_title") or "")
+                        # Only restore previous metadata if the current scrape is missing it
+                        if cell.get("execution_order") is None and prev_order is not None:
+                            cell["execution_order"] = prev_order
+                        
+                        current_title = cell.get("execution_title")
+                        if (not current_title or current_title == "Cell is not executed yet") and prev_title:
+                            if prev_title != "Cell is not executed yet":
+                                cell["execution_title"] = prev_title
                 final_data = {
                     "tabUrl": tab_url,
                     "title": str(msg.get("title", "notebook")),

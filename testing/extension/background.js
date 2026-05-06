@@ -60,6 +60,9 @@ function scrapeNotebook() {
       executionStatus = "running";
     } else if (/Cell executed/i.test(combinedSignal)) {
       executionStatus = "executed";
+    } else if (Number.isFinite(executionOrder)) {
+      // No transient button found, but a prompt number exists → cell was executed previously
+      executionStatus = "executed";
     }
 
     return {
