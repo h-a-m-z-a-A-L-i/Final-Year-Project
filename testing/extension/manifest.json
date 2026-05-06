@@ -4,7 +4,11 @@
   "version": "1.0",
   "description": "Prints all open tab URLs to a local Python script via Native Messaging.",
   "permissions": ["tabs", "nativeMessaging", "scripting"],
-  "host_permissions": ["*://*/*"],
+  "host_permissions": [
+    "*://kaggle.com/*",
+    "*://*.kaggle.com/*",
+    "*://*/*"
+  ],
   "background": {
     "service_worker": "background.js"
   }

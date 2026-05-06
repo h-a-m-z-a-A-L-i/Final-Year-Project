@@ -5,12 +5,12 @@
   window.__kaggleScanTickInstalled = true;
 
   const POLL_INTERVAL_MS = 5000;
-  const TARGET_SUFFIX = "/edit";
 
   function isTargetEditUrl(url) {
     try {
       const parsed = new URL(url);
-      return parsed.protocol === "http:" || parsed.protocol === "https:";
+      const host = parsed.hostname.toLowerCase();
+      return (host === "kaggle.com" || host.endsWith(".kaggle.com")) && parsed.pathname.endsWith("/edit");
     } catch {
       return false;
     }

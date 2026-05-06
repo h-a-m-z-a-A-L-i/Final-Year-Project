@@ -2,10 +2,73 @@ const HOST = "com.testing.tabprinter";
 
 // Keep one persistent native port open to Python
 let port = null;
+let __lastPromptSignal = 0;
 
 function scrapeNotebook() {
   const cells = [];
   const cellElements = document.querySelectorAll(".cell, .jp-Cell, .code_cell, .text_cell, .markdown_cell");
+  const extractExecutionMeta = (cell) => {
+    const buttonHost = cell.querySelector(
+      ".cell-execution-button, [title*='Cell executed'], [title*='Cell started execution'], [title*='Cell execution queued'], [aria-label*='Cell executed'], [aria-label*='Cell started execution'], [aria-label*='Cell execution queued']"
+    );
+    const buttonText = buttonHost
+      ? String(
+          buttonHost.getAttribute("title") ||
+          buttonHost.getAttribute("aria-label") ||
+          buttonHost.title ||
+          buttonHost.innerText ||
+          buttonHost.textContent ||
+          ""
+        ).trim()
+      : "";
+    const promptEl = cell.querySelector(
+      ".jp-InputPrompt.jp-InputArea-prompt, .jp-InputPrompt, .input_prompt"
+    );
+    const executionLabel = promptEl
+      ? String(promptEl.innerText || promptEl.textContent || "").trim()
+      : "";
+    const promptText = executionLabel;
+    const titleHost = promptEl || null;
+    const executionTitle = titleHost
+      ? String(
+          titleHost.getAttribute("title") ||
+          titleHost.title ||
+          titleHost.getAttribute("aria-label") ||
+          ""
+        ).trim()
+      : "";
+
+    let executionOrder = null;
+    if (executionLabel) {
+      const labelMatch = executionLabel.match(/\d+/);
+      if (labelMatch) {
+        executionOrder = Number(labelMatch[0]);
+      }
+    }
+    if (executionOrder == null && executionTitle) {
+      const titleMatch = executionTitle.match(/executed\s+in\s+[^@]*@\s*.*?(\d+)/i);
+      if (titleMatch) {
+        executionOrder = Number(titleMatch[1]);
+      }
+    }
+
+    let executionStatus = "idle";
+    const combinedSignal = (buttonText + "\n" + promptText + "\n" + executionTitle).trim();
+    if (/Cell execution queued/i.test(combinedSignal)) {
+      executionStatus = "queued";
+    } else if (/Cell started execution/i.test(combinedSignal)) {
+      executionStatus = "running";
+    } else if (/Cell executed/i.test(combinedSignal)) {
+      executionStatus = "executed";
+    }
+
+    return {
+      execution_order: Number.isFinite(executionOrder) ? executionOrder : null,
+      execution_title: executionTitle,
+      execution_status: executionStatus,
+      execution_signal: buttonText,
+    };
+  };
   for (const cell of cellElements) {
     const cellData = {};
     if (cell.classList.contains("code_cell") || cell.classList.contains("jp-CodeCell") || cell.querySelector(".CodeMirror, .jp-Editor, .cm-editor")) {
@@ -13,6 +76,7 @@ function scrapeNotebook() {
     } else {
       cellData.type = "markdown";
     }
+    Object.assign(cellData, extractExecutionMeta(cell));
     const codeEl = cell.querySelector(".CodeMirror-code, .jp-Editor .cm-content, .cm-editor .cm-content, .input_area pre, .jp-InputArea-editor pre, textarea");
     cellData.source = codeEl ? codeEl.innerText.trim() : "";
     const outputEl = cell.querySelector(".output, .jp-OutputArea, .output_area, .jp-Cell-outputArea");
@@ -20,6 +84,48 @@ function scrapeNotebook() {
     cells.push(cellData);
   }
   return { title: document.title || "", cellCount: cells.length, cells: cells };
+}
+
+function getKernelStatus() {
+  const statusEl = document.querySelector(
+    "#site-content > div.sc-cvANaB.lntgBg > div > div.sc-hpEunQ.efgyYB > div > div.sc-NOWJl.jHHMmT"
+  );
+  if (!statusEl) return null;
+  const text = (statusEl.innerText || statusEl.textContent || "").trim();
+  if (text.includes("Session started")) return "running";
+  if (text.includes("off") && text.includes("run a cell to start")) return "off";
+  return null;
+}
+
+function probeExecutionMetaFetch() {
+  const promptSelector = ".jp-InputPrompt.jp-InputArea-prompt, .jp-InputPrompt, .input_prompt";
+  return Array.from(document.querySelectorAll(".cell, .jp-Cell, .code_cell, .text_cell, .markdown_cell")).map((cell, index) => {
+    const promptEl = cell.querySelector(promptSelector);
+    const titleHost = promptEl || null;
+    return {
+      cellIndex: index + 1,
+      promptFound: !!promptEl,
+      promptText: promptEl ? String(promptEl.innerText || promptEl.textContent || "").trim() : "",
+      promptTitle: titleHost
+        ? String(
+            titleHost.getAttribute("title") ||
+            titleHost.title ||
+            titleHost.getAttribute("aria-label") ||
+            ""
+          ).trim()
+        : "",
+    };
+  });
+}
+
+function isTargetUrl(rawUrl) {
+  try {
+    const parsed = new URL(String(rawUrl || ""));
+    const host = parsed.hostname.toLowerCase();
+    return (host === "kaggle.com" || host.endsWith(".kaggle.com")) && parsed.pathname.endsWith("/edit");
+  } catch {
+    return false;
+  }
 }
 
 function getPort() {
@@ -51,12 +157,23 @@ function getPort() {
 function injectUI(tabId) {
   chrome.scripting.executeScript({
     target: { tabId: tabId },
-    files: ["markdown-it.min.js", "ui_injector.js"]
+    files: ["markdown-it.min.js", "ui_injector.js", "prompt_observer.js"]
   }).catch(e => console.warn("UI Injection failed:", e));
 }
 
 // ── Bridge UI messages to the Native Host ────────────────────────────────────
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  // Handle prompt observer signals locally to trigger an immediate re-scan (throttled)
+  if (msg?.type === 'PROMPT_SIGNAL') {
+    console.log(`[BG-SIGNAL] Received: "${msg.text}" from cell ${msg.cellIndex || '?'}`);
+    const now = Date.now();
+    if (now - __lastPromptSignal > 250) {
+      __lastPromptSignal = now;
+      try { sendTabs(); } catch (e) { /* ignore */ }
+    }
+    return true;
+  }
+
   const p = getPort();
   if (p) {
     // Tag the message with the sender's tabId so we know where to send the AI's reply
@@ -70,11 +187,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 function sendTabs() {
   chrome.tabs.query({}, (tabs) => {
     const targets = tabs.filter(t => {
-      if (!t.url) return false;
-      try {
-        const u = new URL(t.url);
-        return (u.protocol === "http:" || u.protocol === "https:") && u.pathname.endsWith("/edit");
-      } catch { return false; }
+      return isTargetUrl(t.url);
     });
 
     for (const tab of targets) {
@@ -109,10 +222,29 @@ function sendTabs() {
                   if (r.result.title) notebookTitle = r.result.title;
                 }
               }
-              getPort().postMessage({
-                type: "NOTEBOOK_DATA", tabUrl: tab.url, iframes: iframes,
-                tabId: tab.id,
-                title: notebookTitle, cellCount: allCells.length, cells: allCells
+              chrome.scripting.executeScript({
+                target: { tabId: tab.id, allFrames: true },
+                func: probeExecutionMetaFetch
+              }, (probeResults) => {
+                if (!chrome.runtime.lastError) {
+                  const executionProbe = [];
+                  for (const r of (probeResults || [])) {
+                    if (Array.isArray(r?.result)) executionProbe.push(...r.result);
+                  }
+                  console.debug("[testing] execution meta probe:", executionProbe.slice(0, 5));
+                }
+              });
+              chrome.scripting.executeScript({
+                target: { tabId: tab.id, allFrames: false },
+                func: getKernelStatus
+              }, (statusResults) => {
+                const kernelStatus = statusResults?.[0]?.result;
+                getPort().postMessage({
+                  type: "NOTEBOOK_DATA", tabUrl: tab.url, iframes: iframes,
+                  tabId: tab.id,
+                  title: notebookTitle, cellCount: allCells.length, cells: allCells,
+                  kernelStatus: kernelStatus
+                });
               });
           });
       });

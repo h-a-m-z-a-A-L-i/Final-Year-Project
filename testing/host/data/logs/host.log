@@ -6960,3 +6960,374 @@
 [16:23:57] AI Stream Request for https://www.kaggle.com/code/codekey/testing-only/edit (session=3be7f4cb-a9af-4f64-96a5-147e42fc6c72, model=qwen-3-235b-a22b-instruct-2507)
 [16:23:58] Queue busy. Retrying in 2.5s...
 [17:08:21] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[12:23:33] Dependency modules not found; using built-in fallback dependency engine.
+[12:23:33] === Local Data Registry Organized ===
+[12:23:33] === Structured Scraper + AI Host started ===
+[12:23:33] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[12:23:33] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[12:23:33] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[12:23:33] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[12:23:38] Building graph for https___www_kaggle_com_code_codekey_github_copilot_deepseek_1_3_edit.json
+[12:23:38] Building graph for https___www_kaggle_com_code_codekey_github_copilot_deepseek_1_3_edit.json
+[12:23:38] Building graph for https___www_kaggle_com_code_codekey_qwen_qwen3_coder_30b_a3b_instruct_edit.json
+[12:24:28] Building graph for https___www_kaggle_com_code_codekey_github_copilot_deepseek_1_3_edit.json
+[12:24:28] Building graph for https___www_kaggle_com_code_codekey_qwen_qwen3_coder_30b_a3b_instruct_edit.json
+[12:24:28] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[12:24:28] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[12:24:37] Building graph for https___www_kaggle_com_code_codekey_github_copilot_deepseek_1_3_edit.json
+[12:24:38] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[12:24:48] Building graph for https___www_kaggle_com_code_codekey_github_copilot_deepseek_1_3_edit.json
+[12:24:57] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[13:25:17] Building graph for https___docs_google_com_document_d_1jq21cg9vys1_adixadhb98cgxxjo8x2ze3rn_x25jpe_edit.json
+[18:26:37] Building graph for https___www_kaggle_com_code_codekey_qwen_qwen3_coder_30b_a3b_instruct_edit.json
+[05:57:44] Dependency modules not found; using built-in fallback dependency engine.
+[05:57:44] === Local Data Registry Organized ===
+[05:57:44] === Structured Scraper + AI Host started ===
+[05:57:44] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[05:57:44] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[05:57:44] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[05:57:44] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[05:57:48] Building graph for https___www_kaggle_com_code_codekey_github_copilot_deepseek_1_3_edit.json
+[05:57:48] Building graph for https___www_kaggle_com_code_codekey_github_copilot_deepseek_1_3_edit.json
+[05:57:48] Building graph for https___www_kaggle_com_code_codekey_qwen_qwen3_coder_30b_a3b_instruct_edit.json
+[05:57:48] Building graph for https___www_kaggle_com_code_codekey_qwen_qwen3_coder_30b_a3b_instruct_edit.json
+[05:58:03] Building graph for https___www_kaggle_com_code_codekey_pakistan_housing_edit.json
+[05:58:03] Building graph for https___www_kaggle_com_code_codekey_pakistan_housing_edit.json
+[05:58:35] Building graph for https___www_kaggle_com_code_codekey_pakistan_housing_edit.json
+[05:58:35] Building graph for https___www_kaggle_com_code_codekey_github_copilot_deepseek_1_3_edit.json
+[05:58:35] Building graph for https___www_kaggle_com_code_codekey_qwen_qwen3_coder_30b_a3b_instruct_edit.json
+[05:58:35] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[05:58:35] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[05:58:43] Building graph for https___www_kaggle_com_code_codekey_pakistan_housing_edit.json
+[05:58:43] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[05:58:53] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[05:58:53] Building graph for https___www_kaggle_com_code_codekey_github_copilot_deepseek_1_3_edit.json
+[05:58:53] Building graph for https___www_kaggle_com_code_codekey_pakistan_housing_edit.json
+[05:59:03] Building graph for https___www_kaggle_com_code_codekey_pakistan_housing_edit.json
+[05:59:53] Building graph for https___www_kaggle_com_code_codekey_github_copilot_deepseek_1_3_edit.json
+[05:59:53] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[06:00:53] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[06:00:53] Building graph for https___www_kaggle_com_code_codekey_github_copilot_deepseek_1_3_edit.json
+[06:01:53] Building graph for https___www_kaggle_com_code_codekey_github_copilot_deepseek_1_3_edit.json
+[06:01:53] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[06:02:53] Building graph for https___www_kaggle_com_code_codekey_github_copilot_deepseek_1_3_edit.json
+[06:02:53] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[14:34:55] Dependency modules not found; using built-in fallback dependency engine.
+[14:34:55] === Local Data Registry Organized ===
+[14:34:55] === Structured Scraper + AI Host started ===
+[14:34:55] Building graph for https___docs_google_com_document_d_1hD_vDoiNjvKGrUvVHC5KtqopxtjSYMHtkKrCy9kOH80_edit.json
+[14:37:55] Building graph for https___docs_google_com_spreadsheets_d_1n1_ixvmrdwu8ma0beedcjh0hrexcyzgimmxgcy3uqiu_edit.json
+[14:43:19] Building graph for https___docs_google_com_document_d_1r_OVdXWz3mR3Wd_QDGG9X_NjBljskOqVN12c61agPzE_edit.json
+[14:48:28] Building graph for https___docs_google_com_document_d_1r_ovdxwz3mr3wd_qdgg9x_njbljskoqvn12c61agpze_edit.json
+[14:48:28] AI Stream Request for https://docs.google.com/document/d/1r-ovdxwz3mr3wd_qdgg9x_njbljskoqvn12c61agpze/edit (session=805d20db-7148-4d88-bfa9-4fd734c348f7, model=qwen-3-235b-a22b-instruct-2507)
+[14:48:29] Queue busy. Retrying in 2.5s...
+[14:48:50] AI Stream Request for https://docs.google.com/document/d/1r-ovdxwz3mr3wd_qdgg9x_njbljskoqvn12c61agpze/edit (session=805d20db-7148-4d88-bfa9-4fd734c348f7, model=qwen-3-235b-a22b-instruct-2507)
+[14:49:28] Queue busy. Retrying in 2.5s...
+[14:50:27] AI Stream Request for https://docs.google.com/spreadsheets/d/1n1_ixvmrdwu8ma0beedcjh0hrexcyzgimmxgcy3uqiu/edit (session=a16f8a9e-8653-4eee-8e96-da94774bc5ca, model=qwen-3-235b-a22b-instruct-2507)
+[14:50:31] Queue busy. Retrying in 2.5s...
+[14:50:36] Building graph for https___docs_google_com_spreadsheets_d_1n1_iXvmrdWu8ma0beedCjh0hreXCyZGImMxGcy3UQiU_edit.json
+[14:51:21] AI Stream Request for https://docs.google.com/spreadsheets/d/1n1_ixvmrdwu8ma0beedcjh0hrexcyzgimmxgcy3uqiu/edit (session=a16f8a9e-8653-4eee-8e96-da94774bc5ca, model=qwen-3-235b-a22b-instruct-2507)
+[14:51:28] Queue busy. Retrying in 2.5s...
+[14:51:29] Queue busy. Retrying in 2.5s...
+[14:52:29] Queue busy. Retrying in 2.5s...
+[14:52:29] Queue busy. Retrying in 2.5s...
+[14:53:28] Queue busy. Retrying in 2.5s...
+[14:53:37] AI Stream Request for https://docs.google.com/spreadsheets/d/1n1_ixvmrdwu8ma0beedcjh0hrexcyzgimmxgcy3uqiu/edit (session=a16f8a9e-8653-4eee-8e96-da94774bc5ca, model=qwen-3-235b-a22b-instruct-2507)
+[14:55:29] Queue busy. Retrying in 2.5s...
+[14:56:29] AI Stream Error: Error code: 429 - {'message': "We're experiencing high traffic right now! Please try again soon.", 'type': 'too_many_requests_error', 'param': 'queue', 'code': 'queue_exceeded'}
+[14:58:30] AI Stream Error: Error code: 429 - {'message': "We're experiencing high traffic right now! Please try again soon.", 'type': 'too_many_requests_error', 'param': 'queue', 'code': 'queue_exceeded'}
+[15:59:12] AI Stream Request for https://docs.google.com/spreadsheets/d/1n1_ixvmrdwu8ma0beedcjh0hrexcyzgimmxgcy3uqiu/edit (session=a16f8a9e-8653-4eee-8e96-da94774bc5ca, model=qwen-3-235b-a22b-instruct-2507)
+[15:59:13] Queue busy. Retrying in 2.5s...
+[16:00:34] AI Stream Error: Request timed out.
+[10:47:02] Dependency modules not found; using built-in fallback dependency engine.
+[10:47:02] === Local Data Registry Organized ===
+[10:47:02] === Structured Scraper + AI Host started ===
+[10:47:02] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[10:47:02] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[10:47:06] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[10:47:06] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[10:47:16] Building graph for https___www_kaggle_com_code_codekey_qwen_qwen3_coder_30b_a3b_instruct_edit.json
+[10:47:16] Building graph for https___www_kaggle_com_code_codekey_qwen_qwen3_coder_30b_a3b_instruct_edit.json
+[10:47:16] Building graph for https___www_kaggle_com_code_codekey_github_copilot_deepseek_1_3_edit.json
+[10:47:16] Building graph for https___www_kaggle_com_code_codekey_github_copilot_deepseek_1_3_edit.json
+[10:48:25] Building graph for https___www_kaggle_com_code_codekey_github_copilot_deepseek_1_3_edit.json
+[10:48:25] Building graph for https___www_kaggle_com_code_codekey_qwen_qwen3_coder_30b_a3b_instruct_edit.json
+[10:48:25] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[10:48:25] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[10:48:55] Building graph for https___www_kaggle_com_code_codekey_github_copilot_deepseek_1_3_edit.json
+[10:48:55] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[10:48:55] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[10:49:55] Building graph for https___www_kaggle_com_code_codekey_github_copilot_deepseek_1_3_edit.json
+[10:49:55] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[10:50:55] Building graph for https___www_kaggle_com_code_codekey_github_copilot_deepseek_1_3_edit.json
+[18:18:24] Dependency modules not found; using built-in fallback dependency engine.
+[18:18:24] === Local Data Registry Organized ===
+[18:18:24] === Structured Scraper + AI Host started ===
+[18:18:24] Building graph for https___docs_google_com_spreadsheets_d_1n1_ixvmrdwu8ma0beedcjh0hrexcyzgimmxgcy3uqiu_edit.json
+[13:27:25] Dependency modules not found; using built-in fallback dependency engine.
+[13:27:25] === Local Data Registry Organized ===
+[13:27:25] === Structured Scraper + AI Host started ===
+[13:27:25] Building graph for https___docs_google_com_spreadsheets_d_1n1_ixvmrdwu8ma0beedcjh0hrexcyzgimmxgcy3uqiu_edit.json
+[13:27:41] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[13:27:41] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[13:27:46] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[13:27:46] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[13:27:46] Building graph for https___www_kaggle_com_code_codekey_qwen_qwen3_coder_30b_a3b_instruct_edit.json
+[13:27:46] Building graph for https___www_kaggle_com_code_codekey_qwen_qwen3_coder_30b_a3b_instruct_edit.json
+[13:27:46] Building graph for https___www_kaggle_com_code_codekey_github_copilot_deepseek_1_3_edit.json
+[13:27:47] Building graph for https___www_kaggle_com_code_codekey_github_copilot_deepseek_1_3_edit.json
+[13:28:29] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[13:28:39] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[13:58:04] Building graph for https___docs_google_com_spreadsheets_d_1n1_iXvmrdWu8ma0beedCjh0hreXCyZGImMxGcy3UQiU_edit.json
+[16:21:18] AI Stream Request for https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit (session=default, model=qwen-3-235b-a22b-instruct-2507)
+[16:21:19] Queue busy. Retrying in 2.5s...
+[16:22:20] Queue busy. Retrying in 2.5s...
+[16:22:56] AI Stream Request for https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit (session=default, model=qwen-3-235b-a22b-instruct-2507)
+[16:23:07] AI Stream Request for https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit (session=default, model=qwen-3-235b-a22b-instruct-2507)
+[16:23:24] AI Stream Request for https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit (session=default, model=qwen-3-235b-a22b-instruct-2507)
+[16:24:22] Queue busy. Retrying in 2.5s...
+[16:24:37] AI Stream Request for https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit (session=default, model=qwen-3-235b-a22b-instruct-2507)
+[16:24:57] AI Stream Request for https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit (session=default, model=qwen-3-235b-a22b-instruct-2507)
+[16:25:23] Queue busy. Retrying in 2.5s...
+[16:26:24] Queue busy. Retrying in 2.5s...
+[16:26:24] Queue busy. Retrying in 2.5s...
+[16:26:24] Queue busy. Retrying in 2.5s...
+[16:26:24] Queue busy. Retrying in 2.5s...
+[16:27:25] Queue busy. Retrying in 2.5s...
+[16:28:26] Queue busy. Retrying in 2.5s...
+[16:28:26] Queue busy. Retrying in 2.5s...
+[16:28:26] Queue busy. Retrying in 2.5s...
+[16:28:26] Queue busy. Retrying in 2.5s...
+[16:28:26] Queue busy. Retrying in 2.5s...
+[16:29:28] Queue busy. Retrying in 2.5s...
+[16:29:28] Queue busy. Retrying in 2.5s...
+[16:29:28] Queue busy. Retrying in 2.5s...
+[16:29:28] Queue busy. Retrying in 2.5s...
+[16:29:28] Queue busy. Retrying in 2.5s...
+[16:30:28] Queue busy. Retrying in 2.5s...
+[16:31:28] AI Stream Error: Connection error.
+[16:31:28] AI Stream Error: Connection error.
+[16:31:28] AI Stream Error: Connection error.
+[16:31:28] AI Stream Error: Connection error.
+[16:31:30] Queue busy. Retrying in 2.5s...
+[17:30:19] AI Stream Request for https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit (session=default, model=qwen-3-235b-a22b-instruct-2507)
+[17:30:20] Queue busy. Retrying in 2.5s...
+[17:31:21] Queue busy. Retrying in 2.5s...
+[17:31:25] AI Stream Request for https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit (session=default, model=qwen-3-235b-a22b-instruct-2507)
+[17:31:37] AI Stream Request for https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit (session=default, model=qwen-3-235b-a22b-instruct-2507)
+[17:32:21] AI Stream Request for https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit (session=default, model=qwen-3-235b-a22b-instruct-2507)
+[17:32:22] Queue busy. Retrying in 2.5s...
+[17:33:23] Queue busy. Retrying in 2.5s...
+[17:33:23] Queue busy. Retrying in 2.5s...
+[17:34:23] Queue busy. Retrying in 2.5s...
+[17:34:23] Queue busy. Retrying in 2.5s...
+[17:34:24] Queue busy. Retrying in 2.5s...
+[17:36:23] AI Stream Error: Connection error.
+[17:36:23] AI Stream Error: Connection error.
+[17:36:24] Queue busy. Retrying in 2.5s...
+[17:37:24] Queue busy. Retrying in 2.5s...
+[17:39:26] AI Stream Error: Error code: 429 - {'message': "We're experiencing high traffic right now! Please try again soon.", 'type': 'too_many_requests_error', 'param': 'queue', 'code': 'queue_exceeded'}
+[07:43:07] Dependency modules not found; using built-in fallback dependency engine.
+[07:43:07] === Local Data Registry Organized ===
+[07:43:07] === Structured Scraper + AI Host started ===
+[07:43:07] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[07:43:16] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[07:43:16] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[07:43:17] Building graph for https___www_kaggle_com_code_codekey_qwen_qwen3_coder_30b_a3b_instruct_edit.json
+[07:43:24] Building graph for https___www_kaggle_com_code_codekey_github_copilot_deepseek_1_3_edit.json
+[07:44:04] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[07:44:04] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[07:44:34] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[07:45:34] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[07:46:34] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[07:47:34] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[08:30:13] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[08:30:24] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[08:30:34] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[08:31:14] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[09:29:41] Chrome disconnected.
+[09:29:45] Dependency modules not found; using built-in fallback dependency engine.
+[09:29:45] === Local Data Registry Organized ===
+[09:29:45] === Structured Scraper + AI Host started ===
+[09:29:45] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[09:29:45] Dependency modules not found; using built-in fallback dependency engine.
+[09:29:45] === Local Data Registry Organized ===
+[09:29:45] === Structured Scraper + AI Host started ===
+[09:29:45] Chrome disconnected.
+[09:29:45] Dependency modules not found; using built-in fallback dependency engine.
+[09:29:45] === Local Data Registry Organized ===
+[09:29:45] === Structured Scraper + AI Host started ===
+[09:29:45] Chrome disconnected.
+[09:29:50] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[09:30:02] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[09:30:12] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[09:31:42] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[09:31:52] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[09:36:05] Chrome disconnected.
+[09:36:08] Dependency modules not found; using built-in fallback dependency engine.
+[09:36:08] === Local Data Registry Organized ===
+[09:36:08] === Structured Scraper + AI Host started ===
+[09:36:08] Chrome disconnected.
+[09:36:08] Dependency modules not found; using built-in fallback dependency engine.
+[09:36:08] === Local Data Registry Organized ===
+[09:36:08] === Structured Scraper + AI Host started ===
+[09:36:08] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[09:36:14] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[09:36:26] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[09:38:06] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[09:38:16] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[09:42:36] Chrome disconnected.
+[09:42:38] Dependency modules not found; using built-in fallback dependency engine.
+[09:42:38] === Local Data Registry Organized ===
+[09:42:38] === Structured Scraper + AI Host started ===
+[09:42:38] Chrome disconnected.
+[09:42:38] Dependency modules not found; using built-in fallback dependency engine.
+[09:42:38] === Local Data Registry Organized ===
+[09:42:38] === Structured Scraper + AI Host started ===
+[09:42:38] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[09:42:40] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[09:42:47] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[09:42:57] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[09:43:37] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[09:44:03] Chrome disconnected.
+[09:44:05] Dependency modules not found; using built-in fallback dependency engine.
+[09:44:05] === Local Data Registry Organized ===
+[09:44:05] === Structured Scraper + AI Host started ===
+[09:44:05] Chrome disconnected.
+[09:44:05] Dependency modules not found; using built-in fallback dependency engine.
+[09:44:05] === Local Data Registry Organized ===
+[09:44:05] === Structured Scraper + AI Host started ===
+[09:44:09] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[09:44:09] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[09:44:13] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[09:44:23] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[09:47:33] Chrome disconnected.
+[09:47:36] Dependency modules not found; using built-in fallback dependency engine.
+[09:47:36] === Local Data Registry Organized ===
+[09:47:36] === Structured Scraper + AI Host started ===
+[09:47:36] Chrome disconnected.
+[09:47:36] Dependency modules not found; using built-in fallback dependency engine.
+[09:47:36] === Local Data Registry Organized ===
+[09:47:36] === Structured Scraper + AI Host started ===
+[09:47:38] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[09:47:38] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[09:47:44] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[09:47:54] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[09:48:04] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[10:01:48] Chrome disconnected.
+[10:01:53] Dependency modules not found; using built-in fallback dependency engine.
+[10:01:53] === Local Data Registry Organized ===
+[10:01:53] === Structured Scraper + AI Host started ===
+[10:01:53] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[10:01:53] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[10:01:53] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[10:01:59] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[10:02:09] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[10:08:25] Chrome disconnected.
+[10:08:29] Dependency modules not found; using built-in fallback dependency engine.
+[10:08:29] === Local Data Registry Organized ===
+[10:08:29] === Structured Scraper + AI Host started ===
+[10:08:29] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[10:08:29] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[10:08:35] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[10:08:45] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[10:08:55] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[10:11:25] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[10:11:35] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[10:21:45] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[10:23:05] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[10:23:25] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[10:23:35] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[10:28:15] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[10:28:25] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[10:28:35] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[10:28:45] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[10:28:55] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[10:29:05] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[10:29:25] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:28:15] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:28:25] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:28:35] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:29:53] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:30:05] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:30:15] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:30:25] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:30:55] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:31:05] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:31:15] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:31:25] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:31:35] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:31:45] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:31:55] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:32:05] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:32:25] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:32:35] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:32:45] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:33:05] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:34:35] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:34:45] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:44:04] Chrome disconnected.
+[11:44:09] Dependency modules not found; using built-in fallback dependency engine.
+[11:44:09] === Local Data Registry Organized ===
+[11:44:09] === Structured Scraper + AI Host started ===
+[11:44:09] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:44:09] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:44:24] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:44:44] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:44:54] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:45:04] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:48:24] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:48:44] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:49:04] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:49:14] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:49:24] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:53:12] Chrome disconnected.
+[11:53:16] Dependency modules not found; using built-in fallback dependency engine.
+[11:53:16] === Local Data Registry Organized ===
+[11:53:16] === Structured Scraper + AI Host started ===
+[11:53:18] Chrome disconnected.
+[11:53:22] Dependency modules not found; using built-in fallback dependency engine.
+[11:53:22] === Local Data Registry Organized ===
+[11:53:22] === Structured Scraper + AI Host started ===
+[11:53:24] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:53:24] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:53:29] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[11:53:39] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[12:00:06] Chrome disconnected.
+[12:00:10] Dependency modules not found; using built-in fallback dependency engine.
+[12:00:10] === Local Data Registry Organized ===
+[12:00:10] === Structured Scraper + AI Host started ===
+[12:00:10] Chrome disconnected.
+[12:00:10] Dependency modules not found; using built-in fallback dependency engine.
+[12:00:10] === Local Data Registry Organized ===
+[12:00:10] === Structured Scraper + AI Host started ===
+[12:00:12] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[12:00:12] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[12:00:17] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[12:00:27] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[12:01:17] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[12:01:47] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[12:15:57] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[12:16:07] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[12:16:30] Chrome disconnected.
+[12:16:34] Dependency modules not found; using built-in fallback dependency engine.
+[12:16:34] === Local Data Registry Organized ===
+[12:16:34] === Structured Scraper + AI Host started ===
+[12:16:35] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[12:16:35] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[12:16:41] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[12:16:51] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[12:19:47] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[12:19:51] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[12:20:01] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[12:21:59] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[12:22:11] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[12:22:21] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[12:24:27] Chrome disconnected.
+[12:24:29] Dependency modules not found; using built-in fallback dependency engine.
+[12:24:29] === Local Data Registry Organized ===
+[12:24:29] === Structured Scraper + AI Host started ===
+[12:24:29] Dependency modules not found; using built-in fallback dependency engine.
+[12:24:29] === Local Data Registry Organized ===
+[12:24:29] === Structured Scraper + AI Host started ===
+[12:24:29] Chrome disconnected.

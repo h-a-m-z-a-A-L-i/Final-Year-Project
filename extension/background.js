@@ -43,6 +43,16 @@ function sendToNative(payload) {
   }
 }
 
+function isTargetUrl(rawUrl) {
+  try {
+    const parsed = new URL(String(rawUrl || ""));
+    const host = parsed.hostname.toLowerCase();
+    return (host === "kaggle.com" || host.endsWith(".kaggle.com")) && parsed.pathname.endsWith("/edit");
+  } catch {
+    return false;
+  }
+}
+
 // ── Tab scanning ─────────────────────────────────────────────────────────────
 let scanInFlight = false;
 const lastIframeFingerprintByTab = new Map();
@@ -156,15 +166,6 @@ async function getIframeUrls(tabId) {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-function isTargetUrl(rawUrl) {
-  try {
-    const { protocol } = new URL(String(rawUrl || ""));
-    return protocol === "http:" || protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
 function queryAllTabs() {
   return new Promise((resolve) => {
     chrome.tabs.query({}, (tabs) => resolve(Array.isArray(tabs) ? tabs : []));

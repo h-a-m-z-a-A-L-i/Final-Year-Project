@@ -31,6 +31,7 @@ DATA_ROOT = Path(__file__).parent / "data"
 CHAT_MEMORY_DB = DATA_ROOT / "sessions" / "chat_history.sqlite3"
 SCRAPED_DIR = DATA_ROOT / "notebooks"
 HASHES_PATH = DATA_ROOT / "meta" / "hashes.json"
+EXECUTION_STATE_PATH = DATA_ROOT / "meta" / "execution_state.json"
 LOG_PATH = DATA_ROOT / "logs" / "host.log"
 RATE_LIMIT_TRACKER = DATA_ROOT / "meta" / "rate_limit_tracker.json"
 DB_TIMEOUT_SECONDS = 10
@@ -48,6 +49,7 @@ RPH_LIMIT = int(os.environ.get("CEREBRAS_RPH_LIMIT", "900"))
 RPD_LIMIT = int(os.environ.get("CEREBRAS_RPD_LIMIT", "14400"))
 
 _HASHES_LOCK = threading.Lock()
+_EXECUTION_STATE_LOCK = threading.Lock()
 _SEND_LOCK = threading.Lock()
 _ACTIVE_STREAMS = {}
 _ACTIVE_STREAMS_LOCK = threading.Lock()
@@ -829,6 +831,24 @@ def _load_hashes() -> dict:
 def _save_hashes(hashes: dict):
     _atomic_write_json(HASHES_PATH, hashes)
 
+def _load_execution_state() -> dict:
+    if not EXECUTION_STATE_PATH.is_file():
+        return {}
+    try:
+        data = json.loads(EXECUTION_STATE_PATH.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+def _save_execution_state(state: dict):
+    _atomic_write_json(EXECUTION_STATE_PATH, state)
+
+def _system_time_label() -> str:
+    return datetime.now().strftime("%I:%M%p").lstrip("0").lower()
+
+def _cell_execution_title(execution_order):
+    return "Cell executed at " + _system_time_label() if execution_order is not None else "Cell is not executed yet"
+
 def _build_fallback_graph(notebook_url: str):
     """Build a minimal graph from saved notebook JSON when dependency modules are unavailable."""
     json_path = SCRAPED_DIR / get_safe_filename(notebook_url)
@@ -1175,6 +1195,7 @@ def main():
         if m_type == "NOTEBOOK_DATA":
             tab_url = _normalized_url(msg.get("tabUrl") or "unknown")
             tab_id = msg.get("tabId")
+            kernel_status = msg.get("kernelStatus")
             raw_cells = msg.get("cells", [])
             if not isinstance(raw_cells, list):
                 raw_cells = []
@@ -1185,30 +1206,133 @@ def main():
                     code_cells.append({
                         "index": i + 1,
                         "input": str(cell.get("source") or ""),
-                        "output": str(cell.get("output") or "")
+                        "output": str(cell.get("output") or ""),
+                        "execution_order": cell.get("execution_order"),
+                        "execution_title": str(cell.get("execution_title") or ""),
+                        "execution_status": str(cell.get("execution_status") or "idle"),
                     })
             
             import hashlib
-            data_str = json.dumps(code_cells, sort_keys=True).encode("utf-8")
+            data_str = json.dumps(
+                [
+                    {
+                        "index": cell["index"],
+                        "input": cell["input"],
+                        "output": cell["output"],
+                    }
+                    for cell in code_cells
+                ],
+                sort_keys=True,
+            ).encode("utf-8")
             data_hash = hashlib.sha256(data_str).hexdigest()
+
+            now_iso = datetime.now(timezone.utc).isoformat()
+            should_save = False
+            save_cells = []
 
             with _HASHES_LOCK:
                 stored_hashes = _load_hashes()
+                if stored_hashes.get(tab_url) != data_hash:
+                    should_save = True
 
-                prev_hash = stored_hashes.get(tab_url)
-                if prev_hash != data_hash:
-                    final_data = {
-                        "tabUrl": tab_url,
-                        "title": str(msg.get("title", "notebook")),
-                        "lastUpdated": datetime.now(timezone.utc).isoformat(),
-                        "cells": code_cells
+            with _EXECUTION_STATE_LOCK:
+                execution_state = _load_execution_state()
+                notebook_state = execution_state.get(tab_url)
+                if not isinstance(notebook_state, dict) or "revisions" not in notebook_state:
+                    notebook_state = {"active_revision": data_hash, "revisions": {}, "last_seen_at": now_iso}
+                    should_save = True
+
+                revisions = notebook_state.get("revisions", {})
+                if not isinstance(revisions, dict):
+                    revisions = {}
+
+                revision_state = revisions.get(data_hash)
+                first_fetch = not isinstance(revision_state, dict)
+                should_blank_on_first_fetch = first_fetch and kernel_status != "running"
+                if first_fetch:
+                    revision_state = {"cells": {}, "initialized_at": now_iso, "last_seen_at": now_iso}
+                    should_save = True
+
+                previous_cells = revision_state.get("cells", {})
+                if not isinstance(previous_cells, dict):
+                    previous_cells = {}
+
+                updated_cells = {}
+                for cell in code_cells:
+                    cell_key = str(cell["index"])
+                    previous_cell = previous_cells.get(cell_key, {})
+                    if not isinstance(previous_cell, dict):
+                        previous_cell = {}
+
+                    baseline_order = previous_cell.get("baseline_order")
+                    seen_running = bool(previous_cell.get("seen_running"))
+                    previous_title = str(previous_cell.get("title") or "")
+                    current_order = cell.get("execution_order")
+                    execution_status = str(cell.get("execution_status") or "idle")
+                    is_active = execution_status in {"queued", "running"}
+                    is_executed = execution_status == "executed"
+
+                    if should_blank_on_first_fetch:
+                        saved_order = None
+                        saved_title = _cell_execution_title(None)
+                        baseline_order = None
+                        seen_running = False
+                    elif is_active:
+                        saved_order = None
+                        saved_title = "Cell is running"
+                        seen_running = True
+                    elif is_executed and seen_running and current_order is not None:
+                        saved_order = current_order
+                        saved_title = _cell_execution_title(current_order)
+                        baseline_order = current_order
+                        should_save = True
+                    elif current_order is None:
+                        saved_order = None
+                        saved_title = _cell_execution_title(None)
+                    elif current_order == baseline_order and seen_running:
+                        saved_order = baseline_order
+                        saved_title = previous_title or _cell_execution_title(saved_order)
+                    else:
+                        saved_order = None
+                        saved_title = _cell_execution_title(None)
+
+                    updated_cells[cell_key] = {
+                        "baseline_order": baseline_order,
+                        "seen_running": seen_running,
+                        "title": saved_title,
                     }
-                    save_json(final_data, tab_url)
+                    save_cells.append({
+                        "index": cell["index"],
+                        "input": cell["input"],
+                        "output": cell["output"],
+                        "execution_order": saved_order,
+                        "execution_title": saved_title,
+                    })
 
+                revision_state["cells"] = updated_cells
+                revision_state["last_seen_at"] = now_iso
+                revisions[data_hash] = revision_state
+                notebook_state["revisions"] = revisions
+                notebook_state["active_revision"] = data_hash
+                notebook_state["last_seen_at"] = now_iso
+                execution_state[tab_url] = notebook_state
+                _save_execution_state(execution_state)
+
+            if should_save:
+                final_data = {
+                    "tabUrl": tab_url,
+                    "title": str(msg.get("title", "notebook")),
+                    "lastUpdated": now_iso,
+                    "cells": save_cells,
+                }
+                save_json(final_data, tab_url)
+
+                with _HASHES_LOCK:
+                    stored_hashes = _load_hashes()
                     stored_hashes[tab_url] = data_hash
                     _save_hashes(stored_hashes)
 
-                    push_graph(tab_url, tab_id)
+                push_graph(tab_url, tab_id)
         
         send_msg({"ok": True})
 
