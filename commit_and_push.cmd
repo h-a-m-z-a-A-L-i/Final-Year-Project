@@ -44,7 +44,7 @@ if errorlevel 1 (
 )
 
 echo Pushing to remote...
-git push
+git push --force-with-lease
 if errorlevel 1 (
   echo Push failed.
   pause
