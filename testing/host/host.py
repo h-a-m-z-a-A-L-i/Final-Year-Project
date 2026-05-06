@@ -1132,6 +1132,19 @@ def main():
             send_msg({"type": "CHAT_STREAM_END", "stopped": True, "tabId": tab_id, "url": _history_url_key(msg.get("url")), "sessionId": session_id})
             continue
 
+        if m_type == "PROMPT_SIGNAL":
+            cell_index = msg.get("cellIndex")
+            text = str(msg.get("text") or "").strip()
+            tab_url = _normalized_url(msg.get("tabUrl") or "")
+            log(f"PROMPT_SIGNAL cell={cell_index if cell_index is not None else '?'} text={text}")
+            send_msg({
+                "ok": True,
+                "type": "PROMPT_SIGNAL",
+                "cellIndex": cell_index,
+                "tabUrl": tab_url,
+            })
+            continue
+
         def push_graph(url, tid):
             if not tid:
                 return

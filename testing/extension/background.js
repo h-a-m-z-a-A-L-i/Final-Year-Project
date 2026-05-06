@@ -166,6 +166,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // Handle prompt observer signals locally to trigger an immediate re-scan (throttled)
   if (msg?.type === 'PROMPT_SIGNAL') {
     console.log(`[BG-SIGNAL] Received: "${msg.text}" from cell ${msg.cellIndex || '?'}`);
+    const p = getPort();
+    if (p) {
+      p.postMessage({ ...msg, tabId: sender.tab?.id });
+    }
     const now = Date.now();
     if (now - __lastPromptSignal > 250) {
       __lastPromptSignal = now;
