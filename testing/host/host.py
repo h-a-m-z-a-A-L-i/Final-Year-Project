@@ -1137,6 +1137,17 @@ def main():
             text = str(msg.get("text") or "").strip()
             tab_url = _normalized_url(msg.get("tabUrl") or "")
             log(f"PROMPT_SIGNAL cell={cell_index if cell_index is not None else '?'} text={text}")
+            
+            # Trigger cell execution update
+            if cell_index is not None and tab_url:
+                import subprocess
+                script_path = Path(__file__).parent / "update_cell_execution.py"
+                try:
+                    subprocess.Popen([sys.executable, str(script_path), str(cell_index), tab_url], 
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except Exception:
+                    pass
+            
             send_msg({
                 "ok": True,
                 "type": "PROMPT_SIGNAL",
@@ -1290,10 +1301,17 @@ def main():
                         saved_title = _cell_execution_title(None)
                         baseline_order = None
                         seen_running = False
-                    elif is_active:
-                        saved_order = None
-                        saved_title = "Cell is running"
+                    elif is_active and current_order is not None:
+                        saved_order = current_order
+                        saved_title = _cell_execution_title(current_order)
+                        baseline_order = current_order
                         seen_running = True
+                        should_save = True
+                    elif is_active:
+                        saved_order = current_order
+                        saved_title = "Cell is running" if current_order is None else _cell_execution_title(current_order)
+                        seen_running = True
+                        should_save = True
                     elif is_executed and seen_running and current_order is not None:
                         saved_order = current_order
                         saved_title = _cell_execution_title(current_order)
@@ -1330,6 +1348,27 @@ def main():
                 notebook_state["last_seen_at"] = now_iso
                 execution_state[tab_url] = notebook_state
                 _save_execution_state(execution_state)
+
+            existing_path = SCRAPED_DIR / get_safe_filename(tab_url)
+            if existing_path.is_file():
+                try:
+                    existing_data = json.loads(existing_path.read_text(encoding="utf-8"))
+                    existing_cells = existing_data.get("cells", []) if isinstance(existing_data, dict) else []
+                    existing_by_index = {
+                        str(cell.get("index")): cell
+                        for cell in existing_cells
+                        if isinstance(cell, dict) and cell.get("index") is not None
+                    }
+                    for cell in save_cells:
+                        prev_cell = existing_by_index.get(str(cell["index"]), {})
+                        if (
+                            str(prev_cell.get("execution_order")) != str(cell.get("execution_order"))
+                            or str(prev_cell.get("execution_title") or "") != str(cell.get("execution_title") or "")
+                        ):
+                            should_save = True
+                            break
+                except Exception:
+                    should_save = True
 
             if should_save:
                 final_data = {

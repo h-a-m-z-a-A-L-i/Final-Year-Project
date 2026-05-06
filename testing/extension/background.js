@@ -157,8 +157,13 @@ function getPort() {
 function injectUI(tabId) {
   chrome.scripting.executeScript({
     target: { tabId: tabId },
-    files: ["markdown-it.min.js", "ui_injector.js", "prompt_observer.js"]
+    files: ["markdown-it.min.js", "ui_injector.js"]
   }).catch(e => console.warn("UI Injection failed:", e));
+
+  chrome.scripting.executeScript({
+    target: { tabId: tabId, allFrames: true },
+    files: ["prompt_observer.js"]
+  }).catch(e => console.warn("Prompt observer injection failed:", e));
 }
 
 // ── Bridge UI messages to the Native Host ────────────────────────────────────
