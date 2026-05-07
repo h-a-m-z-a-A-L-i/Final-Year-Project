@@ -356,6 +356,12 @@ def _history_url_key(raw_url: str) -> str:
     """Return a stable URL key for history isolation; empty means invalid/missing URL."""
     return _normalized_url(raw_url or "")
 
+def _kernel_is_active(kernel_status) -> bool:
+    if isinstance(kernel_status, bool):
+        return kernel_status
+    status = str(kernel_status or "").strip().lower()
+    return status in {"running", "active", "on", "started", "true", "1"}
+
 def _extract_user_profile_facts(prompt: str) -> dict:
     """Extract small, stable user facts from plain-text prompts."""
     text = str(prompt or "").strip()
@@ -849,7 +855,7 @@ def _system_time_label() -> str:
 def _cell_execution_title(execution_order, execution_timestamp=None):
     """Generate execution title from order and optional timestamp (ISO format)."""
     if execution_order is None:
-        return "Cell is not executed yet"
+        return ""
     
     # If timestamp provided (from flag system), use it; otherwise use current time
     if execution_timestamp:
@@ -862,6 +868,28 @@ def _cell_execution_title(execution_order, execution_timestamp=None):
     
     # Fallback to current time
     return "Cell executed at " + _system_time_label()
+
+def _normalize_kernel_scenario(kernel_scenario: str) -> str:
+    return str(kernel_scenario or "unknown").strip().lower()
+
+def _scenario_is_fresh(kernel_scenario: str) -> bool:
+    return _normalize_kernel_scenario(kernel_scenario) == "scenario_2_fresh_kernel_started"
+
+def _scenario_is_reload(kernel_scenario: str) -> bool:
+    return _normalize_kernel_scenario(kernel_scenario) == "scenario_3_reload_running_kernel"
+
+def _scenario_is_off(kernel_scenario: str) -> bool:
+    return _normalize_kernel_scenario(kernel_scenario) == "scenario_1_new_notebook_off"
+
+def _default_execution_snapshot(cell_index: int, source: str, output: str) -> dict:
+    return {
+        "index": cell_index,
+        "input": source,
+        "output": output,
+        "execution_order": None,
+        "execution_title": "",
+        "execution_timestamp": None,
+    }
 
 def _build_fallback_graph(notebook_url: str):
     """Build a minimal graph from saved notebook JSON when dependency modules are unavailable."""
@@ -1238,6 +1266,15 @@ def main():
             tab_url = _normalized_url(msg.get("tabUrl") or "unknown")
             tab_id = msg.get("tabId")
             kernel_status = msg.get("kernelStatus")
+            kernel_scenario = msg.get("kernelScenario", "unknown")
+            kernel_state = msg.get("kernelState", {})
+            kernel_active = _kernel_is_active(kernel_status)
+            kernel_scenario_norm = _normalize_kernel_scenario(kernel_scenario)
+            
+            # Log scenario for debugging
+            log(f"[TAB {tab_id}] Kernel Scenario: {kernel_scenario} | Status: {kernel_status}")
+            if isinstance(kernel_state, dict):
+                log(f"[TAB {tab_id}]   Editor Loading: {kernel_state.get('editorLoading')}, Off: {kernel_state.get('off')}, HDD: {kernel_state.get('hdd')}")
             raw_cells = msg.get("cells", [])
             if not isinstance(raw_cells, list):
                 raw_cells = []
@@ -1245,12 +1282,18 @@ def main():
             code_cells = []
             for i, cell in enumerate(raw_cells):
                 if cell.get("type") == "code":
+                    execution_order = cell.get("execution_order")
+                    try:
+                        if execution_order is not None:
+                            execution_order = int(execution_order)
+                    except Exception:
+                        execution_order = None
                     code_cells.append({
                         "index": i + 1,
                         "input": str(cell.get("source") or ""),
                         "output": str(cell.get("output") or ""),
-                        "execution_order": cell.get("execution_order"),
-                        "execution_title": str(cell.get("execution_title") or ""),
+                        "execution_order": execution_order,
+                        "execution_title": str(cell.get("execution_title") or "").strip(),
                         "execution_status": str(cell.get("execution_status") or "idle"),
                     })
             
@@ -1283,8 +1326,11 @@ def main():
                 execution_state = _load_execution_state()
                 notebook_state = execution_state.get(tab_url)
                 if not isinstance(notebook_state, dict) or "revisions" not in notebook_state:
-                    notebook_state = {"active_revision": data_hash, "revisions": {}, "last_seen_at": now_iso}
+                    notebook_state = {"active_revision": data_hash, "revisions": {}, "last_seen_at": now_iso, "kernel_active": kernel_active}
                     should_save = True
+
+                previous_kernel_scenario = str(notebook_state.get("last_kernel_scenario") or "").strip().lower()
+                scenario_entered = kernel_scenario_norm != previous_kernel_scenario
 
                 revisions = notebook_state.get("revisions", {})
                 if not isinstance(revisions, dict):
@@ -1292,14 +1338,18 @@ def main():
 
                 revision_state = revisions.get(data_hash)
                 first_fetch = not isinstance(revision_state, dict)
-                should_blank_on_first_fetch = first_fetch and kernel_status == "off"
                 if first_fetch:
-                    revision_state = {"cells": {}, "initialized_at": now_iso, "last_seen_at": now_iso}
+                    revision_state = {"cells": {}, "initialized_at": now_iso, "last_seen_at": now_iso, "kernel_active": kernel_active, "kernel_scenario": kernel_scenario_norm}
                     should_save = True
 
                 previous_cells = revision_state.get("cells", {})
                 if not isinstance(previous_cells, dict):
                     previous_cells = {}
+
+                if _scenario_is_fresh(kernel_scenario_norm) and scenario_entered:
+                    previous_cells = {}
+                    revision_state["cells"] = {}
+                    should_save = True
 
                 updated_cells = {}
                 for cell in code_cells:
@@ -1311,45 +1361,50 @@ def main():
                     baseline_order = previous_cell.get("baseline_order")
                     seen_running = bool(previous_cell.get("seen_running"))
                     previous_title = str(previous_cell.get("title") or "")
-                    # Only trust execution_order from our flag system (has execution_timestamp)
-                    # Ignore scrape data - will restore from prev_cell if it has timestamp
-                    current_order = None
+                    current_order = cell.get("execution_order")
+                    current_title = str(cell.get("execution_title") or "").strip()
                     execution_status = str(cell.get("execution_status") or "idle")
                     is_active = execution_status in {"queued", "running"}
                     is_executed = execution_status == "executed"
 
-                    if should_blank_on_first_fetch:
+                    if _scenario_is_fresh(kernel_scenario_norm) and scenario_entered:
                         saved_order = None
-                        saved_title = _cell_execution_title(None)
-                        baseline_order = None
-                        seen_running = False
+                        saved_title = ""
                     elif is_active:
-                        saved_order = current_order
+                        saved_order = current_order if current_order is not None else baseline_order
                         if current_order is not None and current_order != baseline_order:
                             saved_title = "Cell is running (Execution #" + str(current_order) + ")"
                         else:
-                            saved_title = "Cell is running"
+                            saved_title = current_title or "Cell is running"
                         seen_running = True
-                        should_save = True
+                        if current_order is not None:
+                            should_save = True
                     elif is_executed and current_order is not None:
                         if current_order != baseline_order:
                             saved_order = current_order
-                            saved_title = _cell_execution_title(current_order)
+                            saved_title = current_title or _cell_execution_title(current_order)
                             baseline_order = current_order
                             should_save = True
                             log(f"EXEC DETECTED cell={cell_key} order={current_order}")
                         else:
                             saved_order = baseline_order
-                            saved_title = previous_title or _cell_execution_title(saved_order)
-                    elif current_order is None:
-                        saved_order = None
-                        saved_title = _cell_execution_title(None)
-                    elif current_order == baseline_order and seen_running:
-                        saved_order = baseline_order
-                        saved_title = previous_title or _cell_execution_title(saved_order)
+                            saved_title = current_title or previous_title or _cell_execution_title(saved_order)
+                    elif current_order is not None and seen_running:
+                        if current_order == baseline_order:
+                            saved_order = baseline_order
+                            saved_title = current_title or previous_title or _cell_execution_title(saved_order)
+                        else:
+                            saved_order = current_order
+                            saved_title = current_title or _cell_execution_title(current_order)
+                            baseline_order = current_order
                     else:
-                        saved_order = None
-                        saved_title = _cell_execution_title(None)
+                        # current_order is None, OR current_order is set but cell was never seen
+                        # running in this session — stale DOM numbers must not assign execution data.
+                        saved_order = baseline_order if (_scenario_is_reload(kernel_scenario_norm) or _scenario_is_off(kernel_scenario_norm)) else None
+                        if _scenario_is_off(kernel_scenario_norm):
+                            saved_title = current_title or previous_title or ""
+                        else:
+                            saved_title = previous_title or _cell_execution_title(saved_order)
 
                     updated_cells[cell_key] = {
                         "baseline_order": baseline_order,
@@ -1367,10 +1422,14 @@ def main():
 
                 revision_state["cells"] = updated_cells
                 revision_state["last_seen_at"] = now_iso
+                revision_state["kernel_active"] = kernel_active
+                revision_state["kernel_scenario"] = kernel_scenario_norm
                 revisions[data_hash] = revision_state
                 notebook_state["revisions"] = revisions
                 notebook_state["active_revision"] = data_hash
                 notebook_state["last_seen_at"] = now_iso
+                notebook_state["kernel_active"] = kernel_active
+                notebook_state["last_kernel_scenario"] = kernel_scenario_norm
                 execution_state[tab_url] = notebook_state
                 _save_execution_state(execution_state)
 
@@ -1397,7 +1456,10 @@ def main():
                     should_save = True
 
             if should_save:
-                if existing_by_index:
+                # On a fresh kernel start that just entered, do NOT inherit old file data —
+                # cells have been deliberately reset and must stay empty for fresh tracking.
+                _is_fresh_reset = _scenario_is_fresh(kernel_scenario_norm) and scenario_entered
+                if existing_by_index and not _is_fresh_reset:
                     for cell in save_cells:
                         prev_cell = existing_by_index.get(str(cell["index"]), {})
                         if not isinstance(prev_cell, dict):
@@ -1405,21 +1467,15 @@ def main():
                         prev_order = prev_cell.get("execution_order")
                         prev_title = str(prev_cell.get("execution_title") or "")
                         prev_timestamp = prev_cell.get("execution_timestamp")
-                        # Only restore execution_order if it has timestamp (from flag system)
-                        if prev_timestamp and prev_order is not None and cell.get("execution_order") is None:
+                        if prev_order is not None and cell.get("execution_order") is None:
                             cell["execution_order"] = prev_order
-                        
-                        # Preserve execution_timestamp set by flag system
+                        # Inherit previous title only if this cell has no title yet (empty string).
+                        if prev_title and not cell.get("execution_title"):
+                            cell["execution_title"] = prev_title
                         if prev_timestamp and cell.get("execution_timestamp") is None:
                             cell["execution_timestamp"] = prev_timestamp
-                        
-                        current_title = cell.get("execution_title")
-                        # Preserve title if timestamp exists (means flag system set it)
                         if prev_timestamp:
                             cell["execution_title"] = _cell_execution_title(cell.get("execution_order"), prev_timestamp)
-                        elif (not current_title or current_title == "Cell is not executed yet") and prev_title:
-                            if prev_title != "Cell is not executed yet":
-                                cell["execution_title"] = prev_title
                 final_data = {
                     "tabUrl": tab_url,
                     "title": str(msg.get("title", "notebook")),

@@ -44,14 +44,18 @@ def update_cell_execution(cell_index: int, tab_url: str, exec_timestamp_ms: int 
     filename = get_safe_filename(tab_url)
     json_path = SCRAPED_DIR / get_safe_filename(tab_url)
     log_msg(f"START cell={cell_index} url={tab_url} file={filename} ts={exec_timestamp_ms} exists={json_path.exists()}")
-    
-    if not json_path.exists():
-        log_msg(f"FAIL JSON not found: {json_path}")
-        return
-    
+
     try:
-        with json_path.open("r", encoding="utf-8") as f:
-            data = json.load(f)
+        if json_path.exists():
+            with json_path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+        else:
+            data = {
+                "tabUrl": tab_url,
+                "title": "notebook",
+                "lastUpdated": datetime.now().isoformat(),
+                "cells": [],
+            }
         
         cells = data.get("cells", [])
         
@@ -63,8 +67,16 @@ def update_cell_execution(cell_index: int, tab_url: str, exec_timestamp_ms: int 
                 break
         
         if not target_cell:
-            log_msg(f"FAIL cell_index {cell_index} not in JSON")
-            return
+            while len(cells) < cell_index:
+                cells.append({
+                    "index": len(cells) + 1,
+                    "input": "",
+                    "output": "",
+                    "execution_order": None,
+                    "execution_title": "Cell is not executed yet",
+                    "execution_timestamp": None,
+                })
+            target_cell = cells[cell_index - 1]
         
         # Find max execution_order to assign next one
         max_order = 0

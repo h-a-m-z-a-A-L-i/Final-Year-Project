@@ -4,6 +4,90 @@ const HOST = "com.testing.tabprinter";
 let port = null;
 let __lastPromptSignal = 0;
 
+// State machine for tracking kernel state transitions per tab
+const kernelStateByTab = {}; // tabId -> { lastStatus, lastEditorLoading, scenario, timestamp }
+
+function classifyKernelScenario(tabId, detectedState) {
+  const isFirstScan = !kernelStateByTab[tabId];
+  const current = kernelStateByTab[tabId] || {};
+  let scenario = current.scenario || "unknown";
+
+  // Priority 1: Editor loading always resets the machine (covers page reloads from any state).
+  if (detectedState.editorLoading) {
+    scenario = "editor_loading";
+    console.log(`[Tab ${tabId}] Transition: any → editor_loading`);
+  }
+  // Priority 2: First time we see this tab — no prior state, classify directly from DOM flags.
+  else if (isFirstScan) {
+    if (detectedState.hdd) {
+      scenario = "scenario_3_reload_running_kernel";
+      console.log(`[Tab ${tabId}] First-scan with HDD → scenario_3_reload_running_kernel`);
+    } else if (detectedState.off) {
+      scenario = "scenario_1_new_notebook_off";
+      console.log(`[Tab ${tabId}] First-scan with off → scenario_1_new_notebook_off`);
+    }
+  }
+  // Priority 3: Normal state transitions on subsequent polls.
+  else {
+    // Editor loading finished → kernel is off (new notebook never started)
+    if (current.scenario === "editor_loading" && detectedState.off && !detectedState.hdd) {
+      scenario = "scenario_1_new_notebook_off";
+      console.log(`[Tab ${tabId}] Transition: editor_loading → scenario_1_new_notebook_off`);
+    }
+    // Editor loading finished → HDD already present (tab reload with running kernel)
+    else if (current.scenario === "editor_loading" && detectedState.hdd && !detectedState.off) {
+      scenario = "scenario_3_reload_running_kernel";
+      console.log(`[Tab ${tabId}] Transition: editor_loading → scenario_3_reload_running_kernel`);
+    }
+    // Kernel off → user clicked Run (fresh start)
+    else if (current.scenario === "scenario_1_new_notebook_off" && detectedState.hdd) {
+      scenario = "scenario_2_fresh_kernel_started";
+      console.log(`[Tab ${tabId}] Transition: scenario_1 → scenario_2_fresh_kernel_started`);
+    }
+    // Kernel turned OFF from a running state → badge must update back to off
+    else if (
+      (current.scenario === "scenario_2_fresh_kernel_started" ||
+       current.scenario === "scenario_3_reload_running_kernel") &&
+      detectedState.off && !detectedState.hdd
+    ) {
+      scenario = "scenario_1_new_notebook_off";
+      console.log(`[Tab ${tabId}] Transition: ${current.scenario} → scenario_1_new_notebook_off (kernel turned off)`);
+    }
+  }
+
+  kernelStateByTab[tabId] = {
+    lastStatus: detectedState.status,
+    lastEditorLoading: detectedState.editorLoading,
+    scenario: scenario,
+    timestamp: Date.now(),
+  };
+
+  console.log(`[Tab ${tabId}] State: editorLoading=${detectedState.editorLoading}, off=${detectedState.off}, hdd=${detectedState.hdd} → scenario=${scenario}`);
+
+  return scenario;
+}
+
+function setBadgeForScenario(tabId, scenario) {
+  const badgeConfig = {
+    "scenario_1_new_notebook_off": { text: "1️⃣OFF", color: "#FF6B6B" },
+    "scenario_2_fresh_kernel_started": { text: "2️⃣RUN", color: "#4ECDC4" },
+    "scenario_3_reload_running_kernel": { text: "3️⃣RLD", color: "#45B7D1" },
+    "editor_loading": { text: "⏳", color: "#FFA07A" },
+    "unknown": { text: "?", color: "#888888" },
+  };
+  
+  const config = badgeConfig[scenario] || badgeConfig["unknown"];
+  
+  try {
+    chrome.action.setBadgeText({ text: config.text, tabId: tabId });
+    chrome.action.setBadgeBackgroundColor({ color: config.color, tabId: tabId });
+    console.log(`[Badge] Tab ${tabId} set to "${config.text}" with color ${config.color}`);
+  } catch (e) {
+    console.error(`[Badge Error] Failed to set badge for tab ${tabId}:`, e);
+  }
+}
+
+
 function scrapeNotebook() {
   const cells = [];
   const cellElements = document.querySelectorAll(".cell, .jp-Cell, .code_cell, .text_cell, .markdown_cell");
@@ -60,10 +144,9 @@ function scrapeNotebook() {
       executionStatus = "running";
     } else if (/Cell executed/i.test(combinedSignal)) {
       executionStatus = "executed";
-    } else if (Number.isFinite(executionOrder)) {
-      // No transient button found, but a prompt number exists → cell was executed previously
-      executionStatus = "executed";
     }
+    // No fallback: a prompt number in the DOM is stale data from a prior session.
+    // Only explicit transient button signals are trusted as real execution events.
 
     return {
       execution_order: Number.isFinite(executionOrder) ? executionOrder : null,
@@ -89,15 +172,140 @@ function scrapeNotebook() {
   return { title: document.title || "", cellCount: cells.length, cells: cells };
 }
 
+// Ping content script to check if it's ready
+function pingContentScript(tabId, retryCount = 0) {
+  return new Promise((resolve) => {
+    chrome.tabs.sendMessage(tabId, { type: 'PING' }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.log(`[Ping] Tab ${tabId} not ready (attempt ${retryCount + 1}):`, chrome.runtime.lastError.message);
+
+        // On the first failure, try injecting the content script into the tab (helps already-open tabs)
+        if (retryCount === 0) {
+          try {
+            chrome.scripting.executeScript({ target: { tabId: tabId, allFrames: true }, files: ["kernel_state_listener.js"] })
+              .then(() => {
+                console.log(`[Ping] Injected kernel_state_listener into tab ${tabId}, retrying ping...`);
+                setTimeout(() => pingContentScript(tabId, retryCount + 1).then(resolve), 200);
+              })
+              .catch((injErr) => {
+                console.warn(`[Ping] Injection failed for tab ${tabId}:`, injErr);
+                if (retryCount < 4) setTimeout(() => pingContentScript(tabId, retryCount + 1).then(resolve), 150 * (retryCount + 1));
+                else { console.log(`[Ping] Tab ${tabId} maxed out retries, will send anyway (fallback)`); resolve(true); }
+              });
+            return;
+          } catch (e) {
+            console.warn(`[Ping] Injection attempt threw for tab ${tabId}:`, e);
+          }
+        }
+
+        if (retryCount < 4) {
+          setTimeout(() => pingContentScript(tabId, retryCount + 1).then(resolve), 150 * (retryCount + 1));
+        } else {
+          console.log(`[Ping] Tab ${tabId} maxed out retries, will send anyway (fallback)`);
+          resolve(true); // Fallback: assume ready after max retries
+        }
+      } else {
+        console.log(`[Ping] Tab ${tabId} is ready with response:`, response);
+        resolve(true);
+      }
+    });
+  });
+}
+
+// Send kernel state to content script with retry
+async function sendKernelStateToTab(tabId, kernelData) {
+  let retryCount = 0;
+  const maxRetries = 3;
+
+  const attempt = () => {
+    return new Promise((resolve) => {
+      chrome.tabs.sendMessage(tabId, kernelData, (response) => {
+        if (chrome.runtime.lastError) {
+          const errorMsg = chrome.runtime.lastError.message;
+          console.log(`[SendState] Tab ${tabId} failed (attempt ${retryCount + 1}): ${errorMsg}`);
+          // Try injecting content script on first failure (helps already-open tabs)
+          if (retryCount === 0) {
+            chrome.scripting.executeScript({ target: { tabId: tabId, allFrames: true }, files: ["kernel_state_listener.js"] })
+              .then(() => {
+                console.log(`[SendState] Injected kernel_state_listener into tab ${tabId}, retrying send...`);
+                retryCount++;
+                setTimeout(() => attempt().then(resolve), 250);
+              })
+              .catch((injErr) => {
+                console.warn(`[SendState] Injection failed for tab ${tabId}:`, injErr);
+                if (retryCount < maxRetries) {
+                  retryCount++;
+                  setTimeout(() => {
+                    console.log(`[SendState] Retrying tab ${tabId} (${retryCount}/${maxRetries})...`);
+                    attempt().then(resolve);
+                  }, 200 * retryCount);
+                } else {
+                  resolve(false);
+                }
+              });
+            return;
+          }
+
+          if (retryCount < maxRetries) {
+            retryCount++;
+            setTimeout(() => {
+              console.log(`[SendState] Retrying tab ${tabId} (${retryCount}/${maxRetries})...`);
+              attempt().then(resolve);
+            }, 200 * retryCount);
+          } else {
+            resolve(false);
+          }
+        } else {
+          console.log(`[SendState] Tab ${tabId} acknowledged:`, response);
+          resolve(true);
+        }
+      });
+    });
+  };
+
+  return attempt();
+}
+
 function getKernelStatus() {
   const statusEl = document.querySelector(
     "#site-content > div.sc-cvANaB.lntgBg > div > div.sc-hpEunQ.efgyYB > div > div.sc-NOWJl.jHHMmT"
   );
-  if (!statusEl) return null;
-  const text = (statusEl.innerText || statusEl.textContent || "").trim();
-  if (text.includes("Session started")) return "running";
-  if (text.includes("off") && text.includes("run a cell to start")) return "off";
-  return null;
+  const activeEl = document.querySelector(
+    "#site-content > div.sc-cvANaB.lntgBg > div > div.sc-hpEunQ.efgyYB > div > div.sc-NOWJl.jHHMmT > button.sc-NoPZx.sc-anfIT.cgepwS.fqcZPa > div:nth-child(2)"
+  );
+  
+  let statusText = (statusEl?.innerText || statusEl?.textContent || "").trim();
+  let activeText = (activeEl?.innerText || activeEl?.textContent || "").trim();
+  
+  console.log('[getKernelStatus] Initial query - statusText:', statusText, 'activeText:', activeText);
+  
+  // Fallback: search entire page for these text patterns if not found
+  if (statusText.length === 0 && activeText.length === 0) {
+    const bodyText = document.body.innerText || document.body.textContent || "";
+    console.log('[getKernelStatus] Using fallback - searching page body');
+    statusText = bodyText;
+    activeText = bodyText;
+  }
+
+  const hasEditorLoading = /Editor\s+loading/i.test(statusText) || /Editor\s+loading/i.test(activeText);
+  const hasOff = /off\s*\(run a cell to start\)/i.test(statusText) || /off\s*\(run a cell to start\)/i.test(activeText);
+  const hasHDD = /\bHDD\b/i.test(activeText) || /\bHDD\b/i.test(statusText);
+  const hasSessionStarted = /Session started/i.test(statusText) || /Session started/i.test(activeText);
+
+  console.log('[getKernelStatus] Flags detected - editorLoading:', hasEditorLoading, 'off:', hasOff, 'hdd:', hasHDD, 'sessionStarted:', hasSessionStarted);
+
+  return {
+    status: (() => {
+      if (hasOff) return "off";
+      if (hasHDD || hasSessionStarted || activeText) return "running";
+      return null;
+    })(),
+    editorLoading: hasEditorLoading,
+    off: hasOff,
+    hdd: hasHDD,
+    statusText: statusText.substring(0, 200),
+    activeText: activeText.substring(0, 200),
+  };
 }
 
 function probeExecutionMetaFetch() {
@@ -167,6 +375,12 @@ function injectUI(tabId) {
     target: { tabId: tabId, allFrames: true },
     files: ["prompt_observer.js"]
   }).catch(e => console.warn("Prompt observer injection failed:", e));
+
+  // Ensure kernel_state_listener is present for already-open tabs
+  chrome.scripting.executeScript({
+    target: { tabId: tabId, allFrames: true },
+    files: ["kernel_state_listener.js"]
+  }).catch(e => console.warn("kernel_state_listener injection failed:", e));
 }
 
 // ── Bridge UI messages to the Native Host ────────────────────────────────────
@@ -206,7 +420,11 @@ function sendTabs() {
       return isTargetUrl(t.url);
     });
 
+    console.log(`[sendTabs] Found ${targets.length} target tabs to process`);
+
     for (const tab of targets) {
+      console.log(`[sendTabs] Processing tab ${tab.id}: ${tab.url}`);
+      
       // Ensure UI is injected
       injectUI(tab.id);
 
@@ -223,13 +441,19 @@ function sendTabs() {
             return found;
           }
       }, (results) => {
-          if (chrome.runtime.lastError) return;
+          if (chrome.runtime.lastError) {
+            console.log(`[sendTabs] Tab ${tab.id} - iframe query error:`, chrome.runtime.lastError);
+            return;
+          }
           const iframes = results?.[0]?.result || [];
           chrome.scripting.executeScript({
               target: { tabId: tab.id, allFrames: true },
               func: scrapeNotebook
           }, (scrapeResults) => {
-              if (chrome.runtime.lastError) return;
+              if (chrome.runtime.lastError) {
+                console.log(`[sendTabs] Tab ${tab.id} - scrape error:`, chrome.runtime.lastError);
+                return;
+              }
               const allCells = [];
               let notebookTitle = "";
               for (const r of (scrapeResults || [])) {
@@ -254,13 +478,44 @@ function sendTabs() {
                 target: { tabId: tab.id, allFrames: false },
                 func: getKernelStatus
               }, (statusResults) => {
-                const kernelStatus = statusResults?.[0]?.result;
+                const detectedState = statusResults?.[0]?.result || { status: null, editorLoading: false, off: false, hdd: false };
+                const scenario = classifyKernelScenario(tab.id, detectedState);
+                setBadgeForScenario(tab.id, scenario);
+                
+                const kernelStatus = detectedState.status;
+                
+                console.log(`[Kernel-Detector] Tab ${tab.id}: scenario="${scenario}", status="${kernelStatus}"`, detectedState);
+                
+                // Send to Python host
                 getPort().postMessage({
                   type: "NOTEBOOK_DATA", tabUrl: tab.url, iframes: iframes,
                   tabId: tab.id,
                   title: notebookTitle, cellCount: allCells.length, cells: allCells,
-                  kernelStatus: kernelStatus
+                  kernelStatus: kernelStatus,
+                  kernelScenario: scenario,
+                  kernelState: detectedState
                 });
+                
+                // Send to content script on the tab to relay to page with ping-based handshake
+                (async () => {
+                  console.log(`[Background] Pinging tab ${tab.id} to check if content script is ready...`);
+                  const isReady = await pingContentScript(tab.id);
+                  
+                  if (isReady) {
+                    console.log(`[Background] Tab ${tab.id} is ready, sending NOTEBOOK_DATA...`);
+                    const sent = await sendKernelStateToTab(tab.id, {
+                      type: "NOTEBOOK_DATA",
+                      tabUrl: tab.url,
+                      tabId: tab.id,
+                      kernelStatus: kernelStatus,
+                      kernelScenario: scenario,
+                      kernelState: detectedState
+                    });
+                    console.log(`[Background] Tab ${tab.id} kernel state send result: ${sent}`);
+                  } else {
+                    console.log(`[Background] Tab ${tab.id} content script never became ready`);
+                  }
+                })();
               });
           });
       });
@@ -269,10 +524,34 @@ function sendTabs() {
 }
 
 // Events
-chrome.runtime.onInstalled.addListener(sendTabs);
-chrome.runtime.onStartup.addListener(sendTabs);
-setInterval(sendTabs, 10000);
-chrome.tabs.onUpdated.addListener((id, info) => {
-  if (info.status === "complete") sendTabs();
+chrome.runtime.onInstalled.addListener(() => {
+  console.log("[Init] Extension installed/updated, initializing badges");
+  sendTabs();
 });
+
+chrome.runtime.onStartup.addListener(() => {
+  console.log("[Init] Browser startup, re-scanning tabs");
+  sendTabs();
+});
+
+setInterval(sendTabs, 10000);
+
+chrome.tabs.onUpdated.addListener((id, info) => {
+  console.log(`[Tab ${id}] Updated: ${info.status}`);
+  // When page finishes loading (including reloads), wait a bit for DOM to settle, then re-scan
+  if (info.status === "complete") {
+    console.log(`[Tab ${id}] Page complete, scheduling re-scan after 500ms...`);
+    setTimeout(() => {
+      console.log(`[Tab ${id}] Re-scanning after page load...`);
+      sendTabs();
+    }, 500);
+  }
+});
+
+chrome.tabs.onRemoved.addListener((id) => {
+  delete kernelStateByTab[id];
+  console.log(`[Tab ${id}] Removed from state tracking`);
+});
+
+console.log("[Background] Service worker loaded, calling initial sendTabs()");
 sendTabs();
