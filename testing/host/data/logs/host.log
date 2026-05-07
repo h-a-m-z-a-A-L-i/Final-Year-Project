@@ -21709,3 +21709,138 @@
 [19:06:00] [TAB 2015847957] Kernel Scenario: scenario_2_fresh_kernel_started | Status: running
 [19:06:00] [TAB 2015847957]   Editor Loading: False, Off: False, HDD: True
 [19:06:00] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[19:06:10] [TAB 2015848309] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:06:10] [TAB 2015848309]   Editor Loading: False, Off: True, HDD: False
+[19:06:10] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[19:06:10] [TAB 2015847957] Kernel Scenario: scenario_2_fresh_kernel_started | Status: running
+[19:06:10] [TAB 2015847957]   Editor Loading: False, Off: False, HDD: True
+[19:06:10] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[19:06:10] [TAB 2015848325] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:06:10] [TAB 2015848325]   Editor Loading: False, Off: True, HDD: False
+[19:06:10] Building graph for https___www_kaggle_com_code_codekey_qwen_qwen3_coder_30b_a3b_instruct_edit.json
+[19:06:20] [TAB 2015848309] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:06:20] [TAB 2015848309]   Editor Loading: False, Off: True, HDD: False
+[19:06:20] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[19:06:20] [TAB 2015847957] Kernel Scenario: scenario_2_fresh_kernel_started | Status: running
+[19:06:20] [TAB 2015847957]   Editor Loading: False, Off: False, HDD: True
+[19:06:20] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[19:06:20] [TAB 2015848325] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:06:20] [TAB 2015848325]   Editor Loading: False, Off: True, HDD: False
+[19:06:20] Building graph for https___www_kaggle_com_code_codekey_qwen_qwen3_coder_30b_a3b_instruct_edit.json
+[19:06:30] [TAB 2015847957] Kernel Scenario: scenario_2_fresh_kernel_started | Status: running
+[19:06:30] [TAB 2015847957]   Editor Loading: False, Off: False, HDD: True
+[19:06:30] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[19:06:30] [TAB 2015848309] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:06:30] [TAB 2015848309]   Editor Loading: False, Off: True, HDD: False
+[19:06:30] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[19:06:30] [TAB 2015848325] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:06:30] [TAB 2015848325]   Editor Loading: False, Off: True, HDD: False
+[19:06:30] Building graph for https___www_kaggle_com_code_codekey_qwen_qwen3_coder_30b_a3b_instruct_edit.json
+[19:06:40] [TAB 2015848309] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:06:40] [TAB 2015848309]   Editor Loading: False, Off: True, HDD: False
+[19:06:40] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[19:06:40] [TAB 2015848325] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:06:40] [TAB 2015848325]   Editor Loading: False, Off: True, HDD: False
+[19:06:40] Building graph for https___www_kaggle_com_code_codekey_qwen_qwen3_coder_30b_a3b_instruct_edit.json
+[19:06:40] [TAB 2015847957] Kernel Scenario: scenario_2_fresh_kernel_started | Status: running
+[19:06:40] [TAB 2015847957]   Editor Loading: False, Off: False, HDD: True
+[19:06:40] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[19:06:50] [TAB 2015848309] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:06:50] [TAB 2015848309]   Editor Loading: False, Off: True, HDD: False
+[19:06:50] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[19:06:50] [TAB 2015847957] Kernel Scenario: scenario_2_fresh_kernel_started | Status: running
+[19:06:50] [TAB 2015847957]   Editor Loading: False, Off: False, HDD: True
+[19:06:50] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[19:06:50] [TAB 2015848325] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:06:50] [TAB 2015848325]   Editor Loading: False, Off: True, HDD: False
+[19:06:50] Building graph for https___www_kaggle_com_code_codekey_qwen_qwen3_coder_30b_a3b_instruct_edit.json
+[19:07:00] [TAB 2015848309] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:07:00] [TAB 2015848309]   Editor Loading: False, Off: True, HDD: False
+[19:07:00] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[19:07:00] [TAB 2015847957] Kernel Scenario: scenario_2_fresh_kernel_started | Status: running
+[19:07:00] [TAB 2015847957]   Editor Loading: False, Off: False, HDD: True
+[19:07:00] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[19:07:00] [TAB 2015848325] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:07:00] [TAB 2015848325]   Editor Loading: False, Off: True, HDD: False
+[19:07:00] Building graph for https___www_kaggle_com_code_codekey_qwen_qwen3_coder_30b_a3b_instruct_edit.json
+[19:07:10] [TAB 2015847957] Kernel Scenario: scenario_2_fresh_kernel_started | Status: running
+[19:07:10] [TAB 2015847957]   Editor Loading: False, Off: False, HDD: True
+[19:07:10] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[19:07:10] [TAB 2015848309] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:07:10] [TAB 2015848309]   Editor Loading: False, Off: True, HDD: False
+[19:07:10] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[19:07:10] [TAB 2015848325] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:07:10] [TAB 2015848325]   Editor Loading: False, Off: True, HDD: False
+[19:07:10] Building graph for https___www_kaggle_com_code_codekey_qwen_qwen3_coder_30b_a3b_instruct_edit.json
+[19:07:20] [TAB 2015847957] Kernel Scenario: scenario_2_fresh_kernel_started | Status: running
+[19:07:20] [TAB 2015847957]   Editor Loading: False, Off: False, HDD: True
+[19:07:20] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[19:07:20] [TAB 2015848309] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:07:20] [TAB 2015848309]   Editor Loading: False, Off: True, HDD: False
+[19:07:20] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[19:07:20] [TAB 2015848325] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:07:20] [TAB 2015848325]   Editor Loading: False, Off: True, HDD: False
+[19:07:20] Building graph for https___www_kaggle_com_code_codekey_qwen_qwen3_coder_30b_a3b_instruct_edit.json
+[19:07:30] [TAB 2015847957] Kernel Scenario: scenario_2_fresh_kernel_started | Status: running
+[19:07:30] [TAB 2015847957]   Editor Loading: False, Off: False, HDD: True
+[19:07:30] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[19:07:30] [TAB 2015848309] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:07:30] [TAB 2015848309]   Editor Loading: False, Off: True, HDD: False
+[19:07:30] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[19:07:30] [TAB 2015848325] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:07:30] [TAB 2015848325]   Editor Loading: False, Off: True, HDD: False
+[19:07:30] Building graph for https___www_kaggle_com_code_codekey_qwen_qwen3_coder_30b_a3b_instruct_edit.json
+[19:07:40] [TAB 2015848309] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:07:40] [TAB 2015848309]   Editor Loading: False, Off: True, HDD: False
+[19:07:40] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[19:07:40] [TAB 2015847957] Kernel Scenario: scenario_2_fresh_kernel_started | Status: running
+[19:07:40] [TAB 2015847957]   Editor Loading: False, Off: False, HDD: True
+[19:07:40] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[19:07:40] [TAB 2015848325] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:07:40] [TAB 2015848325]   Editor Loading: False, Off: True, HDD: False
+[19:07:40] Building graph for https___www_kaggle_com_code_codekey_qwen_qwen3_coder_30b_a3b_instruct_edit.json
+[19:07:50] [TAB 2015847957] Kernel Scenario: scenario_2_fresh_kernel_started | Status: running
+[19:07:50] [TAB 2015847957]   Editor Loading: False, Off: False, HDD: True
+[19:07:50] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[19:07:50] [TAB 2015848309] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:07:50] [TAB 2015848309]   Editor Loading: False, Off: True, HDD: False
+[19:07:50] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[19:07:50] [TAB 2015848325] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:07:50] [TAB 2015848325]   Editor Loading: False, Off: True, HDD: False
+[19:07:50] Building graph for https___www_kaggle_com_code_codekey_qwen_qwen3_coder_30b_a3b_instruct_edit.json
+[19:08:00] [TAB 2015848309] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:08:00] [TAB 2015848309]   Editor Loading: False, Off: True, HDD: False
+[19:08:00] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[19:08:00] [TAB 2015848325] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:08:00] [TAB 2015848325]   Editor Loading: False, Off: True, HDD: False
+[19:08:00] Building graph for https___www_kaggle_com_code_codekey_qwen_qwen3_coder_30b_a3b_instruct_edit.json
+[19:08:00] [TAB 2015847957] Kernel Scenario: scenario_2_fresh_kernel_started | Status: running
+[19:08:00] [TAB 2015847957]   Editor Loading: False, Off: False, HDD: True
+[19:08:00] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[19:08:10] [TAB 2015848309] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:08:10] [TAB 2015848309]   Editor Loading: False, Off: True, HDD: False
+[19:08:10] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[19:08:10] [TAB 2015848325] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:08:10] [TAB 2015848325]   Editor Loading: False, Off: True, HDD: False
+[19:08:10] Building graph for https___www_kaggle_com_code_codekey_qwen_qwen3_coder_30b_a3b_instruct_edit.json
+[19:08:10] [TAB 2015847957] Kernel Scenario: scenario_2_fresh_kernel_started | Status: running
+[19:08:10] [TAB 2015847957]   Editor Loading: False, Off: False, HDD: True
+[19:08:10] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[19:08:20] [TAB 2015848309] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:08:20] [TAB 2015848309]   Editor Loading: False, Off: True, HDD: False
+[19:08:20] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[19:08:20] [TAB 2015848325] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:08:20] [TAB 2015848325]   Editor Loading: False, Off: True, HDD: False
+[19:08:20] Building graph for https___www_kaggle_com_code_codekey_qwen_qwen3_coder_30b_a3b_instruct_edit.json
+[19:08:20] [TAB 2015847957] Kernel Scenario: scenario_2_fresh_kernel_started | Status: running
+[19:08:20] [TAB 2015847957]   Editor Loading: False, Off: False, HDD: True
+[19:08:20] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[19:08:30] [TAB 2015847957] Kernel Scenario: scenario_2_fresh_kernel_started | Status: running
+[19:08:30] [TAB 2015847957]   Editor Loading: False, Off: False, HDD: True
+[19:08:30] Building graph for https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json
+[19:08:30] [TAB 2015848309] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:08:30] [TAB 2015848309]   Editor Loading: False, Off: True, HDD: False
+[19:08:30] Building graph for https___www_kaggle_com_code_codekey_testing_only_edit.json
+[19:08:30] [TAB 2015848325] Kernel Scenario: scenario_1_new_notebook_off | Status: off
+[19:08:30] [TAB 2015848325]   Editor Loading: False, Off: True, HDD: False
+[19:08:30] Building graph for https___www_kaggle_com_code_codekey_qwen_qwen3_coder_30b_a3b_instruct_edit.json

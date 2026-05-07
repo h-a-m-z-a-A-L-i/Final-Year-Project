@@ -11109,12 +11109,12 @@
           }
         },
         "initialized_at": "2026-05-07T19:05:03.554949+00:00",
-        "last_seen_at": "2026-05-07T19:06:00.440302+00:00",
+        "last_seen_at": "2026-05-07T19:08:30.147905+00:00",
         "kernel_active": true,
         "kernel_scenario": "scenario_2_fresh_kernel_started"
       }
     },
-    "last_seen_at": "2026-05-07T19:06:00.440302+00:00",
+    "last_seen_at": "2026-05-07T19:08:30.147905+00:00",
     "kernel_active": true,
     "last_kernel_scenario": "scenario_2_fresh_kernel_started"
   },
@@ -11551,12 +11551,12 @@
           }
         },
         "initialized_at": "2026-05-07T18:56:03.984081+00:00",
-        "last_seen_at": "2026-05-07T19:06:00.137141+00:00",
+        "last_seen_at": "2026-05-07T19:08:30.298926+00:00",
         "kernel_active": false,
         "kernel_scenario": "scenario_1_new_notebook_off"
       }
     },
-    "last_seen_at": "2026-05-07T19:06:00.137141+00:00",
+    "last_seen_at": "2026-05-07T19:08:30.298926+00:00",
     "kernel_active": false,
     "last_kernel_scenario": "scenario_1_new_notebook_off"
   },
@@ -11740,12 +11740,12 @@
           }
         },
         "initialized_at": "2026-05-07T18:56:04.129081+00:00",
-        "last_seen_at": "2026-05-07T19:06:00.297127+00:00",
+        "last_seen_at": "2026-05-07T19:08:30.441264+00:00",
         "kernel_active": false,
         "kernel_scenario": "scenario_1_new_notebook_off"
       }
     },
-    "last_seen_at": "2026-05-07T19:06:00.297127+00:00",
+    "last_seen_at": "2026-05-07T19:08:30.441264+00:00",
     "kernel_active": false,
     "last_kernel_scenario": "scenario_1_new_notebook_off"
   }
