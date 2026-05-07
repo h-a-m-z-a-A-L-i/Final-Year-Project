@@ -176,7 +176,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     console.log(`[BG-SIGNAL] Received: "${msg.text}" from cell ${msg.cellIndex || '?'}`);
     const p = getPort();
     if (p) {
-      p.postMessage({ ...msg, tabId: sender.tab?.id });
+      p.postMessage({
+        ...msg,
+        tabId: sender.tab?.id,
+        tabUrl: sender.tab?.url,
+      });
     }
     const now = Date.now();
     if (now - __lastPromptSignal > 250) {

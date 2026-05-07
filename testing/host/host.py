@@ -846,8 +846,22 @@ def _save_execution_state(state: dict):
 def _system_time_label() -> str:
     return datetime.now().strftime("%I:%M%p").lstrip("0").lower()
 
-def _cell_execution_title(execution_order):
-    return "Cell executed at " + _system_time_label() if execution_order is not None else "Cell is not executed yet"
+def _cell_execution_title(execution_order, execution_timestamp=None):
+    """Generate execution title from order and optional timestamp (ISO format)."""
+    if execution_order is None:
+        return "Cell is not executed yet"
+    
+    # If timestamp provided (from flag system), use it; otherwise use current time
+    if execution_timestamp:
+        try:
+            dt = datetime.fromisoformat(execution_timestamp)
+            time_label = dt.strftime("%I:%M%p").lstrip("0").lower()
+            return "Cell executed at " + time_label
+        except:
+            pass
+    
+    # Fallback to current time
+    return "Cell executed at " + _system_time_label()
 
 def _build_fallback_graph(notebook_url: str):
     """Build a minimal graph from saved notebook JSON when dependency modules are unavailable."""
@@ -1136,14 +1150,19 @@ def main():
             cell_index = msg.get("cellIndex")
             text = str(msg.get("text") or "").strip()
             tab_url = _normalized_url(msg.get("tabUrl") or "")
-            log(f"PROMPT_SIGNAL cell={cell_index if cell_index is not None else '?'} text={text}")
+            exec_ts = msg.get("ts")  # Timestamp from extension
+            print(f"[RECV-SIGNAL] cell={cell_index}, ts={exec_ts}, text='{text}'")
+            log(f"PROMPT_SIGNAL cell={cell_index if cell_index is not None else '?'} text={text} ts={exec_ts}")
             
-            # Trigger cell execution update
+            # Trigger cell execution update with timestamp
             if cell_index is not None and tab_url:
                 import subprocess
                 script_path = Path(__file__).parent / "update_cell_execution.py"
                 try:
-                    subprocess.Popen([sys.executable, str(script_path), str(cell_index), tab_url])
+                    args = [sys.executable, str(script_path), str(cell_index), tab_url]
+                    if exec_ts:
+                        args.append(str(exec_ts))
+                    subprocess.Popen(args)
                 except Exception:
                     pass
             
@@ -1292,7 +1311,9 @@ def main():
                     baseline_order = previous_cell.get("baseline_order")
                     seen_running = bool(previous_cell.get("seen_running"))
                     previous_title = str(previous_cell.get("title") or "")
-                    current_order = cell.get("execution_order")
+                    # Only trust execution_order from our flag system (has execution_timestamp)
+                    # Ignore scrape data - will restore from prev_cell if it has timestamp
+                    current_order = None
                     execution_status = str(cell.get("execution_status") or "idle")
                     is_active = execution_status in {"queued", "running"}
                     is_executed = execution_status == "executed"
@@ -1302,23 +1323,24 @@ def main():
                         saved_title = _cell_execution_title(None)
                         baseline_order = None
                         seen_running = False
-                    elif is_active and current_order is not None:
-                        saved_order = current_order
-                        saved_title = _cell_execution_title(current_order)
-                        baseline_order = current_order
-                        seen_running = True
-                        should_save = True
                     elif is_active:
                         saved_order = current_order
-                        saved_title = "Cell is running" if current_order is None else _cell_execution_title(current_order)
+                        if current_order is not None and current_order != baseline_order:
+                            saved_title = "Cell is running (Execution #" + str(current_order) + ")"
+                        else:
+                            saved_title = "Cell is running"
                         seen_running = True
                         should_save = True
                     elif is_executed and current_order is not None:
-                        saved_order = current_order
-                        saved_title = _cell_execution_title(current_order)
-                        baseline_order = current_order
-                        should_save = True
-                        log(f"EXEC DETECTED cell={cell_key} order={current_order}")
+                        if current_order != baseline_order:
+                            saved_order = current_order
+                            saved_title = _cell_execution_title(current_order)
+                            baseline_order = current_order
+                            should_save = True
+                            log(f"EXEC DETECTED cell={cell_key} order={current_order}")
+                        else:
+                            saved_order = baseline_order
+                            saved_title = previous_title or _cell_execution_title(saved_order)
                     elif current_order is None:
                         saved_order = None
                         saved_title = _cell_execution_title(None)
@@ -1340,6 +1362,7 @@ def main():
                         "output": cell["output"],
                         "execution_order": saved_order,
                         "execution_title": saved_title,
+                        "execution_timestamp": None,  # Will be filled by merge if it exists in prev
                     })
 
                 revision_state["cells"] = updated_cells
@@ -1381,12 +1404,20 @@ def main():
                             continue
                         prev_order = prev_cell.get("execution_order")
                         prev_title = str(prev_cell.get("execution_title") or "")
-                        # Only restore previous metadata if the current scrape is missing it
-                        if cell.get("execution_order") is None and prev_order is not None:
+                        prev_timestamp = prev_cell.get("execution_timestamp")
+                        # Only restore execution_order if it has timestamp (from flag system)
+                        if prev_timestamp and prev_order is not None and cell.get("execution_order") is None:
                             cell["execution_order"] = prev_order
                         
+                        # Preserve execution_timestamp set by flag system
+                        if prev_timestamp and cell.get("execution_timestamp") is None:
+                            cell["execution_timestamp"] = prev_timestamp
+                        
                         current_title = cell.get("execution_title")
-                        if (not current_title or current_title == "Cell is not executed yet") and prev_title:
+                        # Preserve title if timestamp exists (means flag system set it)
+                        if prev_timestamp:
+                            cell["execution_title"] = _cell_execution_title(cell.get("execution_order"), prev_timestamp)
+                        elif (not current_title or current_title == "Cell is not executed yet") and prev_title:
                             if prev_title != "Cell is not executed yet":
                                 cell["execution_title"] = prev_title
                 final_data = {
