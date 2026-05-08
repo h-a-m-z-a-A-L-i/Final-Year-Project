@@ -68,16 +68,23 @@
     return 0;
   }
 
-  function sendSignal(text, cellIndex){
+  function getExecutionOrder(promptEl) {
+    const text = (promptEl.innerText || promptEl.textContent || "").trim();
+    const match = text.match(/\d+/);
+    return match ? Number(match[0]) : null;
+  }
+
+  function sendSignal(text, cellIndex, execOrder){
     try {
       chrome.runtime.sendMessage({
         type: 'PROMPT_SIGNAL',
         text: String(text || '').slice(0, 200),
         cellIndex: cellIndex,
+        execOrder: execOrder,
         ts: Date.now()
       });
-      console.log(`[NC-OBSERVER] Flag detected: "${text}" at cell ${cellIndex}`);
-      updateDebugBox(`NC detector\nFound: ${text}\nCell: ${cellIndex || '?'}`);
+      console.log(`[NC-OBSERVER] Flag detected: "${text}" at cell index ${cellIndex}, order ${execOrder}`);
+      updateDebugBox(`NC detector\nFound: ${text}\nIndex: ${cellIndex || '?'}\nOrder: ${execOrder !== null ? '[' + execOrder + ']' : '?'}`);
     } catch(e){}
   }
 
@@ -87,12 +94,13 @@
     lastPromptTitle.set(promptEl, title);
 
     if (title) {
-      updateDebugBox(`NC detector\nSeen: ${title}`);
+      const order = getExecutionOrder(promptEl);
+      updateDebugBox(`NC detector\nSeen: ${title}\nOrder: ${order !== null ? '[' + order + ']' : '?'}`);
     }
 
     if (title && RE.test(title) && !seenTitles.has(title)){
       seenTitles.add(title);
-      sendSignal(title, getCellIndex(promptEl));
+      sendSignal(title, getCellIndex(promptEl), getExecutionOrder(promptEl));
     }
   }
 

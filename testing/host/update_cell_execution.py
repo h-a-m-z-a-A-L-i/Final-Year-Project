@@ -1,5 +1,6 @@
 import json
 import sys
+from typing import Optional
 from pathlib import Path
 from datetime import datetime
 from urllib.parse import urlparse, urlunparse
@@ -35,7 +36,7 @@ def get_safe_filename(url: str) -> str:
 def _system_time_label() -> str:
     return datetime.now().strftime("%I:%M%p").lstrip("0").lower()
 
-def update_cell_execution(cell_index: int, tab_url: str, exec_timestamp_ms: int = None):
+def update_cell_execution(cell_index: int, tab_url: str, exec_timestamp_ms: Optional[int] = None, exec_order: Optional[int] = None):
     """Update cell execution order and title in notebook JSON using extension's timestamp."""
     if cell_index is None:
         log_msg(f"SKIP cell_index=None")
@@ -73,20 +74,9 @@ def update_cell_execution(cell_index: int, tab_url: str, exec_timestamp_ms: int 
                     "input": "",
                     "output": "",
                     "execution_order": None,
-                    "execution_title": "Cell is not executed yet",
-                    "execution_timestamp": None,
+                    "execution_title": "",
                 })
             target_cell = cells[cell_index - 1]
-        
-        # Find max execution_order to assign next one
-        max_order = 0
-        for cell in cells:
-            order = cell.get("execution_order")
-            if order is not None and isinstance(order, int):
-                max_order = max(max_order, order)
-        
-        # Update execution state using extension's timestamp
-        new_order = max_order + 1 if max_order > 0 else 1
         
         # Convert extension's millisecond timestamp to ISO format
         if exec_timestamp_ms:
@@ -101,13 +91,14 @@ def update_cell_execution(cell_index: int, tab_url: str, exec_timestamp_ms: int 
         else:
             exec_time = _system_time_label()
             exec_iso = datetime.now().isoformat()
-        
-        target_cell["execution_order"] = new_order
+            
+        if exec_order is not None:
+            target_cell["execution_order"] = exec_order
+            
         target_cell["execution_title"] = f"Cell executed at {exec_time}"
-        target_cell["execution_timestamp"] = exec_iso
         
         # Print to terminal for verification
-        print(f"[EXEC-UPDATE] Cell {cell_index}: order={new_order}, title='{target_cell['execution_title']}'")
+        print(f"[EXEC-UPDATE] Cell {cell_index}: order={exec_order}, title='{target_cell['execution_title']}'")
         
         # Write back atomically
         tmp_path = json_path.with_suffix(json_path.suffix + ".tmp")
@@ -115,7 +106,7 @@ def update_cell_execution(cell_index: int, tab_url: str, exec_timestamp_ms: int 
             json.dump(data, f, indent=2)
         tmp_path.replace(json_path)
         
-        log_msg(f"SUCCESS updated cell {cell_index} order={new_order} time={exec_time}")
+        log_msg(f"SUCCESS updated cell {cell_index} order={exec_order} time={exec_time}")
         
     except Exception as e:
         log_msg(f"ERROR {type(e).__name__}: {str(e)}")
@@ -126,11 +117,17 @@ if __name__ == "__main__":
             cell_index = int(sys.argv[1])
             tab_url = sys.argv[2]
             exec_timestamp_ms = None
+            exec_order = None
             if len(sys.argv) >= 4:
                 try:
                     exec_timestamp_ms = int(sys.argv[3])
                 except:
                     pass
-            update_cell_execution(cell_index, tab_url, exec_timestamp_ms)
+            if len(sys.argv) >= 5:
+                try:
+                    exec_order = int(sys.argv[4])
+                except:
+                    pass
+            update_cell_execution(cell_index, tab_url, exec_timestamp_ms, exec_order)
         except (ValueError, IndexError):
             log_msg(f"ERROR Invalid args: {sys.argv}")

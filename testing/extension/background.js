@@ -144,9 +144,11 @@ function scrapeNotebook() {
       executionStatus = "running";
     } else if (/Cell executed/i.test(combinedSignal)) {
       executionStatus = "executed";
+    } else if (Number.isFinite(executionOrder)) {
+      // No transient button, but a prompt number exists.
+      // Execution detection for polling gaps — stale-data filtering is done in host.py.
+      executionStatus = "executed";
     }
-    // No fallback: a prompt number in the DOM is stale data from a prior session.
-    // Only explicit transient button signals are trusted as real execution events.
 
     return {
       execution_order: Number.isFinite(executionOrder) ? executionOrder : null,
@@ -288,9 +290,15 @@ function getKernelStatus() {
   }
 
   const hasEditorLoading = /Editor\s+loading/i.test(statusText) || /Editor\s+loading/i.test(activeText);
-  const hasOff = /off\s*\(run a cell to start\)/i.test(statusText) || /off\s*\(run a cell to start\)/i.test(activeText);
-  const hasHDD = /\bHDD\b/i.test(activeText) || /\bHDD\b/i.test(statusText);
+  const hasOff = /off\s*\(run a cell to start\)/i.test(statusText) || /off\s*\(run a cell to start\)/i.test(activeText) || /\bDraft Session Off\b/i.test(statusText) || /(^|\s)off(\s|$)/i.test(statusEl?.innerText || "");
+  let hasHDD = /\bHDD\b/i.test(activeText) || /\bHDD\b/i.test(statusText);
   const hasSessionStarted = /Session started/i.test(statusText) || /Session started/i.test(activeText);
+
+  // Priority: "off" is the authoritative kernel state. When the body-text fallback
+  // is active, "HDD" can appear in unrelated page sections. Suppress it.
+  if (hasOff) {
+    hasHDD = false;
+  }
 
   console.log('[getKernelStatus] Flags detected - editorLoading:', hasEditorLoading, 'off:', hasOff, 'hdd:', hasHDD, 'sessionStarted:', hasSessionStarted);
 

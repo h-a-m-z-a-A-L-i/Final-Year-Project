@@ -101,3 +101,139 @@
 [00:04:53] SUCCESS updated cell 12 order=4 time=12:04am
 [00:04:57] START cell=13 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778180694078 exists=True
 [00:04:57] SUCCESS updated cell 13 order=5 time=12:04am
+[00:10:11] START cell=3 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778181010783 exists=True
+[00:10:11] SUCCESS updated cell 3 order=1 time=12:10am
+[00:15:04] START cell=10 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778181304509 exists=True
+[00:15:04] SUCCESS updated cell 10 order=2 time=12:15am
+[00:21:41] START cell=15 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778181701440 exists=True
+[00:21:41] SUCCESS updated cell 15 order=25 time=12:21am
+[00:22:06] START cell=13 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778181726727 exists=True
+[00:22:06] SUCCESS updated cell 13 order=25 time=12:22am
+[00:22:27] START cell=12 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778181747630 exists=True
+[00:22:27] SUCCESS updated cell 12 order=25 time=12:22am
+[00:39:37] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778182777516 exists=True
+[00:39:37] SUCCESS updated cell 1 order=25 time=12:39am
+[00:39:38] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778182777632 exists=True
+[00:39:38] SUCCESS updated cell 1 order=26 time=12:39am
+[00:54:46] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778183685876 exists=True
+[00:54:46] SUCCESS updated cell 1 order=25 time=12:54am
+[00:54:53] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778183690344 exists=True
+[00:54:53] SUCCESS updated cell 1 order=25 time=12:54am
+[01:00:46] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778184046444 exists=True
+[01:00:46] SUCCESS updated cell 1 order=1 time=1:00am
+[01:00:50] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778184046780 exists=True
+[01:00:50] SUCCESS updated cell 1 order=2 time=1:00am
+[01:10:59] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778184658710 exists=True
+[01:10:59] SUCCESS updated cell 1 order=25 time=1:10am
+[01:23:16] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778185396007 exists=True
+[01:23:16] SUCCESS updated cell 1 order=25 time=1:23am
+[01:23:19] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778185396275 exists=True
+[01:23:19] SUCCESS updated cell 1 order=25 time=1:23am
+[01:28:33] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778185713277 exists=True
+[01:28:33] SUCCESS updated cell 1 order=25 time=1:28am
+[01:28:36] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778185713531 exists=True
+[01:28:36] SUCCESS updated cell 1 order=26 time=1:28am
+[01:48:13] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778186893679 exists=True
+[01:48:13] ERROR NameError: name 'new_order' is not defined
+[01:48:13] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778186893682 exists=True
+[01:48:13] ERROR NameError: name 'new_order' is not defined
+[01:48:13] START cell=2 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778186893702 exists=True
+[01:48:13] ERROR NameError: name 'new_order' is not defined
+[01:48:13] START cell=3 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778186893738 exists=True
+[01:48:13] ERROR NameError: name 'new_order' is not defined
+[01:48:13] START cell=10 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778186893773 exists=True
+[01:48:13] ERROR NameError: name 'new_order' is not defined
+[01:48:13] START cell=11 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778186893775 exists=True
+[01:48:13] ERROR NameError: name 'new_order' is not defined
+[01:48:15] START cell=15 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778186893820 exists=True
+[01:48:15] ERROR NameError: name 'new_order' is not defined
+[01:48:15] START cell=12 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778186893784 exists=True
+[01:48:15] ERROR NameError: name 'new_order' is not defined
+[01:48:15] START cell=14 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778186893802 exists=True
+[01:48:15] ERROR NameError: name 'new_order' is not defined
+[01:48:15] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778186895049 exists=True
+[01:48:15] ERROR NameError: name 'new_order' is not defined
+[01:48:20] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778186895295 exists=True
+[01:48:20] ERROR NameError: name 'new_order' is not defined
+[01:48:36] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778186916694 exists=True
+[01:48:36] ERROR NameError: name 'new_order' is not defined
+[01:50:12] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778187012226 exists=True
+[01:50:12] ERROR NameError: name 'new_order' is not defined
+[01:50:12] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778187012227 exists=True
+[01:50:12] ERROR NameError: name 'new_order' is not defined
+[01:50:12] START cell=2 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778187012277 exists=True
+[01:50:12] ERROR NameError: name 'new_order' is not defined
+[01:50:12] START cell=3 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778187012292 exists=True
+[01:50:12] ERROR NameError: name 'new_order' is not defined
+[01:55:40] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778187340422 exists=True
+[01:55:40] ERROR NameError: name 'new_order' is not defined
+[01:55:41] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778187340688 exists=True
+[01:55:41] ERROR NameError: name 'new_order' is not defined
+[01:56:07] START cell=2 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778187366656 exists=True
+[01:56:07] ERROR NameError: name 'new_order' is not defined
+[01:56:07] START cell=3 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778187366685 exists=True
+[01:56:07] ERROR NameError: name 'new_order' is not defined
+[01:56:07] START cell=10 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778187366788 exists=True
+[01:56:07] ERROR NameError: name 'new_order' is not defined
+[01:56:07] START cell=11 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778187366812 exists=True
+[01:56:07] ERROR NameError: name 'new_order' is not defined
+[01:56:07] START cell=12 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778187366841 exists=True
+[01:56:07] ERROR NameError: name 'new_order' is not defined
+[01:56:07] START cell=14 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778187366888 exists=True
+[01:56:07] ERROR NameError: name 'new_order' is not defined
+[01:56:07] START cell=15 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778187366908 exists=True
+[01:56:07] ERROR NameError: name 'new_order' is not defined
+[01:56:26] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778187386503 exists=True
+[01:56:26] ERROR NameError: name 'new_order' is not defined
+[01:56:27] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778187386794 exists=True
+[01:56:27] ERROR NameError: name 'new_order' is not defined
+[01:57:27] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778187447751 exists=True
+[01:57:27] ERROR NameError: name 'new_order' is not defined
+[01:57:32] START cell=2 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778187451968 exists=True
+[01:57:32] ERROR NameError: name 'new_order' is not defined
+[01:57:58] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778187478682 exists=True
+[01:57:58] ERROR NameError: name 'new_order' is not defined
+[02:02:07] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=None exists=True
+[02:02:07] SUCCESS updated cell 1 order=12 time=2:02am
+[02:02:39] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778187758859 exists=True
+[02:02:39] SUCCESS updated cell 1 order=4 time=2:02am
+[02:03:56] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778187835749 exists=True
+[02:03:56] SUCCESS updated cell 1 order=None time=2:03am
+[02:03:56] START cell=2 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778187835774 exists=True
+[02:03:56] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778187835751 exists=True
+[02:03:56] START cell=3 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778187835785 exists=True
+[02:03:56] ERROR PermissionError: [WinError 5] Access is denied: 'D:\\FYP\\normal-chrome\\testing\\host\\data\\notebooks\\https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json.tmp' -> 'D:\\FYP\\normal-chrome\\testing\\host\\data\\notebooks\\https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json'
+[02:03:56] ERROR PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'D:\\FYP\\normal-chrome\\testing\\host\\data\\notebooks\\https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json.tmp' -> 'D:\\FYP\\normal-chrome\\testing\\host\\data\\notebooks\\https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json'
+[02:03:56] SUCCESS updated cell 1 order=None time=2:03am
+[02:03:56] START cell=10 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778187835862 exists=True
+[02:03:56] ERROR JSONDecodeError: Extra data: line 135 column 7 (char 9279)
+[02:04:03] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778187840022 exists=True
+[02:04:03] SUCCESS updated cell 1 order=None time=2:04am
+[02:07:23] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778188043517 exists=True
+[02:07:23] SUCCESS updated cell 1 order=8 time=2:07am
+[02:09:57] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778188197112 exists=True
+[02:09:57] SUCCESS updated cell 1 order=None time=2:09am
+[02:10:02] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778188197330 exists=True
+[02:10:02] ERROR PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'D:\\FYP\\normal-chrome\\testing\\host\\data\\notebooks\\https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json.tmp' -> 'D:\\FYP\\normal-chrome\\testing\\host\\data\\notebooks\\https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json'
+[02:16:17] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778188577396 exists=True
+[02:16:17] SUCCESS updated cell 1 order=None time=2:16am
+[02:16:26] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778188583960 exists=True
+[02:16:26] ERROR PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'D:\\FYP\\normal-chrome\\testing\\host\\data\\notebooks\\https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json.tmp' -> 'D:\\FYP\\normal-chrome\\testing\\host\\data\\notebooks\\https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json'
+[02:16:29] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778188586370 exists=True
+[02:16:29] SUCCESS updated cell 1 order=11 time=2:16am
+[02:17:20] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778188640527 exists=True
+[02:17:20] SUCCESS updated cell 1 order=1 time=2:17am
+[02:25:43] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778189142860 exists=True
+[02:25:43] SUCCESS updated cell 1 order=None time=2:25am
+[02:26:48] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778189208595 exists=True
+[02:26:48] SUCCESS updated cell 1 order=None time=2:26am
+[02:26:52] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778189209011 exists=True
+[02:26:52] SUCCESS updated cell 1 order=4 time=2:26am
+[02:28:02] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778189282767 exists=True
+[02:28:02] SUCCESS updated cell 1 order=1 time=2:28am
+[02:29:54] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778189394409 exists=True
+[02:29:54] SUCCESS updated cell 1 order=None time=2:29am
+[02:30:08] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778189408065 exists=True
+[02:30:08] SUCCESS updated cell 1 order=3 time=2:30am
+[02:32:08] START cell=1 url=https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit file=https___www_kaggle_com_code_codekey_qwen2_5_coder_7b_instruct_edit.json ts=1778189528415 exists=True
+[02:32:08] SUCCESS updated cell 1 order=None time=2:32am

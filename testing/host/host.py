@@ -812,6 +812,32 @@ def save_json(data, tab_url):
     _atomic_write_json(filepath, data)
     return filepath
 
+
+def _live_dir() -> Path:
+    d = SCRAPED_DIR / "live"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _persistent_dir() -> Path:
+    d = SCRAPED_DIR / "persistent"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def save_live_json(data, tab_url):
+    filename = get_safe_filename(tab_url)
+    path = _live_dir() / filename
+    _atomic_write_json(path, data)
+    return path
+
+
+def save_persistent_json(data, tab_url):
+    filename = get_safe_filename(tab_url)
+    path = _persistent_dir() / filename
+    _atomic_write_json(path, data)
+    return path
+
 def get_safe_filename(url: str) -> str:
     """Consistently turn a tab URL into the same JSON filename used for scraping."""
     safe_name = "".join(c if c.isalnum() else "_" for c in _normalized_url(url)).strip("_")
@@ -866,8 +892,8 @@ def _cell_execution_title(execution_order, execution_timestamp=None):
         except:
             pass
     
-    # Fallback to current time
-    return "Cell executed at " + _system_time_label()
+    # Fallback: no valid timestamp available — return empty, never stamp wrong time.
+    return ""
 
 def _normalize_kernel_scenario(kernel_scenario: str) -> str:
     return str(kernel_scenario or "unknown").strip().lower()
@@ -1176,11 +1202,12 @@ def main():
 
         if m_type == "PROMPT_SIGNAL":
             cell_index = msg.get("cellIndex")
+            exec_order = msg.get("execOrder")
             text = str(msg.get("text") or "").strip()
             tab_url = _normalized_url(msg.get("tabUrl") or "")
             exec_ts = msg.get("ts")  # Timestamp from extension
-            print(f"[RECV-SIGNAL] cell={cell_index}, ts={exec_ts}, text='{text}'")
-            log(f"PROMPT_SIGNAL cell={cell_index if cell_index is not None else '?'} text={text} ts={exec_ts}")
+            print(f"[RECV-SIGNAL] cell={cell_index}, order={exec_order}, ts={exec_ts}, text='{text}'")
+            log(f"PROMPT_SIGNAL cell={cell_index if cell_index is not None else '?'} order={exec_order} text={text} ts={exec_ts}")
             
             # Trigger cell execution update with timestamp
             if cell_index is not None and tab_url:
@@ -1188,8 +1215,10 @@ def main():
                 script_path = Path(__file__).parent / "update_cell_execution.py"
                 try:
                     args = [sys.executable, str(script_path), str(cell_index), tab_url]
-                    if exec_ts:
-                        args.append(str(exec_ts))
+                    if exec_ts is not None or exec_order is not None:
+                        args.append(str(exec_ts) if exec_ts is not None else "None")
+                    if exec_order is not None:
+                        args.append(str(exec_order))
                     subprocess.Popen(args)
                 except Exception:
                     pass
@@ -1332,6 +1361,35 @@ def main():
                 previous_kernel_scenario = str(notebook_state.get("last_kernel_scenario") or "").strip().lower()
                 scenario_entered = kernel_scenario_norm != previous_kernel_scenario
 
+                # --- Kernel session metadata ---
+                if _scenario_is_fresh(kernel_scenario_norm) and scenario_entered:
+                    notebook_state["kernel_session_started_at"] = now_iso
+                    notebook_state.pop("kernel_session_stopped_at", None)
+                    log(f"[Session] Kernel session STARTED at {now_iso}")
+                    # Clear persistent execution metadata immediately on fresh kernel start
+                    try:
+                        ppath = _persistent_dir() / get_safe_filename(tab_url)
+                        if ppath.exists():
+                            pdata = json.loads(ppath.read_text(encoding="utf-8")) if ppath.exists() else {}
+                            pcells = pdata.get("cells", []) if isinstance(pdata, dict) else []
+                            for pc in pcells:
+                                if isinstance(pc, dict):
+                                    pc["execution_order"] = None
+                                    pc["execution_title"] = ""
+                                    if "execution_timestamp" in pc:
+                                        try:
+                                            del pc["execution_timestamp"]
+                                        except Exception:
+                                            pass
+                            pdata["lastUpdated"] = now_iso
+                            _atomic_write_json(ppath, pdata)
+                            log(f"[Fresh] Cleared persistent execution metadata for {tab_url}")
+                    except Exception as e:
+                        log(f"[Fresh] Failed clearing persistent metadata: {e}")
+                elif _scenario_is_off(kernel_scenario_norm) and scenario_entered:
+                    notebook_state["kernel_session_stopped_at"] = now_iso
+                    log(f"[Session] Kernel session STOPPED at {now_iso}")
+
                 revisions = notebook_state.get("revisions", {})
                 if not isinstance(revisions, dict):
                     revisions = {}
@@ -1341,6 +1399,23 @@ def main():
                 if first_fetch:
                     revision_state = {"cells": {}, "initialized_at": now_iso, "last_seen_at": now_iso, "kernel_active": kernel_active, "kernel_scenario": kernel_scenario_norm}
                     should_save = True
+
+                # On a reload with active kernel, the hash changes because the DOM is in flux
+                # (outputs not yet re-rendered). Bootstrap the new revision from the most recent
+                # prior revision so baseline_order/seen_running/title are not lost.
+                if first_fetch and _scenario_is_reload(kernel_scenario_norm):
+                    best_cells = {}
+                    best_ts = ""
+                    for rev_data in revisions.values():
+                        if isinstance(rev_data, dict):
+                            ts = str(rev_data.get("last_seen_at") or "")
+                            if ts > best_ts:
+                                best_ts = ts
+                                best_cells = rev_data.get("cells", {})
+                    if best_cells and isinstance(best_cells, dict):
+                        seeded = {k: dict(v) for k, v in best_cells.items() if isinstance(v, dict)}
+                        revision_state["cells"] = seeded
+                        log(f"[Reload] Seeded new revision from prior revision ({len(seeded)} cells)")
 
                 previous_cells = revision_state.get("cells", {})
                 if not isinstance(previous_cells, dict):
@@ -1380,22 +1455,32 @@ def main():
                         if current_order is not None:
                             should_save = True
                     elif is_executed and current_order is not None:
-                        if current_order != baseline_order:
+                        # Fresh kernel: block stale DOM numbers until cell is seen running.
+                        if _scenario_is_fresh(kernel_scenario_norm) and not seen_running:
+                            saved_order = None
+                            saved_title = ""
+                        # Reload: DOM numbers are from the prior session — preserve existing
+                        # titles, just baseline the order so future real executions are detected.
+                        elif _scenario_is_reload(kernel_scenario_norm) and not seen_running:
                             saved_order = current_order
-                            saved_title = current_title or _cell_execution_title(current_order)
+                            saved_title = previous_title or ""
+                            baseline_order = current_order
+                        elif current_order != baseline_order:
+                            saved_order = current_order
+                            saved_title = current_title or previous_title or ""
                             baseline_order = current_order
                             should_save = True
                             log(f"EXEC DETECTED cell={cell_key} order={current_order}")
                         else:
                             saved_order = baseline_order
-                            saved_title = current_title or previous_title or _cell_execution_title(saved_order)
+                            saved_title = current_title or previous_title or ""
                     elif current_order is not None and seen_running:
                         if current_order == baseline_order:
                             saved_order = baseline_order
-                            saved_title = current_title or previous_title or _cell_execution_title(saved_order)
+                            saved_title = current_title or previous_title or ""
                         else:
                             saved_order = current_order
-                            saved_title = current_title or _cell_execution_title(current_order)
+                            saved_title = current_title or previous_title or ""
                             baseline_order = current_order
                     else:
                         # current_order is None, OR current_order is set but cell was never seen
@@ -1404,7 +1489,7 @@ def main():
                         if _scenario_is_off(kernel_scenario_norm):
                             saved_title = current_title or previous_title or ""
                         else:
-                            saved_title = previous_title or _cell_execution_title(saved_order)
+                            saved_title = previous_title or ""
 
                     updated_cells[cell_key] = {
                         "baseline_order": baseline_order,
@@ -1417,11 +1502,12 @@ def main():
                         "output": cell["output"],
                         "execution_order": saved_order,
                         "execution_title": saved_title,
-                        "execution_timestamp": None,  # Will be filled by merge if it exists in prev
                     })
 
                 revision_state["cells"] = updated_cells
                 revision_state["last_seen_at"] = now_iso
+                # Track how many times we've observed this revision (helps filter transient reloads)
+                revision_state["seen_count"] = int(revision_state.get("seen_count") or 0) + 1
                 revision_state["kernel_active"] = kernel_active
                 revision_state["kernel_scenario"] = kernel_scenario_norm
                 revisions[data_hash] = revision_state
@@ -1433,7 +1519,8 @@ def main():
                 execution_state[tab_url] = notebook_state
                 _save_execution_state(execution_state)
 
-            existing_path = SCRAPED_DIR / get_safe_filename(tab_url)
+            # Existing persistent file path (we compare against persistent copy)
+            existing_path = _persistent_dir() / get_safe_filename(tab_url)
             existing_by_index = {}
             if existing_path.is_file():
                 try:
@@ -1456,38 +1543,104 @@ def main():
                     should_save = True
 
             if should_save:
-                # On a fresh kernel start that just entered, do NOT inherit old file data —
-                # cells have been deliberately reset and must stay empty for fresh tracking.
-                _is_fresh_reset = _scenario_is_fresh(kernel_scenario_norm) and scenario_entered
-                if existing_by_index and not _is_fresh_reset:
+                # STRICT PRESERVATION: Target fields are owned by update_cell_execution.py.
+                # The polling loop must never wipe or overwrite established execution data.
+                if existing_by_index:
                     for cell in save_cells:
                         prev_cell = existing_by_index.get(str(cell["index"]), {})
                         if not isinstance(prev_cell, dict):
                             continue
+
                         prev_order = prev_cell.get("execution_order")
                         prev_title = str(prev_cell.get("execution_title") or "")
-                        prev_timestamp = prev_cell.get("execution_timestamp")
-                        if prev_order is not None and cell.get("execution_order") is None:
-                            cell["execution_order"] = prev_order
-                        # Inherit previous title only if this cell has no title yet (empty string).
-                        if prev_title and not cell.get("execution_title"):
-                            cell["execution_title"] = prev_title
-                        if prev_timestamp and cell.get("execution_timestamp") is None:
-                            cell["execution_timestamp"] = prev_timestamp
-                        if prev_timestamp:
-                            cell["execution_title"] = _cell_execution_title(cell.get("execution_order"), prev_timestamp)
+                        inc_order = cell.get("execution_order")
+                        inc_title = str(cell.get("execution_title") or "").strip()
+
+                        # Normalize legacy default — treat as empty.
+                        if prev_title == "Cell is not executed yet":
+                            prev_title = ""
+
+                        # Merge policy:
+                        # - If no prior stored order -> accept incoming as-is.
+                        # - If prior exists and incoming is missing -> preserve prior (user turned kernel off or no new info).
+                        # - If prior exists and incoming exists:
+                        #     * fresh kernel: accept incoming
+                        #     * kernel off: preserve prior
+                        #     * reload running: accept incoming only if it indicates newer execution (inc_order > prev_order)
+                        if prev_order is None:
+                            # No prior data; accept incoming values (inc may be None -> remain empty)
+                            pass
+                        else:
+                            if inc_order is None:
+                                # No new info: preserve stored values
+                                cell["execution_order"] = prev_order
+                                cell["execution_title"] = prev_title
+                            else:
+                                # Incoming has an order
+                                if _scenario_is_fresh(kernel_scenario_norm):
+                                    # Fresh kernel: accept incoming (baseline reset already handled above)
+                                    pass
+                                elif _scenario_is_off(kernel_scenario_norm):
+                                    # Kernel is off: keep previous values until kernel starts
+                                    cell["execution_order"] = prev_order
+                                    cell["execution_title"] = prev_title
+                                elif _scenario_is_reload(kernel_scenario_norm):
+                                    # Reload: only accept if incoming indicates newer execution
+                                    try:
+                                        if int(inc_order) > int(prev_order):
+                                            pass
+                                        else:
+                                            cell["execution_order"] = prev_order
+                                            cell["execution_title"] = prev_title
+                                    except Exception:
+                                        cell["execution_order"] = prev_order
+                                        cell["execution_title"] = prev_title
+                # Post-merge sanitization: ensure titles exist and strip timestamps
+                for c in save_cells:
+                    # Remove any execution_timestamp if present (do not persist timestamps)
+                    if "execution_timestamp" in c:
+                        try:
+                            del c["execution_timestamp"]
+                        except Exception:
+                            pass
+
+                    # Ensure a readable execution_title when we have an order
+                    order = c.get("execution_order")
+                    title = str(c.get("execution_title") or "").strip()
+                    if order is not None and not title:
+                        try:
+                            c["execution_title"] = f"Execution #{int(order)}"
+                        except Exception:
+                            c["execution_title"] = f"Execution"
+
                 final_data = {
                     "tabUrl": tab_url,
                     "title": str(msg.get("title", "notebook")),
                     "lastUpdated": now_iso,
                     "cells": save_cells,
                 }
-                save_json(final_data, tab_url)
 
-                with _HASHES_LOCK:
-                    stored_hashes = _load_hashes()
-                    stored_hashes[tab_url] = data_hash
-                    _save_hashes(stored_hashes)
+                # Always write a live snapshot (reflects immediate scraped state)
+                save_live_json(final_data, tab_url)
+
+                # Persist only when revision appears stable (seen_count >= 2) or the persistent
+                # file doesn't yet exist. This prevents transient reloads from overwriting
+                # the stable persistent metadata.
+                rev_state = revisions.get(data_hash, {})
+                seen_count = int(rev_state.get("seen_count") or 0)
+                persistent_path = _persistent_dir() / get_safe_filename(tab_url)
+                should_write_persistent = False
+                if not persistent_path.exists():
+                    should_write_persistent = True
+                elif seen_count >= 2:
+                    should_write_persistent = True
+
+                if should_write_persistent:
+                    save_persistent_json(final_data, tab_url)
+                    with _HASHES_LOCK:
+                        stored_hashes = _load_hashes()
+                        stored_hashes[tab_url] = data_hash
+                        _save_hashes(stored_hashes)
 
                 push_graph(tab_url, tab_id)
         

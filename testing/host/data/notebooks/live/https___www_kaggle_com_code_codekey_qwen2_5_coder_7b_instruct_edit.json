@@ -1,28 +1,28 @@
 {
   "tabUrl": "https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit",
   "title": "__notebook_source__",
-  "lastUpdated": "2026-05-07T21:25:32.666981+00:00",
+  "lastUpdated": "2026-05-07T21:32:08.510881+00:00",
   "cells": [
     {
       "index": 1,
       "input": "print('cell no 9011')",
-      "output": "",
-      "execution_order": 3,
-      "execution_title": "Cell executed at 2:32am"
+      "output": "cell no 9011",
+      "execution_order": null,
+      "execution_title": ""
     },
     {
       "index": 2,
       "input": "while(True):\n    pass",
       "output": "---------------------------------------------------------------------------\nKeyboardInterrupt                         Traceback (most recent call last)\n/tmp/ipykernel_57/2670420695.py in <cell line: 0>()\n----> 1 while(True):\n      2     pass\n\nKeyboardInterrupt:",
-      "execution_order": 2,
-      "execution_title": "Execution #2"
+      "execution_order": null,
+      "execution_title": ""
     },
     {
       "index": 3,
       "input": "from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig\nimport torch\n\n\n# Define quantization config (example: 4-bit)\nquant_config = BitsAndBytesConfig(\n    load_in_4bit=True,\n    bnb_4bit_compute_dtype=torch.float16,\n    bnb_4bit_use_double_quant=True,\n    bnb_4bit_quant_type=\"nf4\"\n)\n\n\n# model_name = \"Qwen/Qwen2.5-Coder-7B-Instruct\"\nmodel_name = \"Qwen/Qwen2.5-Coder-1.5B-Instruct\"\n\n\n# Load tokenizer\ntokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)\n\n\n# Load model with quantization\nmodel = AutoModelForCausalLM.from_pretrained(\n    model_name,\n    quantization_config=quant_config,\n    device_map=\"auto\",\n    trust_remote_code=True\n)",
       "output": "",
-      "execution_order": 2,
-      "execution_title": "Execution #2"
+      "execution_order": null,
+      "execution_title": ""
     },
     {
       "index": 4,
@@ -61,7 +61,7 @@
     },
     {
       "index": 9,
-      "input": "from fastapi import FastAPI\nfrom fastapi.responses import StreamingResponse\nfrom pydantic import BaseModel\nimport uvicorn\nimport torch\nimport asyncio\nimport nest_asyncio\nfrom threading import Thread\nfrom transformers import TextIteratorStreamer\nfrom pyngrok import ngrok\n\n\n# ------------------ FastAPI App ------------------\napp = FastAPI()\n\n\n# ------------------ Request Model ------------------\nclass GenerateRequest(BaseModel):\n    prompt: str\n    max_new_tokens: int = 512\n    temperature: float = 0.3\n\n\n# ------------------ Streaming Endpoint ------------------\n@app.post(\"/generate\")\nasync def generate(req: GenerateRequest):\n\n\n    async def stream_generator():\n\n\n        # 1\ufe0f\u20e3 Build chat format\n        messages = [\n            {\"role\": \"system\", \"content\": \"You are a coding assistant.\"},\n            {\"role\": \"user\", \"content\": req.prompt}\n        ]\n\n\n        prompt_str = tokenizer.apply_chat_template(\n            messages,\n            tokenize=False,\n            add_generation_prompt=True",
+      "input": "from fastapi import FastAPI\nfrom fastapi.responses import StreamingResponse\nfrom pydantic import BaseModel\nimport uvicorn\nimport torch\nimport asyncio\nimport nest_asyncio\nfrom threading import Thread\nfrom transformers import TextIteratorStreamer\nfrom pyngrok import ngrok\n\n\n# ------------------ FastAPI App ------------------\napp = FastAPI()\n\n\n# ------------------ Request Model ------------------\nclass GenerateRequest(BaseModel):\n    prompt: str\n    max_new_tokens: int = 512\n    temperature: float = 0.3\n\n\n# ------------------ Streaming Endpoint ------------------\n@app.post(\"/generate\")\nasync def generate(req: GenerateRequest):\n\n\n    async def stream_generator():\n\n\n        # 1️⃣ Build chat format\n        messages = [\n            {\"role\": \"system\", \"content\": \"You are a coding assistant.\"},\n            {\"role\": \"user\", \"content\": req.prompt}\n        ]\n\n\n        prompt_str = tokenizer.apply_chat_template(\n            messages,\n            tokenize=False,\n            add_generation_prompt=True",
       "output": "",
       "execution_order": null,
       "execution_title": ""
@@ -70,43 +70,43 @@
       "index": 10,
       "input": "from fastapi import FastAPI\nfrom pydantic import BaseModel\nimport uvicorn\nimport torch\nfrom pyngrok import ngrok\n\n\n\n\napp = FastAPI()\n\n\nclass GenerateRequest(BaseModel):\n    prompt: str\n    max_new_tokens: int = 512\n    temperature: float = 0.3\n\n\n@app.post(\"/generate\")\nasync def generate(req: GenerateRequest):\n    messages = [\n        {\"role\": \"system\", \"content\": \"You are a coding assistant.\"},\n        {\"role\": \"user\", \"content\": req.prompt}\n    ]\n    text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)\n    inputs = tokenizer(text, return_tensors=\"pt\").to(model.device)\n    outputs = model.generate(\n        **inputs,\n        max_new_tokens=req.max_new_tokens,\n        temperature=req.temperature,\n        do_sample=True\n    )\n    response = tokenizer.decode(outputs[0][inputs['input_ids'].shape[1]:], skip_special_tokens=True)\n    torch.cuda.empty_cache()  # Clear GPU memory\n    return {\"response\": response}\n\n\n# Start server in background\nimport asyncio\nimport nest_asyncio\nnest_asyncio.apply()",
       "output": "",
-      "execution_order": 3,
-      "execution_title": "Execution #3"
+      "execution_order": null,
+      "execution_title": ""
     },
     {
       "index": 11,
       "input": "print()",
       "output": "",
-      "execution_order": 14,
-      "execution_title": "Execution #14"
+      "execution_order": null,
+      "execution_title": ""
     },
     {
       "index": 12,
       "input": "print(211)",
       "output": "211",
-      "execution_order": 13,
-      "execution_title": "Execution #13"
+      "execution_order": null,
+      "execution_title": ""
     },
     {
       "index": 13,
       "input": "print(21)",
       "output": "21",
-      "execution_order": 11,
-      "execution_title": "Execution #11"
+      "execution_order": null,
+      "execution_title": ""
     },
     {
       "index": 14,
       "input": "while(True):\n    pass",
       "output": "---------------------------------------------------------------------------\nKeyboardInterrupt                         Traceback (most recent call last)\n/tmp/ipykernel_57/2670420695.py in <cell line: 0>()\n----> 1 while(True):\n      2     pass\n\nKeyboardInterrupt:",
-      "execution_order": 24,
-      "execution_title": "Execution #24"
+      "execution_order": null,
+      "execution_title": ""
     },
     {
       "index": 15,
       "input": "hamzaa",
       "output": "---------------------------------------------------------------------------\nNameError                                 Traceback (most recent call last)\n/tmp/ipykernel_57/751027779.py in <cell line: 0>()\n----> 1 hamzaa\n\nNameError: name 'hamzaa' is not defined",
-      "execution_order": 10,
-      "execution_title": "Execution #10"
+      "execution_order": null,
+      "execution_title": ""
     },
     {
       "index": 16,
