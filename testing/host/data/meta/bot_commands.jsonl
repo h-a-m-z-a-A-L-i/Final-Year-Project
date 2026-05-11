@@ -121,3 +121,211 @@
 {"action": "send_key", "requestId": "74797de6-2bd1-4883-9a65-6db6b8f49774", "key": "a", "tabId": 2015855861}
 {"action": "click", "requestId": "a96a08a8-5686-4d8d-8742-84c696fa22fd", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
 {"action": "insert_cell", "requestId": "97a8b7b8-b62d-44b9-af87-8be5664f209e", "direction": "above", "tabId": 2015855861}
+{"action": "click", "requestId": "b107079e-1e67-4c11-b202-92dc76df4adc", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "insert_cell", "requestId": "3e94bef4-8d16-4f76-8353-6c736795755b", "direction": "above", "tabId": 2015855861}
+{"action": "click", "requestId": "b769e44b-f329-42da-852a-6ebc3126b8cd", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "insert_cell", "requestId": "c287a570-2389-4198-af4a-1a6089551f95", "direction": "above", "tabId": 2015855861}
+{"action": "click", "requestId": "1800e50b-05b5-4694-a64f-04a524759f21", "cellIndex": 1, "scrollIntoView": true, "runCell": false}
+{"action": "click", "requestId": "67a3037e-5e6d-456a-b9bd-f4a37a5c2e74", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "insert_cell", "requestId": "652224d0-795b-44a0-b0c9-fe0d728c9395", "direction": "below", "tabId": 2015855861}
+{"action": "click", "requestId": "a8fe66cb-bc31-43df-96ec-388110b9feca", "cellIndex": 2, "scrollIntoView": true, "runCell": false}
+{"action": "insert_cell", "requestId": "fd79ecd8-1fa0-4d19-a4be-500e73d1f4c8", "direction": "below", "tabId": 2015855861}
+{"action": "select_cell_by_index", "requestId": "9e793052-5922-4fa2-8eff-ce243aa82a99", "cellIndex": 0, "scrollIntoView": true, "tabId": 2015853912}
+{"action": "select_cell_by_index", "requestId": "3d4b84b0-44bc-4dd5-a62c-7d838467787d", "cellIndex": 0, "scrollIntoView": true, "tabId": 2015853912}
+{"action": "select_cell_by_index", "requestId": "f5f1361f-a016-4345-8da5-501a75a34018", "cellIndex": 0, "scrollIntoView": true, "tabId": 2015853912}
+{"action": "select_cell_by_index", "requestId": "83e7a1de-1f8e-4f5d-8871-1d9bb34fa783", "cellIndex": 1, "scrollIntoView": true, "tabId": 2015853912}
+{"action": "click", "requestId": "93b54aec-760f-420f-ac41-5a1802eaf803", "cellIndex": 1, "scrollIntoView": true, "runCell": false, "tabId": 2015853912}
+{"action": "click", "requestId": "fc80150f-aaa8-4c9d-a57e-37ab4d9b5366", "cellIndex": 1, "scrollIntoView": true, "runCell": false, "tabId": 2015853912}
+{"action": "click", "requestId": "2290719e-837e-4ff6-94df-e5b9c3a7ed43", "cellIndex": 1, "scrollIntoView": true, "runCell": false, "tabId": 2015853912}
+{"action": "click", "requestId": "408ba8bd-216b-4387-8bfb-eecb6dfa7c3c", "cellIndex": 1, "scrollIntoView": true, "runCell": false, "tabId": 2015853912}
+{"action": "click", "requestId": "21656d6f-43f6-472c-be47-65ab67b15641", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "click", "requestId": "e48c7fad-25ea-45e3-a5e7-b5fdc4f813aa", "cellIndex": 1, "scrollIntoView": true, "runCell": false, "tabId": 2015853912}
+{"action": "click", "requestId": "cdfbc4f9-9d08-4e2b-86fb-ab7d1262652e", "cellIndex": 1, "scrollIntoView": true, "runCell": false, "tabId": 2015853912}
+{"action": "click", "requestId": "ec559b1f-0276-442d-a94d-a0020e17f7a6", "cellIndex": 1, "scrollIntoView": true, "runCell": false, "tabId": 2015853912}
+{"action": "click", "requestId": "d50a63e6-fc30-4168-a5c0-9029f9854599", "cellIndex": 1, "scrollIntoView": true, "runCell": false, "tabId": 2015853912}
+{"action": "click", "requestId": "f24d4a7e-b165-46a4-8195-3b4e8ba40a6a", "cellIndex": 1, "scrollIntoView": true, "runCell": false, "tabId": 2015853912}
+{"action": "click", "requestId": "e452fa9d-bc09-47a8-99c7-d29810d9cd3d", "cellIndex": 1, "scrollIntoView": true, "runCell": false, "tabId": 2015853912}
+{"action": "click", "requestId": "78ef4c4d-42c4-4ba1-afa9-3defb84a11a8", "cellIndex": 0, "scrollIntoView": true, "runCell": false, "tabId": 2015853912}
+{"action": "click", "requestId": "0a071c75-6e3e-4028-9e89-23d758b38d18", "cellIndex": 1, "scrollIntoView": true, "runCell": false}
+{"action": "click", "requestId": "2b9bb337-e134-45b0-8843-16e6e86eb581", "cellIndex": 1, "scrollIntoView": true}
+{"action": "click_selector", "requestId": "9fb19ea0-87f9-4cae-aa22-20acc5d17247", "selector": "[data-windowed-list-index=\"1\"] > div.lm-Widget.lm-Panel.jp-Cell-inputWrapper > div.lm-Widget.jp-InputArea.jp-Cell-inputArea > div.lm-Widget.jp-CodeMirrorEditor.jp-Editor.jp-InputArea-editor > div > div.cm-scroller > div.cm-content", "tabId": 2015855861}
+{"action": "click", "requestId": "85c7a81a-1ca4-4323-8c1e-c40248c4800a", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "click", "requestId": "f3b5cf10-1500-454e-b4ca-04a438758eb9", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "click_selector", "requestId": "7d478f35-6d6d-44d7-b4cd-f9d64103dec5", "selector": "[data-windowed-list-index=\"0\"] > div.lm-Widget.lm-Panel.jp-Cell-inputWrapper > div.lm-Widget.jp-InputArea.jp-Cell-inputArea > div.lm-Widget.jp-CodeMirrorEditor.jp-Editor.jp-InputArea-editor > div > div.cm-scroller > div.cm-content", "tabId": 2015855861}
+{"action": "click", "requestId": "d1264075-badd-455e-abd9-ee7b4d90fef4", "cellIndex": 1, "scrollIntoView": true, "runCell": false, "tabId": 2015855861}
+{"action": "click_selector", "requestId": "c480ff3f-a168-4077-ac5c-55a3262232dc", "selector": "[data-windowed-list-index=\"1\"] > div.lm-Widget.lm-Panel.jp-Cell-inputWrapper > div.lm-Widget.jp-InputArea.jp-Cell-inputArea > div.lm-Widget.jp-CodeMirrorEditor.jp-Editor.jp-InputArea-editor > div > div.cm-scroller > div.cm-content", "tabId": 2015855861}
+{"action": "click", "requestId": "54e51506-a36a-40b2-a544-64e2a5f11a36", "cellIndex": 2, "scrollIntoView": true, "runCell": false, "tabId": 2015855861}
+{"action": "click_selector", "requestId": "64cb2a6f-e5f3-4f0f-94bd-84e8abd63bd5", "selector": "[data-windowed-list-index=\"2\"] > div.lm-Widget.lm-Panel.jp-Cell-inputWrapper > div.lm-Widget.jp-InputArea.jp-Cell-inputArea > div.lm-Widget.jp-CodeMirrorEditor.jp-Editor.jp-InputArea-editor > div > div.cm-scroller > div.cm-content", "tabId": 2015855861}
+{"action": "click", "requestId": "8aae2e8d-25e9-48df-a627-0fe454b8470f", "cellIndex": 1, "scrollIntoView": true, "runCell": false}
+{"action": "click_selector", "requestId": "0f19f347-53e0-4090-990a-43e4973e7510", "selector": "[data-windowed-list-index=\"1\"] .jp-InputArea-editor .cm-content", "tabId": 2015855861}
+{"action": "click", "requestId": "71cbd0b6-f5dc-41c8-98c8-702682ea7353", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "click_selector", "requestId": "463efef3-a6fd-456a-bf41-6eb18344c50a", "selector": "[data-windowed-list-index=\"0\"] .jp-InputArea-editor .cm-content", "tabId": 2015855861}
+{"action": "click", "requestId": "c4180cd1-c251-4774-961b-5953e3b2a23a", "cellIndex": 2, "scrollIntoView": true, "runCell": false, "tabId": 2015855861}
+{"action": "click_selector", "requestId": "45772585-1371-4c00-b098-498c2d9e4e8e", "selector": "[data-windowed-list-index=\"2\"] .jp-InputArea-editor .cm-content", "tabId": 2015855861}
+{"action": "click", "requestId": "9b60a4c9-92b6-4dca-8c72-9a25534146e0", "cellIndex": 1, "scrollIntoView": true, "runCell": false}
+{"action": "click_selector", "requestId": "6dbdb300-918b-4a1b-be02-ad56bbbce394", "selector": "[data-windowed-list-index=\"1\"] .jp-InputArea-editor .cm-content", "tabId": 2015855861}
+{"action": "click", "requestId": "7f3ddc96-75dc-42b4-8f5b-f9043397f140", "cellIndex": 0, "scrollIntoView": true, "runCell": false, "tabId": 2015855861}
+{"action": "click_selector", "requestId": "19a6da7e-471d-472a-8adf-ee3f5e038280", "selector": "[data-windowed-list-index=\"0\"] .jp-InputArea-editor .cm-content", "tabId": 2015855861}
+{"action": "click", "requestId": "889c54cf-63ab-4fec-a6c6-f2249e03f903", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "click", "requestId": "38e469c9-eb35-486d-bdd0-aac93daa22e0", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "send_key", "requestId": "e41f611e-8bc1-4332-af75-2c9eed4e563a", "key": "d", "tabId": 2015855861}
+{"action": "click", "requestId": "8da6b0dd-6500-42ec-a032-60428edf77fc", "cellIndex": 1, "scrollIntoView": true, "runCell": false, "tabId": 2015855861}
+{"action": "send_key", "requestId": "1f165ea7-6109-4299-9bd3-a22d8f77aaa0", "key": "d", "tabId": 2015855861}
+{"action": "click", "requestId": "00f484bd-cce4-4138-a3fc-ed40a673b9f7", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "insert_cell", "requestId": "16863377-a33a-4704-abd9-f0815ed7bbac", "direction": "below", "tabId": 2015855861}
+{"action": "click", "requestId": "5dbd5f5e-a2bf-48d1-887c-ce1383d58502", "cellIndex": 1, "scrollIntoView": true, "runCell": false}
+{"action": "send_key", "requestId": "979b9ef7-ce12-4527-bf0c-3c42323f6912", "key": "d", "tabId": 2015855861}
+{"action": "click", "requestId": "4d784391-fa73-43b6-b736-f5b1db9b18d0", "cellIndex": 1, "scrollIntoView": true, "runCell": false}
+{"action": "send_key", "requestId": "399553ee-358b-45bf-a496-1d424064d0ec", "key": "Escape", "tabId": 2015855861}
+{"action": "send_key", "requestId": "8c156fc7-7981-4cb6-9f83-414834c95277", "key": "d", "tabId": 2015855861}
+{"action": "click", "requestId": "ce49ec02-d3b4-480e-9080-343172004e05", "cellIndex": 1, "scrollIntoView": true, "runCell": false}
+{"action": "send_key", "requestId": "902e80bf-40e1-4858-bfc1-d8ec25f4bdf0", "key": "d", "tabId": 2015855861}
+{"action": "send_key", "requestId": "8d18eb9d-046a-4d7a-9886-af8e307d6de5", "key": "d", "tabId": 2015855861}
+{"action": "click", "requestId": "daf57933-c9b5-4f5b-a67e-75ee6f579f40", "cellIndex": 1, "scrollIntoView": true, "runCell": false, "tabId": 2015855861}
+{"action": "send_key", "requestId": "572d7613-b13a-4bd5-917d-1a429d812b71", "key": "d", "tabId": 2015855861}
+{"action": "send_key", "requestId": "a36649ca-fda0-4d42-9f2c-7a117cdb8a5c", "key": "d", "tabId": 2015855861}
+{"action": "click", "requestId": "6d618904-64f1-4e16-b444-e054734017c6", "cellIndex": 0, "scrollIntoView": true, "runCell": false, "tabId": 2015855861}
+{"action": "send_key", "requestId": "a683af26-43f0-4707-bf0b-13e9120e7f1f", "key": "d", "tabId": 2015855861}
+{"action": "send_key", "requestId": "4a73f0a5-401b-4806-ac68-31df513956a4", "key": "d", "tabId": 2015855861}
+{"action": "click", "requestId": "db0171c8-4e48-4872-929c-02eb9a173775", "cellIndex": 1, "scrollIntoView": true, "runCell": false}
+{"action": "send_key", "requestId": "9acf1b11-cc71-49cc-8c42-fdd5407bd067", "key": "d", "tabId": 2015855861}
+{"action": "send_key", "requestId": "dc143e17-183f-4ae5-8196-2dbc9ca2c0bd", "key": "d", "tabId": 2015855861}
+{"action": "click", "requestId": "8c4868d8-1bdd-423d-981c-2f278775cd6d", "cellIndex": 1, "scrollIntoView": true, "runCell": false, "tabId": 2015855861}
+{"action": "send_key", "requestId": "d2d74e24-763a-4916-9152-1521a41523d3", "key": "d", "tabId": 2015855861}
+{"action": "send_key", "requestId": "c180ca61-356c-47fa-86e5-6e585c2c7a53", "key": "d", "tabId": 2015855861}
+{"action": "click", "requestId": "01ff36ea-7e53-4023-adc9-6358fd070b15", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "send_key", "requestId": "a90ff1bf-6bf8-424e-96e6-e62b72824d25", "key": "d", "tabId": 2015855861}
+{"action": "send_key", "requestId": "cad92354-d1ce-47f3-8d57-095ea178ce53", "key": "d", "tabId": 2015855861}
+{"action": "click", "requestId": "ebb60274-9434-4f68-b8ce-a518b611fa2b", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "send_key", "requestId": "96643f19-f9e9-430d-9f44-467462209f3b", "key": "d", "tabId": 2015855861}
+{"action": "send_key", "requestId": "7ecf73e7-8983-4302-8957-736ff070c83f", "key": "d", "tabId": 2015855861}
+{"action": "click", "requestId": "9e5fa9d8-6c09-4137-9248-b721aa79b9b1", "cellIndex": 1, "scrollIntoView": true, "runCell": false, "tabId": 2015855861}
+{"action": "send_key", "requestId": "2bd08774-c6a2-490f-b948-451289e4c97d", "key": "d", "tabId": 2015855861}
+{"action": "send_key", "requestId": "c8679d9c-66a4-4ebe-ab50-5a528cb6567d", "key": "d", "tabId": 2015855861}
+{"action": "click", "requestId": "e66dfe12-c3a7-41b1-af55-92add583420d", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "click", "requestId": "1cf5d059-0b7a-4368-b4f8-0703ead859d4", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "click", "requestId": "5c92dd63-66cd-48de-b943-dc381aee9944", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "click", "requestId": "ba2e49f1-a841-4303-a286-d64fb3ccd2f2", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "click", "requestId": "59626c2f-a1bb-4648-9af7-7a2fceac410b", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "delete_cell", "requestId": "19078e8c-f187-4977-ac50-36ae95162849", "tabId": 2015855861}
+{"action": "click", "requestId": "a470c5b8-ddec-4d22-8bcd-be04e6d2fcd5", "cellIndex": 1, "scrollIntoView": true, "runCell": false, "tabId": 2015855861}
+{"action": "delete_cell", "requestId": "7fbd57dc-a52c-439f-9782-0a4076164118", "tabId": 2015855861}
+{"action": "click", "requestId": "530e0ae8-aff4-40fa-b6b5-8593c6959e17", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "send_keys", "requestId": "0b4a2e7f-5743-4d9e-bfa4-15eece199400", "keys": "Escape", "tabId": 2015855861}
+{"action": "click", "requestId": "b68a5810-56a5-4f82-8d02-a27d6efa2b2e", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "send_keys", "requestId": "8de6ecbb-2875-42e9-af96-b87b4e497222", "keys": "d d", "tabId": 2015855861}
+{"action": "click", "requestId": "ffc235a0-ddf5-4ba6-bb5f-3ef319e7aeb2", "cellIndex": 0, "scrollIntoView": true, "runCell": false, "tabId": 2015855861}
+{"action": "send_keys", "requestId": "0ef379bf-6744-45bb-8477-ddc28be194a5", "keys": "d d", "tabId": 2015855861}
+{"action": "click", "requestId": "86ab66aa-ccdb-497e-8ca1-f33634729965", "cellIndex": 1, "scrollIntoView": true, "runCell": false, "tabId": 2015855861}
+{"action": "send_keys", "requestId": "d25aa3cd-2faa-4e7d-821d-8772c298c420", "keys": "d d", "tabId": 2015855861}
+{"action": "click", "requestId": "2319903d-ffb8-4fee-bfe0-1540206bb0fc", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "send_keys", "requestId": "b5082ea1-e881-47fb-a6db-d35f5d2b7112", "keys": "d d", "tabId": 2015855861}
+{"action": "click", "requestId": "56dda8a5-2978-4a31-ae5c-eaf94ea1f2c9", "cellIndex": 1, "scrollIntoView": true, "runCell": false, "tabId": 2015855861}
+{"action": "send_keys", "requestId": "5c9ee598-ce7f-45dd-bbe1-7125412d8cb3", "keys": "d d", "tabId": 2015855861}
+{"action": "click", "requestId": "93d99319-f37b-4166-a6fe-cdf71dd9a0ee", "cellIndex": 0, "scrollIntoView": true, "runCell": false, "tabId": 2015855861}
+{"action": "click", "requestId": "1bc555b6-dad9-46f2-92d5-3ef931df5450", "cellIndex": 0, "scrollIntoView": true, "runCell": false, "tabId": 2015855861}
+{"action": "send_keys", "requestId": "77a53e0a-faa8-42b9-a0ad-d4e9898dfc57", "keys": "d d", "tabId": 2015855861}
+{"action": "click", "requestId": "c0ad0c40-f9da-44fa-838d-c8ee616410b2", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "send_keys", "requestId": "d272e56e-6e60-4f6e-8c47-65fb96761b15", "keys": "d d", "tabId": 2015855861}
+{"action": "click", "requestId": "8295d8d5-8110-42e3-b1c1-f96b8e78edcb", "cellIndex": 1, "scrollIntoView": true, "runCell": false, "tabId": 2015855861}
+{"action": "send_keys", "requestId": "4c987349-3111-4472-ad98-ecd8047004e9", "keys": "d d", "tabId": 2015855861}
+{"action": "click", "requestId": "02b328a3-04aa-447e-845b-befa4e44321c", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "send_keys", "requestId": "a9b310ae-6f27-4cbb-b807-7672a5916d17", "keys": "d d", "tabId": 2015855861}
+{"action": "click", "requestId": "83e98bfa-e85a-4e5a-9f91-5a8c0563d786", "cellIndex": 0, "scrollIntoView": true, "runCell": false, "tabId": 2015855861}
+{"action": "send_keys", "requestId": "8d45cee0-3061-466c-9d9b-95895a083e32", "keys": "d d", "tabId": 2015855861}
+{"action": "click", "requestId": "abb7c2cd-0e6e-401c-a170-0d91d3d7babf", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "send_key", "requestId": "db8bc904-fec6-41a3-aeb6-8c8f5240475b", "key": "d", "tabId": 2015855861}
+{"action": "send_key", "requestId": "831e3f13-c592-4038-a7fb-d2e2d2f57dab", "key": "d", "tabId": 2015855861}
+{"action": "click", "requestId": "9bf40f72-cd83-4010-bf6c-103298cef874", "cellIndex": 1, "scrollIntoView": true, "runCell": false, "tabId": 2015855861}
+{"action": "send_key", "requestId": "97dc5f6b-479c-499f-8298-38ba2fac3e15", "key": "d", "tabId": 2015855861}
+{"action": "send_key", "requestId": "191f926a-bfad-41a4-b00f-218ac1547d1e", "key": "d", "tabId": 2015855861}
+{"action": "click", "requestId": "f7a40e53-257f-4573-821b-5981701b3a66", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "click", "requestId": "e89d279f-e6df-4cd8-a4b6-47dd9bd56976", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "click_selector", "requestId": "90b0f3d1-6ade-4dcc-aba5-6dbd5a114bcc", "selector": "div > div > div > button.sc-eLgQrY.qvcCn.google-symbols.notranslate.sc-hOqsyU.zhHqv.cell-context-menu-icon-button.delete", "tabId": 2015855861}
+{"action": "click", "requestId": "37a877a6-20e9-44f1-a550-aa318ba18f59", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "click_selector", "requestId": "f1bb5eee-55de-4180-ab23-ceaefd8df00a", "selector": "div > div > div > button.sc-eLgQrY.qvcCn.google-symbols.notranslate.sc-hOqsyU.zhHqv.cell-context-menu-icon-button.delete", "tabId": 2015855861}
+{"action": "click", "requestId": "d0b3361a-9adc-4ded-958c-36009f54177b", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "click_selector", "requestId": "89adc2ab-a839-47de-a813-26f41e1e5ec4", "selector": "[data-windowed-list-index=\"0\"] div > div > div > button.cell-context-menu-icon-button.delete", "tabId": 2015855861}
+{"action": "click_selector", "requestId": "195beb46-9fc3-4683-98d0-78847d7822e2", "selector": "[data-windowed-list-index=\"0\"] button[aria-label*=\"Delete\"]", "tabId": 2015855861}
+{"action": "click_selector", "requestId": "b90d1ca8-bb46-4b83-a127-3a7456586ce9", "selector": "[data-windowed-list-index=\"0\"] .cell-context-menu-icon-button.delete", "tabId": 2015855861}
+{"action": "click_selector", "requestId": "be906748-06c6-4734-9660-2d123086fc80", "selector": "button.cell-context-menu-icon-button.delete", "tabId": 2015855861}
+{"action": "click_selector", "requestId": "b23aaa82-680c-4564-b5f9-5751c319f41f", "selector": "button[aria-label*=\"Delete\"]", "tabId": 2015855861}
+{"action": "send_key", "requestId": "4045c947-e65f-407d-9c1c-df305de4be16", "key": "d", "tabId": 2015855861}
+{"action": "send_key", "requestId": "46c7446e-2957-4e38-b3f8-6228d40e1690", "key": "d", "tabId": 2015855861}
+{"action": "click", "requestId": "f71298f4-43dc-4109-99bf-ac0ef637bae3", "cellIndex": 1, "scrollIntoView": true, "runCell": false, "tabId": 2015855861}
+{"action": "click_selector", "requestId": "6bf1f2d4-62cf-46e0-be32-10f3aa14e295", "selector": "[data-windowed-list-index=\"1\"] div > div > div > button.cell-context-menu-icon-button.delete", "tabId": 2015855861}
+{"action": "click_selector", "requestId": "3adda926-8593-4a15-a5c0-af2b87b9f99d", "selector": "[data-windowed-list-index=\"1\"] button[aria-label*=\"Delete\"]", "tabId": 2015855861}
+{"action": "click_selector", "requestId": "ad7ad992-17a3-4aca-858a-ee9a27ce4123", "selector": "[data-windowed-list-index=\"1\"] .cell-context-menu-icon-button.delete", "tabId": 2015855861}
+{"action": "click_selector", "requestId": "d9b7a95e-035f-4e64-a934-2477a1c724a6", "selector": "button.cell-context-menu-icon-button.delete", "tabId": 2015855861}
+{"action": "click_selector", "requestId": "45daf15d-85a2-4bcc-8686-bd27b316ef3c", "selector": "button[aria-label*=\"Delete\"]", "tabId": 2015855861}
+{"action": "send_key", "requestId": "2a8ba733-20f9-4658-a9bd-b0b92973dc94", "key": "d", "tabId": 2015855861}
+{"action": "send_key", "requestId": "ef1f190b-c89b-4cc2-af77-b997d71bdb3b", "key": "d", "tabId": 2015855861}
+{"action": "click", "requestId": "395e9037-c23c-4b96-b508-408c5f065165", "cellIndex": 1, "scrollIntoView": true, "runCell": false}
+{"action": "click_selector", "requestId": "0d87663c-bc37-4cc0-89f0-71ae61ca1d40", "selector": "[data-windowed-list-index=\"1\"] div > div > div > button.cell-context-menu-icon-button.delete", "tabId": 2015855861}
+{"action": "click_selector", "requestId": "d7a0e74d-f1eb-4000-8e96-e2a99d6fe408", "selector": "[data-windowed-list-index=\"1\"] button[aria-label*=\"Delete\"]", "tabId": 2015855861}
+{"action": "click_selector", "requestId": "48a19cb8-4510-41d0-9293-c2c6ad50975b", "selector": "[data-windowed-list-index=\"1\"] .cell-context-menu-icon-button.delete", "tabId": 2015855861}
+{"action": "click_selector", "requestId": "4cb473b6-f747-4a1b-af2b-aee5af48223b", "selector": "button.cell-context-menu-icon-button.delete", "tabId": 2015855861}
+{"action": "click_selector", "requestId": "85b70bcc-62ed-4575-8957-aec89b36854d", "selector": "button[aria-label*=\"Delete\"]", "tabId": 2015855861}
+{"action": "send_key", "requestId": "3dfac75a-af0a-4ba9-9b33-88dad5032d8d", "key": "d", "tabId": 2015855861}
+{"action": "send_key", "requestId": "cb8ca6f7-489e-4b64-be87-d4f6e41f8bbf", "key": "d", "tabId": 2015855861}
+{"action": "click", "requestId": "5e91df10-32f3-4dbd-b463-3e987709674e", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "click_selector", "requestId": "9d75d4f2-054a-490c-a1fb-10eb59869463", "selector": "[data-windowed-list-index=\"0\"] div > div > div > button.cell-context-menu-icon-button.delete", "tabId": 2015855861}
+{"action": "click_selector", "requestId": "bc1e229c-90a9-433e-aa3d-c5762a61f542", "selector": "[data-windowed-list-index=\"0\"] button[aria-label*=\"Delete\"]", "tabId": 2015855861}
+{"action": "click_selector", "requestId": "7ed0f6a9-3fb4-4fdb-8000-22304592b1a7", "selector": "[data-windowed-list-index=\"0\"] .cell-context-menu-icon-button.delete", "tabId": 2015855861}
+{"action": "click_selector", "requestId": "f1ecbfb7-fb66-4984-94c0-f7a2491c3d7e", "selector": "button.cell-context-menu-icon-button.delete", "tabId": 2015855861}
+{"action": "click", "requestId": "707515c8-f5b4-403c-9df7-4db58ecb5a3a", "cellIndex": 1, "scrollIntoView": true, "runCell": false}
+{"action": "click_selector", "requestId": "f1dd5447-458d-43b2-82eb-e592d799e5d7", "selector": "[data-windowed-list-index=\"1\"] div > div > div > button.cell-context-menu-icon-button.delete", "tabId": 2015855861}
+{"action": "click_selector", "requestId": "3df67756-a104-4722-ba4f-a24adfd4d22c", "selector": "[data-windowed-list-index=\"1\"] button[aria-label*=\"Delete\"]", "tabId": 2015855861}
+{"action": "click_selector", "requestId": "a0467571-4225-4acd-939f-5083d4ddb15c", "selector": "[data-windowed-list-index=\"1\"] .cell-context-menu-icon-button.delete", "tabId": 2015855861}
+{"action": "click_selector", "requestId": "fd883139-6fa1-4e4e-998d-a4a1f9cd10bd", "selector": "button.cell-context-menu-icon-button.delete", "tabId": 2015855861}
+{"action": "click", "requestId": "3eb5a58e-1059-4210-9fa6-3505057054fc", "cellIndex": 0, "scrollIntoView": true, "runCell": false, "tabId": 2015855861}
+{"action": "click_selector", "requestId": "d3bcba9a-7c10-475d-88fd-3c5c8bc3339d", "selector": "[data-windowed-list-index=\"0\"] div > div > div > button.cell-context-menu-icon-button.delete", "tabId": 2015855861}
+{"action": "click_selector", "requestId": "e8d43900-ec34-4f29-813c-365d213029f4", "selector": "[data-windowed-list-index=\"0\"] button[aria-label*=\"Delete\"]", "tabId": 2015855861}
+{"action": "click_selector", "requestId": "9e0ba566-e6f7-4974-946c-0f1d0ebaa11e", "selector": "[data-windowed-list-index=\"0\"] .cell-context-menu-icon-button.delete", "tabId": 2015855861}
+{"action": "click_selector", "requestId": "d4ac04be-b516-424e-8300-09ffe9d8c12f", "selector": "button.cell-context-menu-icon-button.delete", "tabId": 2015855861}
+{"action": "click", "requestId": "43499640-de49-40cf-b661-242dcd22d60f", "cellIndex": 0, "scrollIntoView": true, "runCell": false, "tabId": 2015855861}
+{"action": "click_selector", "requestId": "8fb7e16d-fcc8-4eab-890c-b38388d467bb", "selector": "[data-windowed-list-index=\"0\"] div > div > div > button.cell-context-menu-icon-button.delete", "tabId": 2015855861}
+{"action": "click_selector", "requestId": "3f5c8526-2e7e-4155-9847-24253f9fd5cc", "selector": "[data-windowed-list-index=\"0\"] button[aria-label*=\"Delete\"]", "tabId": 2015855861}
+{"action": "click_selector", "requestId": "d8d54737-430c-4cb9-bf6f-2422f3e7d3d5", "selector": "[data-windowed-list-index=\"0\"] .cell-context-menu-icon-button.delete", "tabId": 2015855861}
+{"action": "click_selector", "requestId": "388797fd-3fa3-4fbd-90c2-a740e0c1be11", "selector": "button.cell-context-menu-icon-button.delete", "tabId": 2015855861}
+{"action": "click", "requestId": "25d5fd52-2f16-42fc-9dc2-12cf2402d2f3", "cellIndex": 2, "scrollIntoView": true, "runCell": false}
+{"action": "insert_cell", "requestId": "fa2157fb-fa95-4ac0-9400-ef90b2f28935", "direction": "above", "tabId": 2015855861}
+{"action": "send_key", "requestId": "60349ebb-85fb-42ea-a799-10056c5fcdb4", "key": "m", "tabId": 2015855861}
+{"action": "click", "requestId": "86682fee-efe5-4548-ba34-4f2288665cb2", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "insert_cell", "requestId": "513d6c8e-d261-4a19-8bb7-2270a3b2ec1e", "direction": "above", "tabId": 2015855861}
+{"action": "send_key", "requestId": "73b57472-76af-4fe0-af72-de5d0e6c7f32", "key": "m", "tabId": 2015855861}
+{"action": "click", "requestId": "a5e0f1be-2be3-4e12-9301-e83639cf43df", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "insert_cell", "requestId": "d1e40591-1d72-46d9-8c97-480a4a3ca60a", "direction": "above", "tabId": 2015855861}
+{"action": "click", "requestId": "5c6e6e34-6d11-4b29-9013-b954d2ce79cf", "cellIndex": 0, "scrollIntoView": true, "runCell": false, "tabId": 2015855861}
+{"action": "send_key", "requestId": "d1f1202c-82ab-4296-8f39-c4730106a813", "key": "m", "tabId": 2015855861}
+{"action": "click", "requestId": "30b7a098-b1c5-4d08-a70d-3cb36eb81612", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "insert_cell", "requestId": "bfc4a3a7-014b-4233-ac96-8d5c2fd8242c", "direction": "above", "tabId": 2015855861}
+{"action": "send_key", "requestId": "56ed74ab-d965-42fe-afd4-cbed73e8382e", "key": "m", "tabId": 2015855861}
+{"action": "click", "requestId": "325843ae-511b-4c71-805f-2d73dc85c59d", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "insert_cell", "requestId": "52be680c-b8e0-4baa-a06f-c444eced2629", "direction": "above", "tabId": 2015855861}
+{"action": "send_key", "requestId": "642a7274-e817-40ee-9109-c4a8ea6ca518", "key": "m", "tabId": 2015855861}
+{"action": "click", "requestId": "523d4b1c-0a8e-40fb-bb97-d991ea6dd0e5", "cellIndex": 1, "scrollIntoView": true, "runCell": false}
+{"action": "insert_cell", "requestId": "11a3e38e-15b1-4857-8b33-6f8643c2f43b", "direction": "above", "tabId": 2015855861}
+{"action": "send_key", "requestId": "7922abdd-ea3c-4e7e-9d5b-7de67a72d439", "key": "m", "tabId": 2015855861}
+{"action": "click", "requestId": "07ef0d09-bd05-4741-a3c9-4e39c6cb61f2", "cellIndex": 1, "scrollIntoView": true, "runCell": false}
+{"action": "insert_cell", "requestId": "5aa9b077-4699-4ec1-88e5-2e47a836d6fb", "direction": "above", "tabId": 2015855861}
+{"action": "send_key", "requestId": "f677b938-495e-4670-be6b-c00edcff2493", "key": "Escape", "tabId": 2015855861}
+{"action": "send_key", "requestId": "dc42ada4-04e1-439c-93fc-901faddf6d9e", "key": "m", "tabId": 2015855861}
+{"action": "click", "requestId": "f57c3a42-e68f-48da-b430-409086ea419d", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "insert_cell", "requestId": "64f6cadf-517e-41ee-983a-942d67dcd57c", "direction": "above", "tabId": 2015855861}
+{"action": "send_key", "requestId": "f2673eda-d3e8-4c54-b839-79711147c3a8", "key": "Escape", "tabId": 2015855861}
+{"action": "send_key", "requestId": "a0dcb867-6666-4732-bf1c-c7410b0a1fea", "key": "m", "tabId": 2015855861}
+{"action": "click", "requestId": "559e8ab8-a229-444c-b7f7-fe444dea7da1", "cellIndex": 0, "scrollIntoView": true, "runCell": false}
+{"action": "insert_cell", "requestId": "c9783dd9-b184-4d02-9576-d2e2db3e79ed", "direction": "above", "tabId": 2015855861}
+{"action": "send_key", "requestId": "564ba90b-309d-485b-9c10-645871186356", "key": "Escape", "tabId": 2015855861}
+{"action": "send_key", "requestId": "f48095f9-1b5a-485d-8b74-1c05da27586b", "key": "m", "tabId": 2015855861}
+{"action": "click", "requestId": "f97bfe87-4501-4287-8b4e-d1df604e4af8", "cellIndex": 1, "scrollIntoView": true, "runCell": false}
+{"action": "insert_cell", "requestId": "7ce250e0-336e-44bd-946b-92f2ed385eb0", "direction": "above", "tabId": 2015855861}
+{"action": "send_key", "requestId": "f1dd277f-9058-4c7b-92b8-82d050ef6a2f", "key": "m", "tabId": 2015855861}
+{"action": "click", "requestId": "2f2db2b3-4d93-4c04-9bcd-c3d5cb18cab8", "cellIndex": 1, "scrollIntoView": true, "runCell": false}
+{"action": "insert_cell", "requestId": "bf0b680c-0b80-440d-8557-9c9f5c50f26e", "direction": "above", "toMarkdown": true, "markdownDelayMs": 500, "tabId": 2015855861}
+{"action": "click", "requestId": "974cdff5-2da0-4aa1-b875-eb483f80a203", "cellIndex": 3, "scrollIntoView": true, "runCell": false}
+{"action": "insert_cell", "requestId": "47ead138-5bb8-40a8-bbc2-2a3c60d44977", "direction": "above", "toMarkdown": true, "markdownDelayMs": 500, "tabId": 2015855861}
+{"action": "click", "requestId": "49126683-3b47-4acd-894b-3908b84cd5e7", "cellIndex": 3, "scrollIntoView": true, "runCell": false}
+{"action": "insert_cell", "requestId": "d335994e-da69-4738-b388-3b532fa74c90", "direction": "above", "toMarkdown": true, "markdownDelayMs": 500, "tabId": 2015855861}
+{"action": "click", "requestId": "b5910106-5baf-4230-9c9a-7ffa30347c86", "cellIndex": 1, "scrollIntoView": true, "runCell": false}

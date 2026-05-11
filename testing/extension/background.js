@@ -535,6 +535,8 @@ function getPort() {
       const payload = {
         type: "INSERT_CELL",
         direction: msg.direction,
+        toMarkdown: msg.toMarkdown === true,
+        markdownDelayMs: msg.markdownDelayMs,
         requestId: msg.requestId,
         url: msg.url,
       };
@@ -562,7 +564,7 @@ function getPort() {
         url: msg.url,
       };
 
-      const postResult = (result) => {
+      dispatchToFrames(msg.tabId, payload, (result) => {
         getPort().postMessage({
           type: result.ok ? "CLICK_CELL_RESULT" : "CLICK_CELL_ERROR",
           tabId: msg.tabId,
@@ -571,46 +573,6 @@ function getPort() {
           cellIndex: msg.cellIndex,
           result,
         });
-      };
-
-      chrome.webNavigation.getAllFrames({ tabId: msg.tabId }, async (frames) => {
-        if (chrome.runtime.lastError) {
-          chrome.tabs.sendMessage(msg.tabId, payload, (response) => {
-            const lastError = chrome.runtime.lastError;
-            if (lastError) {
-              postResult({ ok: false, error: lastError.message || String(lastError) });
-              return;
-            }
-
-            postResult(response?.result || { ok: false, error: "No response from content script." });
-          });
-          return;
-        }
-
-        const orderedFrames = Array.isArray(frames) ? frames.slice().sort((a, b) => (a.frameId || 0) - (b.frameId || 0)) : [];
-        let lastFailure = null;
-
-        for (const frame of orderedFrames) {
-          const response = await new Promise((resolve) => {
-            chrome.tabs.sendMessage(msg.tabId, payload, { frameId: frame.frameId }, (reply) => {
-              const lastError = chrome.runtime.lastError;
-              if (lastError) {
-                resolve({ ok: false, error: lastError.message || String(lastError), frameId: frame.frameId });
-                return;
-              }
-              resolve(reply?.result || { ok: false, error: "No response from content script.", frameId: frame.frameId });
-            });
-          });
-
-          if (response?.ok) {
-            postResult(response);
-            return;
-          }
-
-          lastFailure = response;
-        }
-
-        postResult(lastFailure || { ok: false, error: "No frame accepted the click command." });
       });
       return;
     }
@@ -623,18 +585,32 @@ function getPort() {
         url: msg.url,
       };
 
-      chrome.tabs.sendMessage(msg.tabId, payload, { frameId: 0 }, (response) => {
-        const lastError = chrome.runtime.lastError;
-        const result = lastError
-          ? { ok: false, error: lastError.message || String(lastError) }
-          : (response?.result || { ok: false, error: "No response from top frame content script." });
-
+      dispatchToFrames(msg.tabId, payload, (result) => {
         getPort().postMessage({
           type: result.ok ? "CLICK_SELECTOR_RESULT" : "CLICK_SELECTOR_ERROR",
           tabId: msg.tabId,
           url: msg.url,
           requestId: msg.requestId,
           selector: msg.selector,
+          result,
+        });
+      });
+      return;
+    }
+
+    if (msg?.type === "DELETE_CELL" && typeof msg?.tabId === "number") {
+      const payload = {
+        type: "DELETE_CELL",
+        requestId: msg.requestId,
+        url: msg.url,
+      };
+
+      dispatchToFrames(msg.tabId, payload, (result) => {
+        getPort().postMessage({
+          type: result.ok ? "DELETE_CELL_RESULT" : "DELETE_CELL_ERROR",
+          tabId: msg.tabId,
+          url: msg.url,
+          requestId: msg.requestId,
           result,
         });
       });
@@ -649,7 +625,7 @@ function getPort() {
         url: msg.url,
       };
 
-      const postResult = (result) => {
+      dispatchToFrames(msg.tabId, payload, (result) => {
         getPort().postMessage({
           type: result.ok ? "SEND_KEY_RESULT" : "SEND_KEY_ERROR",
           tabId: msg.tabId,
@@ -658,15 +634,27 @@ function getPort() {
           key: msg.key,
           result,
         });
+      });
+      return;
+    }
+
+    if (msg?.type === "SEND_KEYS" && typeof msg?.tabId === "number") {
+      const payload = {
+        type: "SEND_KEYS",
+        keys: msg.keys,
+        requestId: msg.requestId,
+        url: msg.url,
       };
 
-      chrome.tabs.sendMessage(msg.tabId, payload, { frameId: 0 }, (response) => {
-        const lastError = chrome.runtime.lastError;
-        const result = lastError
-          ? { ok: false, error: lastError.message || String(lastError) }
-          : (response?.result || { ok: false, error: "No response from top frame content script." });
-
-        postResult(result);
+      dispatchToFrames(msg.tabId, payload, (result) => {
+        getPort().postMessage({
+          type: result.ok ? "SEND_KEYS_RESULT" : "SEND_KEYS_ERROR",
+          tabId: msg.tabId,
+          url: msg.url,
+          requestId: msg.requestId,
+          keys: msg.keys,
+          result,
+        });
       });
       return;
     }

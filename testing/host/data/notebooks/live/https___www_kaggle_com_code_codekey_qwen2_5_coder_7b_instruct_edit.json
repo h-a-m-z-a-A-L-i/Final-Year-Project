@@ -1,45 +1,87 @@
 {
   "tabUrl": "https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit",
   "title": "__notebook_source__",
-  "lastUpdated": "2026-05-11T14:45:21.818358+00:00",
+  "lastUpdated": "2026-05-11T19:03:04.129041+00:00",
   "cells": [
     {
       "index": 1,
-      "input": "print('cell no 1')",
+      "input": "",
       "output": "",
       "execution_order": null,
       "execution_title": ""
     },
     {
       "index": 2,
-      "input": "while(True):\n    pass",
+      "input": "",
       "output": "",
-      "execution_order": 8,
-      "execution_title": "Execution #8"
+      "execution_order": null,
+      "execution_title": ""
     },
     {
       "index": 3,
-      "input": "print(211)",
+      "input": "",
       "output": "",
       "execution_order": null,
       "execution_title": ""
     },
     {
       "index": 4,
-      "input": "print(21)",
+      "input": "",
       "output": "",
-      "execution_order": null,
-      "execution_title": ""
+      "execution_order": 7,
+      "execution_title": "Execution #7"
     },
     {
       "index": 5,
+      "input": "",
+      "output": "",
+      "execution_order": 7,
+      "execution_title": "Execution #7"
+    },
+    {
+      "index": 6,
+      "input": "while(True):\n    pass",
+      "output": "",
+      "execution_order": 7,
+      "execution_title": "Execution #7"
+    },
+    {
+      "index": 7,
+      "input": "",
+      "output": "",
+      "execution_order": 7,
+      "execution_title": "Execution #7"
+    },
+    {
+      "index": 8,
+      "input": "print(211)",
+      "output": "",
+      "execution_order": 7,
+      "execution_title": "Execution #7"
+    },
+    {
+      "index": 9,
+      "input": "",
+      "output": "",
+      "execution_order": 7,
+      "execution_title": "Execution #7"
+    },
+    {
+      "index": 10,
+      "input": "print(21)",
+      "output": "",
+      "execution_order": 7,
+      "execution_title": "Execution #7"
+    },
+    {
+      "index": 11,
       "input": "print(131)",
       "output": "131",
       "execution_order": 7,
       "execution_title": "Execution #7"
     },
     {
-      "index": 6,
+      "index": 12,
       "input": "",
       "output": "",
       "execution_order": null,

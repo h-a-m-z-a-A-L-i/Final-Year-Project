@@ -87,29 +87,6 @@ def _build_insert_command(request_id: str, tab_id: int | None, direction: str, u
     return cmd
 
 
-def _get_notebook_cell_count(url_hash: str) -> int | None:
-    notebook_path = None
-    for nb_file in DATA_NOTEBOOKS.glob("*.json"):
-        if url_hash in nb_file.name:
-            notebook_path = nb_file
-            break
-
-    if not notebook_path or not notebook_path.exists():
-        return None
-
-    try:
-        with notebook_path.open("r", encoding="utf-8") as f:
-            data = json.load(f)
-        cells = data.get("cells", [])
-        return len(cells)
-    except Exception:
-        return None
-
-
-def _url_to_hash(url: str) -> str:
-    return url.replace("://", "___").replace("/", "_").replace("?", "_")
-
-
 def main():
     parser = argparse.ArgumentParser(description="Insert a cell above or below a target cell")
     parser.add_argument("index", type=int, help="Cell index to insert next to (0-based)")
@@ -217,59 +194,12 @@ def main():
         "phase": "insert_requested",
         "direction": direction
     }, ensure_ascii=False))
-
-    if not args.url:
-        print(json.dumps({
-            "ok": True,
-            "phase": "complete",
-            "note": "Insert action completed; metadata confirmation skipped because no URL was provided"
-        }, ensure_ascii=False))
-        return
-
     print(json.dumps({
         "ok": True,
-        "phase": "confirming_insertion",
-        "url": args.url
+        "phase": "complete",
+        "direction": direction,
+        "note": "Single insert action completed",
     }, ensure_ascii=False))
-
-    url_hash = _url_to_hash(args.url)
-    initial_count = _get_notebook_cell_count(url_hash)
-
-    if initial_count is None:
-        print(json.dumps({
-            "ok": True,
-            "phase": "complete",
-            "note": "Could not access metadata file for confirmation, but insert action was sent"
-        }, ensure_ascii=False))
-        return
-
-    deadline = time.time() + max(1.0, args.timeout * 0.5)
-    confirmed = False
-
-    while time.time() < deadline:
-        current_count = _get_notebook_cell_count(url_hash)
-        if current_count is not None and current_count > initial_count:
-            confirmed = True
-            break
-        time.sleep(0.5)
-
-    if confirmed:
-        print(json.dumps({
-            "ok": True,
-            "phase": "complete",
-            "status": "Cell inserted successfully",
-            "previousCellCount": initial_count,
-            "newCellCount": current_count,
-            "direction": direction,
-        }, ensure_ascii=False))
-    else:
-        print(json.dumps({
-            "ok": True,
-            "phase": "complete",
-            "status": "Insert was sent but metadata confirmation pending (may appear after auto-save)",
-            "initialCellCount": initial_count,
-            "note": "Kaggle auto-saves; check notebook directly for confirmation"
-        }, ensure_ascii=False))
 
 
 if __name__ == "__main__":

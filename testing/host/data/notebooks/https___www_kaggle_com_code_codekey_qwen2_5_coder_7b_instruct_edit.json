@@ -15,7 +15,7 @@
       "input": "while(True):\n    pass",
       "output": "---------------------------------------------------------------------------\nKeyboardInterrupt                         Traceback (most recent call last)\n/tmp/ipykernel_57/2670420695.py in <cell line: 0>()\n----> 1 while(True):\n      2     pass\n\nKeyboardInterrupt:",
       "execution_order": 1,
-      "execution_title": "Cell executed at 9:28am"
+      "execution_title": "Cell executed at 9:32pm"
     },
     {
       "index": 3,
@@ -63,8 +63,8 @@
       "index": 9,
       "input": "from fastapi import FastAPI\nfrom fastapi.responses import StreamingResponse\nfrom pydantic import BaseModel\nimport uvicorn\nimport torch\nimport asyncio\nimport nest_asyncio\nfrom threading import Thread\nfrom transformers import TextIteratorStreamer\nfrom pyngrok import ngrok\n\n\n# ------------------ FastAPI App ------------------\napp = FastAPI()\n\n\n# ------------------ Request Model ------------------\nclass GenerateRequest(BaseModel):\n    prompt: str\n    max_new_tokens: int = 512\n    temperature: float = 0.3\n\n\n# ------------------ Streaming Endpoint ------------------\n@app.post(\"/generate\")\nasync def generate(req: GenerateRequest):\n\n\n    async def stream_generator():\n\n\n        # 1\ufe0f\u20e3 Build chat format\n        messages = [\n            {\"role\": \"system\", \"content\": \"You are a coding assistant.\"},\n            {\"role\": \"user\", \"content\": req.prompt}\n        ]\n\n\n        prompt_str = tokenizer.apply_chat_template(\n            messages,\n            tokenize=False,\n            add_generation_prompt=True",
       "output": "",
-      "execution_order": null,
-      "execution_title": ""
+      "execution_order": 7,
+      "execution_title": "Cell executed at 10:39pm"
     },
     {
       "index": 10,

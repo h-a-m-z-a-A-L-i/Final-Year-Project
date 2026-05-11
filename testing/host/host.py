@@ -492,8 +492,9 @@ def _start_bot_command_watcher():
                         continue
 
                     action = str(cmd.get("action") or cmd.get("type") or "").strip().lower()
-                    if action not in {"click", "click_cell_by_index", "click_selector", "select_cell_by_index", "insert_cell", "send_key"}:
-                        if action not in {"send_key"}:
+                    # Allow send_keys as a valid action so sequences like "d d" are dispatched.
+                    if action not in {"click", "click_cell_by_index", "click_selector", "select_cell_by_index", "insert_cell", "send_key", "send_keys"}:
+                        if action not in {"send_key", "send_keys"}:
                             _append_jsonl(BOT_RESULTS_PATH, {
                                 "ts": datetime.now(timezone.utc).isoformat(),
                                 "ok": False,
@@ -549,6 +550,8 @@ def _start_bot_command_watcher():
                             "tabId": tab_id,
                             "url": url,
                             "direction": direction,
+                            "toMarkdown": bool(cmd.get("toMarkdown", False)),
+                            "markdownDelayMs": cmd.get("markdownDelayMs"),
                             "requestId": cmd.get("requestId"),
                         })
                         log(f"Bot dispatched INSERT_CELL tabId={tab_id} direction={direction}")
@@ -605,6 +608,42 @@ def _start_bot_command_watcher():
                             "requestId": cmd.get("requestId"),
                         })
                         log(f"Bot dispatched CLICK_SELECTOR tabId={tab_id} selector={selector}")
+                    elif action == "send_key":
+                        key = str(cmd.get("key") or "").strip()
+                        if not key:
+                            _append_jsonl(BOT_RESULTS_PATH, {
+                                "ts": datetime.now(timezone.utc).isoformat(),
+                                "ok": False,
+                                "error": "Missing key",
+                                "requestId": cmd.get("requestId"),
+                                "tabId": tab_id,
+                            })
+                            continue
+                        send_msg({
+                            "type": "SEND_KEY",
+                            "tabId": tab_id,
+                            "url": url,
+                            "key": key,
+                            "requestId": cmd.get("requestId"),
+                        })
+                        log(f"Bot dispatched SEND_KEY tabId={tab_id} key={key}")
+                    elif action == "delete_cell":
+                        send_msg({
+                            "type": "DELETE_CELL",
+                            "tabId": tab_id,
+                            "url": url,
+                            "requestId": cmd.get("requestId"),
+                        })
+                        log(f"Bot dispatched DELETE_CELL tabId={tab_id}")
+                    elif action == "send_keys":
+                        send_msg({
+                            "type": "SEND_KEYS",
+                            "tabId": tab_id,
+                            "url": url,
+                            "keys": cmd.get("keys"),
+                            "requestId": cmd.get("requestId"),
+                        })
+                        log(f"Bot dispatched SEND_KEYS tabId={tab_id} keys={cmd.get('keys')}")
                     else:
                         try:
                             cell_index = int(cmd.get("cellIndex"))

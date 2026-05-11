@@ -1,5 +1,8 @@
 // Content script to relay kernel state updates from background to page scripts
 (function initKernelStateListener() {
+  if (window.__kernelStateListenerReady) {
+    return;
+  }
   console.log('[kernel_state_listener] Content script initializing at:', new Date().toISOString());
   console.log('[kernel_state_listener] Current URL:', window.location.href);
 
@@ -20,7 +23,27 @@
 
       if (msg.type === 'INSERT_CELL') {
         insertCellByDirection(msg.direction)
-          .then((result) => sendResponse({ ok: true, result }))
+          .then(async (result) => {
+            if (!result?.ok || msg.toMarkdown !== true) {
+              sendResponse({ ok: true, result });
+              return;
+            }
+
+            const parsedDelay = Number(msg.markdownDelayMs);
+            const delayMs = Number.isFinite(parsedDelay) && parsedDelay >= 0 ? parsedDelay : 500;
+            await new Promise((resolve) => setTimeout(resolve, delayMs));
+
+            const markdownKeyResult = sendKey('m');
+            sendResponse({
+              ok: true,
+              result: {
+                ...result,
+                markdownDelayMs: delayMs,
+                markdownKeyResult,
+                ok: Boolean(result.ok && markdownKeyResult?.ok),
+              },
+            });
+          })
           .catch((error) => sendResponse({ ok: false, error: error?.message || String(error) }));
         return true;
       }
@@ -88,12 +111,26 @@
         targetEl.focus({ preventScroll: true });
       }
 
-      // Dispatch keyboard events in sequence
+      // Dispatch keyboard events in sequence to the specific target
       targetEl.dispatchEvent(new KeyboardEvent('keydown', eventInit));
       targetEl.dispatchEvent(new KeyboardEvent('keypress', eventInit));
       targetEl.dispatchEvent(new KeyboardEvent('keyup', eventInit));
 
-      console.log('[sendKey] Key event dispatched:', normalizedKey, 'on', targetEl.tagName || 'unknown');
+      // Also dispatch to document and window to catch global listeners (like notebook shortcuts)
+      document.dispatchEvent(new KeyboardEvent('keydown', eventInit));
+      window.dispatchEvent(new KeyboardEvent('keydown', eventInit));
+
+      const isBody = targetEl.tagName === 'BODY' || targetEl.tagName === 'HTML';
+      const hasFocus = document.hasFocus();
+      
+      console.log('[sendKey] Key event dispatched:', normalizedKey, 'on', targetEl.tagName || 'unknown', 'hasFocus:', hasFocus);
+      
+      // If we are just clicking the body and this frame doesn't even have focus,
+      // return ok: false so that dispatchToFrames can try the next frame (like the notebook iframe).
+      if (isBody && !hasFocus) {
+        return { ok: false, error: 'Frame not focused, skipping to next.', key: normalizedKey };
+      }
+
       return { ok: true, key: normalizedKey, tagName: targetEl.tagName || 'unknown' };
     } catch (error) {
       console.error('[sendKey] Failed to send key:', error?.message || error);
@@ -101,16 +138,42 @@
     }
   }
 
+  async function sendKeysSequence(keysStr) {
+    const keys = String(keysStr || '').split(/\s+/).filter(Boolean);
+    const results = [];
+    for (const key of keys) {
+      const result = sendKey(key);
+      results.push(result);
+      // Small delay between keys in a sequence
+      await new Promise(r => setTimeout(r, 50));
+    }
+    return { ok: true, results, keys };
+  }
+
       if (msg.type === 'CLICK_SELECTOR') {
         const result = clickSelector(msg.selector);
-
-              if (msg.type === 'SEND_KEY') {
-                const result = sendKey(msg.key);
-                sendResponse({ ok: true, result });
-                return;
-              }
         sendResponse({ ok: true, result });
         return;
+      }
+
+      if (msg.type === 'SEND_KEY') {
+        const result = sendKey(msg.key);
+        sendResponse({ ok: true, result });
+        return;
+      }
+
+      if (msg.type === 'DELETE_CELL') {
+        deleteActiveCell()
+          .then((result) => sendResponse({ ok: true, result }))
+          .catch((error) => sendResponse({ ok: false, error: error?.message || String(error) }));
+        return true;
+      }
+
+      if (msg.type === 'SEND_KEYS') {
+        sendKeysSequence(msg.keys)
+          .then((result) => sendResponse({ ok: true, result }))
+          .catch((error) => sendResponse({ ok: false, error: error?.message || String(error) }));
+        return true;
       }
 
       if (msg.type === 'PING') {
@@ -196,7 +259,7 @@
     // If that does not trigger the expected state change, fall back to the editor and prompt.
     const targets = [
       cell,
-      cell.querySelector('.jp-InputArea-editor, .jp-Cell-editor'),
+      options.runCell !== false ? cell.querySelector('.jp-InputArea-editor, .jp-Cell-editor') : null,
       cell.querySelector('.jp-InputArea-prompt, .jp-Cell-prompt'),
     ].filter(Boolean);
 
@@ -423,6 +486,49 @@
     };
   }
 
+  async function deleteActiveCell() {
+    const { notebook, commands } = getNotebookApp();
+    let lastError = null;
+
+    // Try JupyterLab command first (most robust)
+    if (commands && typeof commands.execute === 'function') {
+      const commandIds = ['notebook:delete-cell', 'cell:delete', 'notebook:delete'];
+      for (const commandId of commandIds) {
+        try {
+          if (typeof commands.hasCommand === 'function' && !commands.hasCommand(commandId)) continue;
+          await commands.execute(commandId);
+          return { ok: true, strategy: 'jupyterlab-command', commandId };
+        } catch (error) {
+          lastError = error;
+        }
+      }
+    }
+
+    // Fallback: try notebook method directly
+    if (notebook) {
+      const methodNames = ['deleteCell', 'deleteSelection', 'removeCell'];
+      for (const methodName of methodNames) {
+        try {
+          if (typeof notebook[methodName] === 'function') {
+            await notebook[methodName]();
+            return { ok: true, strategy: 'notebook-method', methodName };
+          }
+        } catch (error) {
+          lastError = error;
+        }
+      }
+    }
+
+    // Final Fallback: Simulated keys 'dd' if the above failed (unlikely in Jupyter)
+    try {
+      sendKey('d');
+      sendKey('d');
+      return { ok: true, strategy: 'fallback-keys-dd' };
+    } catch (e) {
+      return { ok: false, error: lastError?.message || e.message || 'Failed to delete cell' };
+    }
+  }
+
   function clickSelector(selector) {
     const normalizedSelector = String(selector || '').trim();
     if (!normalizedSelector) {
@@ -468,13 +574,38 @@
       if (!rootDocument || seen.has(rootDocument)) return null;
       seen.add(rootDocument);
 
-      // Try direct match in this document
-      try {
-        const direct = rootDocument.querySelector(selectorStr);
-        if (direct) return direct;
-      } catch (e) {}
+      // Helper: deep-search including shadow roots
+      const deepQuery = (root, sel) => {
+        try {
+          const direct = root.querySelector(sel);
+          if (direct) return direct;
+        } catch (e) {}
 
-      // Try searching inside iframes
+        // Traverse shadow roots within this root
+        try {
+          const all = root.querySelectorAll('*');
+          for (const el of all) {
+            try {
+              if (el.shadowRoot) {
+                try {
+                  const found = el.shadowRoot.querySelector(sel);
+                  if (found) return found;
+                } catch (ee) {}
+                const nested = deepQuery(el.shadowRoot, sel);
+                if (nested) return nested;
+              }
+            } catch (ee) {}
+          }
+        } catch (e) {}
+
+        return null;
+      };
+
+      // Try direct or shadow-root-aware query in this document
+      const foundHere = deepQuery(rootDocument, selectorStr);
+      if (foundHere) return foundHere;
+
+      // Try searching inside iframes (same-origin frames only)
       const frames = rootDocument.querySelectorAll('iframe');
       for (const frame of frames) {
         try {
@@ -514,23 +645,27 @@
         target.focus({ preventScroll: true });
       }
 
-      // Dispatch sequence to tolerate React and complex UI handlers
-      target.dispatchEvent(new PointerEvent('pointerdown', eventInit));
-      target.dispatchEvent(new MouseEvent('mousedown', eventInit));
-      target.dispatchEvent(new PointerEvent('pointerup', eventInit));
-      target.dispatchEvent(new MouseEvent('mouseup', eventInit));
-      target.dispatchEvent(new MouseEvent('click', eventInit));
-      if (typeof target.click === 'function') {
-        target.click();
-      }
+      // Prefer native click for buttons/links to avoid duplicate activations.
+      try {
+        if (target.tagName && /^(BUTTON|A)$/i.test(target.tagName)) {
+          target.click();
+          console.log('[clickSelector] Native .click() dispatched on button/link:', normalizedSelector);
+          return { ok: true, selector: normalizedSelector, tagName: target.tagName, strategy: 'native-click' };
+        }
 
-      console.log('[clickSelector] Click sequence dispatched on:', normalizedSelector);
-      return {
-        ok: true,
-        selector: normalizedSelector,
-        tagName: target.tagName,
-        strategy: 'recursive-frame-selector-click',
-      };
+        // Otherwise dispatch a single synthetic click sequence compatible with React.
+        target.dispatchEvent(new PointerEvent('pointerdown', eventInit));
+        target.dispatchEvent(new MouseEvent('mousedown', eventInit));
+        target.dispatchEvent(new PointerEvent('pointerup', eventInit));
+        target.dispatchEvent(new MouseEvent('mouseup', eventInit));
+        target.dispatchEvent(new MouseEvent('click', eventInit));
+
+        console.log('[clickSelector] Synthetic click sequence dispatched on:', normalizedSelector);
+        return { ok: true, selector: normalizedSelector, tagName: target.tagName, strategy: 'synthetic-click' };
+      } catch (err) {
+        console.error('[clickSelector] Activation failed during single-click path:', err);
+        return { ok: false, error: err?.message || String(err), selector: normalizedSelector };
+      }
     } catch (error) {
       console.error('[clickSelector] Failed:', error?.message || error);
       return { ok: false, error: error?.message || String(error), selector: normalizedSelector };
