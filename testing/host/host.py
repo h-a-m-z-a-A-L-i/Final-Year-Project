@@ -34,6 +34,8 @@ HASHES_PATH = DATA_ROOT / "meta" / "hashes.json"
 EXECUTION_STATE_PATH = DATA_ROOT / "meta" / "execution_state.json"
 LOG_PATH = DATA_ROOT / "logs" / "host.log"
 RATE_LIMIT_TRACKER = DATA_ROOT / "meta" / "rate_limit_tracker.json"
+BOT_COMMANDS_PATH = DATA_ROOT / "meta" / "bot_commands.jsonl"
+BOT_RESULTS_PATH = DATA_ROOT / "meta" / "bot_results.jsonl"
 DB_TIMEOUT_SECONDS = 10
 MAX_HISTORY_MESSAGES = 24
 MAX_CONTEXT_CHARS = 1800
@@ -54,6 +56,9 @@ _SEND_LOCK = threading.Lock()
 _ACTIVE_STREAMS = {}
 _ACTIVE_STREAMS_LOCK = threading.Lock()
 _RATE_LOCK = threading.Lock()
+_BOT_STATE_LOCK = threading.Lock()
+_LAST_NOTEBOOK_TAB_ID = None
+_LAST_NOTEBOOK_URL = ""
 _CEREBRAS_CLIENT = Cerebras(api_key=CEREBRAS_API_KEY) if CEREBRAS_API_KEY else None
 # Set up dependency mode path with fallbacks.
 _WS_ROOT = Path(__file__).resolve().parents[2]
@@ -432,6 +437,202 @@ def send_msg(obj):
     with _SEND_LOCK:
         sys.stdout.buffer.write(struct.pack("<I", len(data)) + data)
         sys.stdout.buffer.flush()
+
+def _append_jsonl(path: Path, payload: dict):
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    except Exception as e:
+        log(f"Failed writing {path.name}: {e}")
+
+def _start_bot_command_watcher():
+    def _worker():
+        offset = 0
+        try:
+            BOT_COMMANDS_PATH.parent.mkdir(parents=True, exist_ok=True)
+            BOT_COMMANDS_PATH.touch(exist_ok=True)
+            offset = BOT_COMMANDS_PATH.stat().st_size
+            log("Bot watcher started (data/meta/bot_commands.jsonl)")
+        except Exception as e:
+            log(f"Bot watcher init failed: {e}")
+            return
+
+        while True:
+            try:
+                if not BOT_COMMANDS_PATH.exists():
+                    time.sleep(0.25)
+                    continue
+                size = BOT_COMMANDS_PATH.stat().st_size
+                if size < offset:
+                    offset = 0
+                if size == offset:
+                    time.sleep(0.25)
+                    continue
+
+                with BOT_COMMANDS_PATH.open("r", encoding="utf-8") as f:
+                    f.seek(offset)
+                    chunk = f.read()
+                    offset = f.tell()
+
+                for raw in chunk.splitlines():
+                    line = raw.strip()
+                    if not line:
+                        continue
+
+                    try:
+                        cmd = json.loads(line)
+                    except Exception:
+                        _append_jsonl(BOT_RESULTS_PATH, {
+                            "ts": datetime.now(timezone.utc).isoformat(),
+                            "ok": False,
+                            "error": "Invalid JSON command",
+                            "raw": line,
+                        })
+                        continue
+
+                    action = str(cmd.get("action") or cmd.get("type") or "").strip().lower()
+                    if action not in {"click", "click_cell_by_index", "click_selector", "select_cell_by_index", "insert_cell", "send_key"}:
+                        if action not in {"send_key"}:
+                            _append_jsonl(BOT_RESULTS_PATH, {
+                                "ts": datetime.now(timezone.utc).isoformat(),
+                                "ok": False,
+                                "error": f"Unsupported action: {action or 'missing'}",
+                                "requestId": cmd.get("requestId"),
+                            })
+                            continue
+
+                    with _BOT_STATE_LOCK:
+                        tab_id = cmd.get("tabId")
+                        if not isinstance(tab_id, int):
+                            tab_id = _LAST_NOTEBOOK_TAB_ID
+                        url = str(cmd.get("url") or _LAST_NOTEBOOK_URL or "")
+
+                    if action == "select_cell_by_index":
+                        try:
+                            cell_index = int(cmd.get("cellIndex"))
+                        except Exception:
+                            _append_jsonl(BOT_RESULTS_PATH, {
+                                "ts": datetime.now(timezone.utc).isoformat(),
+                                "ok": False,
+                                "error": "Missing or invalid cellIndex",
+                                "requestId": cmd.get("requestId"),
+                                "tabId": tab_id,
+                            })
+                            continue
+
+                        send_msg({
+                            "type": "SELECT_CELL_BY_INDEX",
+                            "tabId": tab_id,
+                            "url": url,
+                            "cellIndex": cell_index,
+                            "scrollIntoView": bool(cmd.get("scrollIntoView", True)),
+                            "requestId": cmd.get("requestId"),
+                        })
+                        log(f"Bot dispatched SELECT_CELL_BY_INDEX tabId={tab_id} cellIndex={cell_index}")
+                        continue
+
+                    if action == "insert_cell":
+                        direction = str(cmd.get("direction") or "").strip().lower()
+                        if direction not in {"above", "below"}:
+                            _append_jsonl(BOT_RESULTS_PATH, {
+                                "ts": datetime.now(timezone.utc).isoformat(),
+                                "ok": False,
+                                "error": "Missing or invalid direction",
+                                "requestId": cmd.get("requestId"),
+                                "tabId": tab_id,
+                            })
+                            continue
+
+                        send_msg({
+                            "type": "INSERT_CELL",
+                            "tabId": tab_id,
+                            "url": url,
+                            "direction": direction,
+                            "requestId": cmd.get("requestId"),
+                        })
+                        log(f"Bot dispatched INSERT_CELL tabId={tab_id} direction={direction}")
+                        continue
+
+                    if action == "send_key":
+                        key = str(cmd.get("key") or "").strip()
+                        if not key:
+                            _append_jsonl(BOT_RESULTS_PATH, {
+                                "ts": datetime.now(timezone.utc).isoformat(),
+                                "ok": False,
+                                "error": "Missing or empty key",
+                                "requestId": cmd.get("requestId"),
+                                "tabId": tab_id,
+                            })
+                            continue
+
+                        send_msg({
+                            "type": "SEND_KEY",
+                            "tabId": tab_id,
+                            "url": url,
+                            "key": key,
+                            "requestId": cmd.get("requestId"),
+                        })
+                        log(f"Bot dispatched SEND_KEY tabId={tab_id} key={key}")
+                        continue
+
+                    if not isinstance(tab_id, int):
+                        _append_jsonl(BOT_RESULTS_PATH, {
+                            "ts": datetime.now(timezone.utc).isoformat(),
+                            "ok": False,
+                            "error": "No active notebook tabId available",
+                            "requestId": cmd.get("requestId"),
+                        })
+                        continue
+
+                    if action == "click_selector":
+                        selector = str(cmd.get("selector") or "").strip()
+                        if not selector:
+                            _append_jsonl(BOT_RESULTS_PATH, {
+                                "ts": datetime.now(timezone.utc).isoformat(),
+                                "ok": False,
+                                "error": "Missing selector",
+                                "requestId": cmd.get("requestId"),
+                                "tabId": tab_id,
+                            })
+                            continue
+
+                        send_msg({
+                            "type": "CLICK_SELECTOR",
+                            "tabId": tab_id,
+                            "url": url,
+                            "selector": selector,
+                            "requestId": cmd.get("requestId"),
+                        })
+                        log(f"Bot dispatched CLICK_SELECTOR tabId={tab_id} selector={selector}")
+                    else:
+                        try:
+                            cell_index = int(cmd.get("cellIndex"))
+                        except Exception:
+                            _append_jsonl(BOT_RESULTS_PATH, {
+                                "ts": datetime.now(timezone.utc).isoformat(),
+                                "ok": False,
+                                "error": "Missing or invalid cellIndex",
+                                "requestId": cmd.get("requestId"),
+                                "tabId": tab_id,
+                            })
+                            continue
+
+                        send_msg({
+                            "type": "CLICK_CELL_BY_INDEX",
+                            "tabId": tab_id,
+                            "url": url,
+                            "cellIndex": cell_index,
+                            "scrollIntoView": bool(cmd.get("scrollIntoView", True)),
+                            "runCell": bool(cmd.get("runCell", True)),
+                            "requestId": cmd.get("requestId"),
+                        })
+                        log(f"Bot dispatched CLICK_CELL_BY_INDEX tabId={tab_id} cellIndex={cell_index}")
+            except Exception as e:
+                log(f"Bot watcher loop error: {e}")
+                time.sleep(0.25)
+
+    threading.Thread(target=_worker, daemon=True).start()
 
 def _signal_remote_stop(session_id: str):
     # No remote stop endpoint is needed with direct SDK streaming.
@@ -1101,6 +1302,7 @@ dep_manager = DependencyManager(SCRAPED_DIR)
 memory_store = LocalMemoryStore(CHAT_MEMORY_DB)
 
 def main():
+    global _LAST_NOTEBOOK_TAB_ID, _LAST_NOTEBOOK_URL
     log("=== Structured Scraper + AI Host started ===")
     while True:
         msg = read_msg()
@@ -1291,9 +1493,29 @@ def main():
             send_msg({"type": "HISTORY_CLEARED", "url": url, "tabId": tab_id, "sessionId": session_id})
             continue
 
+        if m_type in {"CLICK_CELL_RESULT", "CLICK_CELL_ERROR", "CLICK_SELECTOR_RESULT", "CLICK_SELECTOR_ERROR", "SELECT_CELL_RESULT", "SELECT_CELL_ERROR", "INSERT_CELL_RESULT", "INSERT_CELL_ERROR", "SEND_KEY_RESULT", "SEND_KEY_ERROR"}:
+            _append_jsonl(BOT_RESULTS_PATH, {
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "type": m_type,
+                "tabId": msg.get("tabId"),
+                "url": msg.get("url"),
+                "cellIndex": msg.get("cellIndex"),
+                "selector": msg.get("selector"),
+                "key": msg.get("key"),
+                "direction": msg.get("direction"),
+                "requestId": msg.get("requestId"),
+                "result": msg.get("result"),
+            })
+            log(f"Bot result {m_type} tabId={msg.get('tabId')} cellIndex={msg.get('cellIndex')} selector={msg.get('selector')} key={msg.get('key')} direction={msg.get('direction')}")
+            continue
+
         if m_type == "NOTEBOOK_DATA":
             tab_url = _normalized_url(msg.get("tabUrl") or "unknown")
             tab_id = msg.get("tabId")
+            if isinstance(tab_id, int):
+                with _BOT_STATE_LOCK:
+                    _LAST_NOTEBOOK_TAB_ID = tab_id
+                    _LAST_NOTEBOOK_URL = tab_url
             kernel_status = msg.get("kernelStatus")
             kernel_scenario = msg.get("kernelScenario", "unknown")
             kernel_state = msg.get("kernelState", {})
@@ -1653,6 +1875,11 @@ def initialize():
     HASHES_PATH.parent.mkdir(parents=True, exist_ok=True)
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     RATE_LIMIT_TRACKER.parent.mkdir(parents=True, exist_ok=True)
+    BOT_COMMANDS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    BOT_RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    BOT_COMMANDS_PATH.touch(exist_ok=True)
+    BOT_RESULTS_PATH.touch(exist_ok=True)
+    _start_bot_command_watcher()
     if _DEP_FALLBACK:
         log("Dependency modules not found; using built-in fallback dependency engine.")
     elif not _DEP_AVAILABLE:

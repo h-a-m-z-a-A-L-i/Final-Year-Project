@@ -1,0 +1,139 @@
+Payload Optimization
+Reduce latency by compressing request payloads with msgpack encoding and gzip.
+
+Documentation Index
+Fetch the complete documentation index at: https://inference-docs.cerebras.ai/llms.txt
+
+Use this file to discover all available pages before exploring further.
+
+For requests with large payloads, you can reduce the size of the request body sent to the Cerebras API by using msgpack encoding, gzip compression, or both. This can meaningfully improve time-to-first-token (TTFT) for requests with long prompts.
+Payload optimization is supported on /v1/chat/completions and /v1/completions. Support on Dedicated Endpoints may vary by model.
+​
+Encoding Options
+The Cerebras API accepts the following request body encodings. The table shows the expected payload size reduction for each option:
+Content-Type	Description	Chat Completions*	Completions**
+application/json	Default JSON encoding	Baseline	Baseline
+application/vnd.msgpack	msgpack binary encoding	up to ~5%	up to ~56%
+application/json + Content-Encoding: gzip	JSON with gzip compression	up to ~98%	up to ~68%
+application/vnd.msgpack + Content-Encoding: gzip	msgpack + gzip	up to ~98%	up to ~69%
+* Measured against a 50k-token chat completions payload (206 KB JSON baseline).
+** Measured against a 50k token-ID completions payload (331 KB JSON baseline).
+You can use msgpack encoding or gzip compression independently, or combine them for maximum compression.
+Smaller request payloads reduce network transfer time, a contributing factor to TTFT. Actual TTFT improvement will vary, as network transfer is one of several factors that contribute to overall latency.
+​
+When to Use Payload Optimization
+Optimizing payload size with request compression is most beneficial for:
+Long prompts – requests with long system prompts, extensive conversation history, or large code blocks. Gzip compression is the most effective option for these payloads.
+Token-ID completions – /v1/completions payloads using integer token arrays benefit from both msgpack encoding and gzip compression
+Tool call-heavy payloads – requests with many tool definitions or deeply nested JSON structures. Both msgpack encoding and gzip compression provide savings.
+For small requests (under a few KB), the overhead of compression may outweigh the savings. Standard JSON encoding is fine for typical chat interactions.
+Size reductions depend on payload content. The benchmarks above used a token-ID completions payload, where msgpack’s integer encoding provides the greatest benefit. String-heavy chat payloads may see smaller msgpack reductions, while payloads with deeply nested structures (e.g., tool calls) may see greater savings. Gzip benefits are more consistent across payload types.
+​
+msgpack Encoding
+msgpack is a binary serialization format that produces smaller payloads than equivalent JSON. To use it, serialize your request body with msgpack and set the Content-Type header to application/vnd.msgpack.
+
+Python
+
+Node.js
+
+cURL
+import msgpack
+import requests
+import os
+
+url = "https://api.cerebras.ai/v1/chat/completions"
+api_key = os.environ.get("CEREBRAS_API_KEY")
+
+payload = {
+    "model": "gpt-oss-120b",
+    "messages": [
+        {"role": "user", "content": "Explain quantum computing in one paragraph."}
+    ]
+}
+
+response = requests.post(
+    url,
+    data=msgpack.packb(payload),
+    headers={
+        "Content-Type": "application/vnd.msgpack",
+        "Authorization": f"Bearer {api_key}"
+    }
+)
+
+print(response.json()["choices"][0]["message"]["content"])
+​
+Gzip Compression
+You can gzip-compress any request body and set the Content-Encoding: gzip header. This works with both JSON and msgpack payloads.
+
+Python
+
+Node.js
+
+cURL
+import gzip
+import json
+import requests
+import os
+
+url = "https://api.cerebras.ai/v1/chat/completions"
+api_key = os.environ.get("CEREBRAS_API_KEY")
+
+payload = {
+    "model": "gpt-oss-120b",
+    "messages": [
+        {"role": "user", "content": "Explain quantum computing in one paragraph."}
+    ]
+}
+
+json_bytes = json.dumps(payload).encode("utf-8")
+compressed = gzip.compress(json_bytes, compresslevel=5)
+
+response = requests.post(
+    url,
+    data=compressed,
+    headers={
+        "Content-Type": "application/json",
+        "Content-Encoding": "gzip",
+        "Authorization": f"Bearer {api_key}"
+    }
+)
+
+print(response.json()["choices"][0]["message"]["content"])
+​
+Combining Both
+For maximum compression, use msgpack encoding with gzip compression:
+
+Python
+
+Node.js
+
+cURL
+import gzip
+import msgpack
+import requests
+import os
+
+url = "https://api.cerebras.ai/v1/chat/completions"
+api_key = os.environ.get("CEREBRAS_API_KEY")
+
+payload = {
+    "model": "gpt-oss-120b",
+    "messages": [
+        {"role": "user", "content": "Explain quantum computing in one paragraph."}
+    ]
+}
+
+data = msgpack.packb(payload)
+compressed = gzip.compress(data, compresslevel=5)
+
+response = requests.post(
+    url,
+    data=compressed,
+    headers={
+        "Content-Type": "application/vnd.msgpack",
+        "Content-Encoding": "gzip",
+        "Authorization": f"Bearer {api_key}"
+    }
+)
+
+print(response.json()["choices"][0]["message"][

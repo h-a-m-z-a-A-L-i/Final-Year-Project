@@ -3,7 +3,7 @@
   "name": "Tab URL Printer",
   "version": "1.0",
   "description": "Prints all open tab URLs to a local Python script via Native Messaging.",
-  "permissions": ["tabs", "nativeMessaging", "scripting", "action"],
+  "permissions": ["tabs", "nativeMessaging", "scripting", "webNavigation"],
   "host_permissions": [
     "*://kaggle.com/*",
     "*://*.kaggle.com/*",
@@ -20,6 +20,7 @@
         "*://*.kaggle.com/*",
         "*://*.jupyter-proxy.kaggle.net/*"
       ],
+      "all_frames": true,
       "js": ["kernel_state_listener.js"],
       "run_at": "document_start"
     }

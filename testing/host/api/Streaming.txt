@@ -1,0 +1,47 @@
+Streaming Responses
+Learn how to enable streaming responses in the Cerebras API.
+
+Documentation Index
+Fetch the complete documentation index at: https://inference-docs.cerebras.ai/llms.txt
+
+Use this file to discover all available pages before exploring further.
+
+To get started with a free API key, click here.
+The Cerebras API supports streaming responses, allowing messages to be sent back in chunks and displayed incrementally as they are generated. To enable this feature, set the stream parameter to True within the chat.completions.create method. This will result in the API returning an iterable containing the chunks of the message.
+Similarly, the same can be done in TypeScript by setting the stream property to true within the chat.completions.create method.
+1
+Initial Setup
+
+Begin by importing the Cerebras SDK and setting up the client.
+
+Python
+
+Node.js
+import os
+from cerebras.cloud.sdk import Cerebras
+
+client = Cerebras(
+    # This is the default and can be omitted
+    api_key=os.environ.get("CEREBRAS_API_KEY"),
+)
+2
+Streaming Responses
+
+Set the stream parameter to True within the chat.completions.create method to enable streaming responses.
+
+Python
+
+Node.js
+stream = client.chat.completions.create(
+    messages=[
+        {
+            "role": "user",
+            "content": "Why is fast inference important?",
+        }
+    ],
+    model="gpt-oss-120b",
+    stream=True,
+)
+
+for chunk in stream:
+    print(chunk.choices[0].delta.content or "", end="")

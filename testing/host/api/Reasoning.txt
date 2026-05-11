@@ -1,0 +1,378 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://inference-docs.cerebras.ai/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+<AgentInstructions>
+
+## Submitting Feedback
+
+If you encounter incorrect, outdated, or confusing documentation on this page, submit feedback:
+
+POST https://inference-docs.cerebras.ai/feedback
+
+```json
+{
+  "path": "/capabilities/reasoning",
+  "feedback": "Description of the issue"
+}
+```
+
+Only submit feedback when you have something specific and actionable to report.
+
+</AgentInstructions>
+
+# Reasoning
+
+> Reasoning models generate intermediate thinking tokens before their final response, enabling better problem-solving and allowing you to inspect the model's thought process.
+
+<Note>
+  Reasoning capabilities are currently available for the [OpenAI GPT OSS](/models/openai-oss) (`gpt-oss-120b`) and [Z.ai GLM](/models/zai-glm-47) (`zai-glm-4.7`) models. Each model family has slight variations in the parameters used to control reasoning.
+</Note>
+
+## Reasoning Format
+
+Control how reasoning text appears in responses using the `reasoning_format` parameter.
+
+### Available Formats
+
+| Format   | Description                                                                                                           |
+| -------- | --------------------------------------------------------------------------------------------------------------------- |
+| `parsed` | Reasoning returned in separate `reasoning` field; logprobs separated into `reasoning_logprobs`                        |
+| `raw`    | Reasoning prepended to content; GLM and Qwen use `<think>...</think>` tokens, GPT-OSS concatenates without separators |
+| `hidden` | Reasoning text and logprobs dropped completely (tokens still counted)                                                 |
+| `none`   | Uses model's default behavior                                                                                         |
+
+### Default Behavior by Model
+
+When `reasoning_format` is set to `none` or omitted, each model uses its default format:
+
+| Model   | Default Reasoning Format                |
+| ------- | --------------------------------------- |
+| Qwen3   | `raw` (`hidden` for JSON object/schema) |
+| GLM     | `text_parsed`                           |
+| GPT-OSS | `text_parsed`                           |
+
+### `parsed` Format
+
+Reasoning text is returned in a separate `reasoning` field without start/end tokens. When logprobs are enabled, reasoning logprobs are returned in a separate `reasoning_logprobs` field.
+
+<CodeGroup>
+  ```python Request theme={null}
+  from cerebras.cloud.sdk import Cerebras
+
+  client = Cerebras()
+
+  response = client.chat.completions.create(
+      model="zai-glm-4.7",
+      messages=[
+          {
+              "role": "user",
+              "content": "Can you help me with this?"
+          }
+      ],
+      logprobs=True,
+      reasoning_format="parsed"
+  )
+
+  print(response)
+  ```
+
+  ```json Non-streaming Response theme={null}
+  {
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "I can help you with that!",
+          "reasoning": "Let me think..."
+        },
+        "logprobs": {
+          "content": [
+            {"token": "I", "logprob": -0.1},
+            {"token": " can", "logprob": -0.2},
+            ...
+          ]
+        },
+        "reasoning_logprobs": {
+          "content": [
+            {"token": "Let ", "logprob": -0.3},
+            {"token": "me", "logprob": -0.4},
+            ...
+          ]
+        },
+        "finish_reason": "stop"
+      }
+    ]
+  }
+  ```
+
+  ```json Streaming Response theme={null}
+  {
+    "choices": [
+      {
+        "delta": {
+          "reasoning": " should"
+        },
+        "index": 0
+      }
+    ]
+  }
+  ```
+</CodeGroup>
+
+When streaming, reasoning tokens are delivered in the `reasoning` field of the delta.
+
+### `raw` Format
+
+Reasoning text is included in the `content` field, prepended to the response. For GLM and Qwen models, reasoning is wrapped in `<think>...</think>` tokens. All logprobs are returned together in the standard `logprobs` field.
+
+<Note>
+  Since GPT-OSS does not use thinking tokens, reasoning and content are concatenated without separators when using `raw` format.
+</Note>
+
+<Note>
+  The `raw` format is not compatible with `json_object` or `json_schema` response formats. Models that default to `raw` will automatically use `hidden` instead when structured output is requested.
+</Note>
+
+<CodeGroup>
+  ```python Request theme={null}
+  from cerebras.cloud.sdk import Cerebras
+
+  client = Cerebras()
+
+  response = client.chat.completions.create(
+      model="zai-glm-4.7",
+      messages=[
+          {
+              "role": "user",
+              "content": "Can you help me with this?"
+          }
+      ],
+      logprobs=True,
+      reasoning_format="raw"
+  )
+
+  print(response)
+  ```
+
+  ```json Response theme={null}
+  {
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "<think>Let me think...</think>I can help you with that!"
+        },
+        "logprobs": {
+          "content": [
+            {"token": "Let ", "logprob": -0.3},
+            {"token": "me", "logprob": -0.4},
+            {"token": "I", "logprob": -0.1},
+            {"token": " can", "logprob": -0.2},
+            ...
+          ]
+        },
+        "finish_reason": "stop"
+      }
+    ]
+  }
+  ```
+</CodeGroup>
+
+### `hidden` Format
+
+Reasoning text and reasoning logprobs are dropped completely from the response. The reasoning tokens are still generated and counted toward total completion tokens.
+
+<CodeGroup>
+  ```python Request theme={null}
+  from cerebras.cloud.sdk import Cerebras
+
+  client = Cerebras()
+
+  response = client.chat.completions.create(
+      model="zai-glm-4.7",
+      messages=[
+          {
+              "role": "user",
+              "content": "Can you help me with this?"
+          }
+      ],
+      logprobs=True,
+      reasoning_format="hidden"
+  )
+
+  print(response)
+  ```
+
+  ```json Response theme={null}
+  {
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "I can help you with that!"
+        },
+        "logprobs": {
+          "content": [
+            {"token": "I", "logprob": -0.1},
+            {"token": " can", "logprob": -0.2},
+            ...
+          ]
+        },
+        "finish_reason": "stop"
+      }
+    ]
+  }
+  ```
+</CodeGroup>
+
+***
+
+## Model-Specific Parameters
+
+Each model family has its own parameter for controlling reasoning behavior.
+
+<Note>
+  There are key differences between the OpenAI client and the Cerebras SDK when using non-standard OpenAI parameters. These examples use the Cerebras SDK. For more info, see [Passing Non-Standard Parameters](/resources/openai#passing-non-standard-parameters).
+</Note>
+
+### GPT-OSS: `reasoning_effort`
+
+Use `reasoning_effort` to control how much reasoning the model performs:
+
+* `"low"` - Minimal reasoning, faster responses
+* `"medium"` - Moderate reasoning (default)
+* `"high"` - Extensive reasoning, more thorough analysis
+
+<CodeGroup>
+  ```python Python theme={null}
+  response = client.chat.completions.create(
+      model="gpt-oss-120b",
+      messages=[{"role": "user", "content": "Explain quantum entanglement."}],
+      reasoning_effort="medium"
+  )
+  ```
+
+  ```javascript Node.js theme={null}
+  const response = await client.chat.completions.create({
+      model: "gpt-oss-120b",
+      messages: [{ role: "user", content: "Explain quantum entanglement." }],
+      reasoning_effort: "medium"
+  });
+  ```
+</CodeGroup>
+
+### GLM: `reasoning_effort` and `disable_reasoning`
+
+Reasoning is enabled by default on `zai-glm-4.7`. Use `reasoning_effort="none"` to disable it:
+
+<CodeGroup>
+  ```python Python theme={null}
+  response = client.chat.completions.create(
+      model="zai-glm-4.7",
+      messages=[{"role": "user", "content": "Explain how photosynthesis works."}],
+      reasoning_effort="none"  # Disables reasoning
+  )
+  ```
+
+  ```javascript Node.js theme={null}
+  const response = await client.chat.completions.create({
+      model: "zai-glm-4.7",
+      messages: [{ role: "user", content: "Explain how photosynthesis works." }],
+      reasoning_effort: "none"  // Disables reasoning
+  });
+  ```
+</CodeGroup>
+
+Alternatively, use `disable_reasoning` to toggle reasoning on or off. Set to `true` to disable reasoning, or `false` (default) to enable it.
+
+<CodeGroup>
+  ```python Python theme={null}
+  response = client.chat.completions.create(
+      model="zai-glm-4.7",
+      messages=[{"role": "user", "content": "Explain how photosynthesis works."}],
+      disable_reasoning=False  # Set to True to disable reasoning
+  )
+  ```
+
+  ```javascript Node.js theme={null}
+  const response = await client.chat.completions.create({
+      model: "zai-glm-4.7",
+      messages: [{ role: "user", content: "Explain how photosynthesis works." }],
+      disable_reasoning: false  // Set to true to disable reasoning
+  });
+  ```
+</CodeGroup>
+
+<Warning>
+  `disable_reasoning` is deprecated and will be removed after **July 21, 2026**. Use `reasoning_effort="none"` instead. See the [deprecation notice](/support/deprecation) for details.
+</Warning>
+
+***
+
+## Reasoning Context Retention
+
+Reasoning tokens are not automatically retained across requests. To maintain awareness of prior reasoning in multi-turn conversations, include the reasoning text in the `content` field of the `assistant` message.
+
+Use the same format the model outputs: for GLM and Qwen, include reasoning in `<think>...</think>` tags; for GPT-OSS, prepend reasoning text directly before the answer.
+
+<Tabs>
+  <Tab title="GPT-OSS">
+    <CodeGroup>
+      ```python Python theme={null}
+      # GPT-OSS: reasoning prepended directly before the answer
+      response = client.chat.completions.create(
+          model="gpt-oss-120b",
+          messages=[
+              {"role": "user", "content": "What is 25 * 4?"},
+              {"role": "assistant", "content": "I need to multiply 25 by 4. 25 * 4 = 100. The answer is 100."},
+              {"role": "user", "content": "Now divide that by 2."}
+          ]
+      )
+      ```
+
+      ```javascript Node.js theme={null}
+      // GPT-OSS: reasoning prepended directly before the answer
+      const response = await client.chat.completions.create({
+          model: "gpt-oss-120b",
+          messages: [
+              { role: "user", content: "What is 25 * 4?" },
+              { role: "assistant", content: "I need to multiply 25 by 4. 25 * 4 = 100. The answer is 100." },
+              { role: "user", content: "Now divide that by 2." }
+          ]
+      });
+      ```
+    </CodeGroup>
+  </Tab>
+
+  <Tab title="GLM / Qwen">
+    <CodeGroup>
+      ```python Python theme={null}
+      # GLM/Qwen: reasoning wrapped in <think> tags
+      response = client.chat.completions.create(
+          model="zai-glm-4.7",
+          messages=[
+              {"role": "user", "content": "What is 25 * 4?"},
+              {"role": "assistant", "content": "<think>I need to multiply 25 by 4. 25 * 4 = 100.</think>The answer is 100."},
+              {"role": "user", "content": "Now divide that by 2."}
+          ]
+      )
+      ```
+
+      ```javascript Node.js theme={null}
+      // GLM/Qwen: reasoning wrapped in <think> tags
+      const response = await client.chat.completions.create({
+          model: "zai-glm-4.7",
+          messages: [
+              { role: "user", content: "What is 25 * 4?" },
+              { role: "assistant", content: "<think>I need to multiply 25 by 4. 25 * 4 = 100.</think>The answer is 100." },
+              { role: "user", content: "Now divide that by 2." }
+          ]
+      });
+      ```
+    </CodeGroup>
+  </Tab>
+</Tabs>

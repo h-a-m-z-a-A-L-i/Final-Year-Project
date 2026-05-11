@@ -174,6 +174,120 @@ function scrapeNotebook() {
   return { title: document.title || "", cellCount: cells.length, cells: cells };
 }
 
+function clickNotebookCellByIndex(cellIndex, options = {}) {
+  const targetIndex = Number(cellIndex);
+  if (!Number.isInteger(targetIndex) || targetIndex < 0) {
+    return { ok: false, error: "Invalid cell index." };
+  }
+
+  const shouldScroll = options.scrollIntoView !== false;
+
+  // Find the cell wrapper by data-windowed-list-index
+  // First try main document, then search inside iframes
+  let cell = document.querySelector(`[data-windowed-list-index="${targetIndex}"]`);
+  
+  if (!cell) {
+    // Search inside all iframes (notebook is often in an iframe)
+    const iframes = document.querySelectorAll("iframe");
+    for (const iframe of iframes) {
+      try {
+        if (iframe.contentDocument) {
+          cell = iframe.contentDocument.querySelector(`[data-windowed-list-index="${targetIndex}"]`);
+          if (cell) {
+            console.log("[clickNotebookCellByIndex] Found cell inside iframe");
+            break;
+          }
+        }
+      } catch (e) {
+        console.warn("[clickNotebookCellByIndex] Could not access iframe:", e);
+      }
+    }
+  }
+  
+  if (!cell) {
+    return { ok: false, error: `Cell index ${targetIndex} not found in main document or iframes.` };
+  }
+
+  console.log("[clickNotebookCellByIndex] Found cell wrapper", cell);
+
+  // Strategy 1: Look for a button/run button inside the cell
+  let clickTarget = cell.querySelector(
+    "button[aria-label*='Run'], button[title*='Run'], button[title*='Execute'], " +
+    ".execution-button, [data-test-id*='run'], " +
+    ".cell-execute-button, " +
+    "button[aria-label*='Execute']"
+  );
+
+  // Strategy 2: Look for the editor/input area (for clicking to edit)
+  if (!clickTarget) {
+    clickTarget = cell.querySelector(
+      ".cm-editor, .cm-content, " +
+      "[contenteditable='true'], " +
+      ".jp-InputArea-editor, " +
+      ".input_area pre, " +
+      ".cell-content, " +
+      "[role='textbox']"
+    );
+  }
+
+  // Strategy 3: Look for any button or interactive element
+  if (!clickTarget) {
+    clickTarget = cell.querySelector("button, [role='button'], a, input, textarea, [contenteditable]");
+  }
+
+  // Fallback: click the cell wrapper itself
+  if (!clickTarget) {
+    clickTarget = cell;
+  }
+
+  console.log("[clickNotebookCellByIndex] Click target found", {
+    tagName: clickTarget?.tagName,
+    className: clickTarget?.className,
+    innerHTML: String(clickTarget?.innerHTML || "").slice(0, 100),
+  });
+
+  try {
+    if (shouldScroll && clickTarget?.scrollIntoView) {
+      clickTarget.scrollIntoView({ block: "center", inline: "nearest" });
+    }
+
+    if (clickTarget?.focus) {
+      clickTarget.focus({ preventScroll: true });
+    }
+
+    // Dispatch comprehensive event sequence for React
+    const rect = clickTarget.getBoundingClientRect?.();
+    const eventInit = {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      clientX: rect?.left + (rect?.width || 0) / 2,
+      clientY: rect?.top + (rect?.height || 0) / 2,
+      button: 0,
+      view: window,
+    };
+
+    // Fire synthetic events that React listens to
+    clickTarget.dispatchEvent?.(new MouseEvent("mouseenter", eventInit));
+    clickTarget.dispatchEvent?.(new MouseEvent("mouseover", eventInit));
+    clickTarget.dispatchEvent?.(new MouseEvent("mousedown", eventInit));
+    clickTarget.dispatchEvent?.(new MouseEvent("mouseup", eventInit));
+    clickTarget.dispatchEvent?.(new MouseEvent("click", eventInit));
+
+    console.log("[clickNotebookCellByIndex] Events dispatched successfully");
+
+    return {
+      ok: true,
+      cellIndex: targetIndex,
+      clickedElement: clickTarget?.tagName?.toLowerCase(),
+      strategy: "React-aware multi-strategy",
+    };
+  } catch (error) {
+    console.error("[clickNotebookCellByIndex] Error:", error);
+    return { ok: false, error: error?.message || String(error) };
+  }
+}
+
 // Ping content script to check if it's ready
 function pingContentScript(tabId, retryCount = 0) {
   return new Promise((resolve) => {
@@ -353,6 +467,210 @@ function getPort() {
   port = chrome.runtime.connectNative(HOST);
   port.onMessage.addListener((msg) => {
     console.log("Python says:", msg);
+
+    const dispatchToFrames = (tabId, payload, onResult) => {
+      chrome.webNavigation.getAllFrames({ tabId }, async (frames) => {
+        if (chrome.runtime.lastError) {
+          chrome.tabs.sendMessage(tabId, payload, (response) => {
+            const lastError = chrome.runtime.lastError;
+            if (lastError) {
+              onResult({ ok: false, error: lastError.message || String(lastError) });
+              return;
+            }
+            onResult(response?.result || { ok: false, error: "No response from content script." });
+          });
+          return;
+        }
+
+        const orderedFrames = Array.isArray(frames) ? frames.slice().sort((a, b) => (a.frameId || 0) - (b.frameId || 0)) : [];
+        let lastFailure = null;
+
+        for (const frame of orderedFrames) {
+          const response = await new Promise((resolve) => {
+            chrome.tabs.sendMessage(tabId, payload, { frameId: frame.frameId }, (reply) => {
+              const lastError = chrome.runtime.lastError;
+              if (lastError) {
+                resolve({ ok: false, error: lastError.message || String(lastError), frameId: frame.frameId });
+                return;
+              }
+              resolve(reply?.result || { ok: false, error: "No response from content script.", frameId: frame.frameId });
+            });
+          });
+
+          if (response?.ok) {
+            onResult(response);
+            return;
+          }
+
+          lastFailure = response;
+        }
+
+        onResult(lastFailure || { ok: false, error: "No frame accepted the command." });
+      });
+    };
+
+    if (msg?.type === "SELECT_CELL_BY_INDEX" && typeof msg?.tabId === "number") {
+      const payload = {
+        type: "SELECT_CELL_BY_INDEX",
+        cellIndex: msg.cellIndex,
+        scrollIntoView: msg.scrollIntoView,
+        requestId: msg.requestId,
+        url: msg.url,
+      };
+
+      dispatchToFrames(msg.tabId, payload, (result) => {
+        getPort().postMessage({
+          type: result.ok ? "SELECT_CELL_RESULT" : "SELECT_CELL_ERROR",
+          tabId: msg.tabId,
+          url: msg.url,
+          requestId: msg.requestId,
+          cellIndex: msg.cellIndex,
+          result,
+        });
+      });
+      return;
+    }
+
+    if (msg?.type === "INSERT_CELL" && typeof msg?.tabId === "number") {
+      const payload = {
+        type: "INSERT_CELL",
+        direction: msg.direction,
+        requestId: msg.requestId,
+        url: msg.url,
+      };
+
+      dispatchToFrames(msg.tabId, payload, (result) => {
+        getPort().postMessage({
+          type: result.ok ? "INSERT_CELL_RESULT" : "INSERT_CELL_ERROR",
+          tabId: msg.tabId,
+          url: msg.url,
+          requestId: msg.requestId,
+          direction: msg.direction,
+          result,
+        });
+      });
+      return;
+    }
+
+    if (msg?.type === "CLICK_CELL_BY_INDEX" && typeof msg?.tabId === "number") {
+      const payload = {
+        type: "CLICK_CELL_BY_INDEX",
+        cellIndex: msg.cellIndex,
+        scrollIntoView: msg.scrollIntoView,
+        runCell: msg.runCell,
+        requestId: msg.requestId,
+        url: msg.url,
+      };
+
+      const postResult = (result) => {
+        getPort().postMessage({
+          type: result.ok ? "CLICK_CELL_RESULT" : "CLICK_CELL_ERROR",
+          tabId: msg.tabId,
+          url: msg.url,
+          requestId: msg.requestId,
+          cellIndex: msg.cellIndex,
+          result,
+        });
+      };
+
+      chrome.webNavigation.getAllFrames({ tabId: msg.tabId }, async (frames) => {
+        if (chrome.runtime.lastError) {
+          chrome.tabs.sendMessage(msg.tabId, payload, (response) => {
+            const lastError = chrome.runtime.lastError;
+            if (lastError) {
+              postResult({ ok: false, error: lastError.message || String(lastError) });
+              return;
+            }
+
+            postResult(response?.result || { ok: false, error: "No response from content script." });
+          });
+          return;
+        }
+
+        const orderedFrames = Array.isArray(frames) ? frames.slice().sort((a, b) => (a.frameId || 0) - (b.frameId || 0)) : [];
+        let lastFailure = null;
+
+        for (const frame of orderedFrames) {
+          const response = await new Promise((resolve) => {
+            chrome.tabs.sendMessage(msg.tabId, payload, { frameId: frame.frameId }, (reply) => {
+              const lastError = chrome.runtime.lastError;
+              if (lastError) {
+                resolve({ ok: false, error: lastError.message || String(lastError), frameId: frame.frameId });
+                return;
+              }
+              resolve(reply?.result || { ok: false, error: "No response from content script.", frameId: frame.frameId });
+            });
+          });
+
+          if (response?.ok) {
+            postResult(response);
+            return;
+          }
+
+          lastFailure = response;
+        }
+
+        postResult(lastFailure || { ok: false, error: "No frame accepted the click command." });
+      });
+      return;
+    }
+
+    if (msg?.type === "CLICK_SELECTOR" && typeof msg?.tabId === "number") {
+      const payload = {
+        type: "CLICK_SELECTOR",
+        selector: msg.selector,
+        requestId: msg.requestId,
+        url: msg.url,
+      };
+
+      chrome.tabs.sendMessage(msg.tabId, payload, { frameId: 0 }, (response) => {
+        const lastError = chrome.runtime.lastError;
+        const result = lastError
+          ? { ok: false, error: lastError.message || String(lastError) }
+          : (response?.result || { ok: false, error: "No response from top frame content script." });
+
+        getPort().postMessage({
+          type: result.ok ? "CLICK_SELECTOR_RESULT" : "CLICK_SELECTOR_ERROR",
+          tabId: msg.tabId,
+          url: msg.url,
+          requestId: msg.requestId,
+          selector: msg.selector,
+          result,
+        });
+      });
+      return;
+    }
+
+    if (msg?.type === "SEND_KEY" && typeof msg?.tabId === "number") {
+      const payload = {
+        type: "SEND_KEY",
+        key: msg.key,
+        requestId: msg.requestId,
+        url: msg.url,
+      };
+
+      const postResult = (result) => {
+        getPort().postMessage({
+          type: result.ok ? "SEND_KEY_RESULT" : "SEND_KEY_ERROR",
+          tabId: msg.tabId,
+          url: msg.url,
+          requestId: msg.requestId,
+          key: msg.key,
+          result,
+        });
+      };
+
+      chrome.tabs.sendMessage(msg.tabId, payload, { frameId: 0 }, (response) => {
+        const lastError = chrome.runtime.lastError;
+        const result = lastError
+          ? { ok: false, error: lastError.message || String(lastError) }
+          : (response?.result || { ok: false, error: "No response from top frame content script." });
+
+        postResult(result);
+      });
+      return;
+    }
+
     // Only deliver tab-scoped data to the originating tab to avoid cross-tab leakage.
     if (typeof msg?.tabId === "number") {
       chrome.tabs.sendMessage(msg.tabId, msg);

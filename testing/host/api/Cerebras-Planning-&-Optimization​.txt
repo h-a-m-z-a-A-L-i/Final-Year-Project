@@ -1,0 +1,39 @@
+CePO: Cerebras Planning & Optimization​
+Improving Llama’s reasoning abilities with test-time compute
+
+Documentation Index
+Fetch the complete documentation index at: https://inference-docs.cerebras.ai/llms.txt
+
+Use this file to discover all available pages before exploring further.
+
+To get started with a free API key, click here.
+CePO (Cerebras Planning & Optimization) is a framework that adds advanced reasoning capabilities to the Llama family of models by utilizing test-time compute. This approach enables Llama to address complex reasoning tasks that can be difficult for standard one-shot or instruct models.
+CePO is implemented using Cerebras inference, which currently supports llama3.1-8b at 2,200 reasoning tokens/s. This level of inference speed enables efficient test-time computation for more sophisticated reasoning tasks.
+​
+How CePO Works
+CePO demonstrates how additional test-time computation can improve Llama’s reasoning.
+
+The process involves four main stages:
+Planning: The LLM produces a plan to solve a given problem step by step.
+Execution: The LLM executes the plan multiple times, generating multiple responses.
+Analysis: The model analyzes the responses to detect inconsistencies across executions, helping catch and correct mistakes.
+Best-of-N: Responses are evaluated within a Best-of-N framework that includes a structured confidence scoring mechanism.
+​
+Getting Started with CePO
+1
+Step 1: Prerequisites
+
+CePO is built on the popular, open-source OptiLLM library. To get started, install OptiLLM and make sure you have the latest version of the Cerebras Inference SDK installed.
+pip install --upgrade cerebras_cloud_sdk 
+pip install --upgrade optillm
+Next, configure your API key, which can be found in our developer platform.
+export CEREBRAS_API_KEY='your_api_key_here'
+2
+Step 2: Run OptiLLM with CePO
+
+Finally, run the OptiLLM script with CePO
+optillm \
+  --base-url https://api.cerebras.ai \
+  --approach cepo 
+If you would like to print intermediate states in the OptiLLM log, you can optionally add:
+--cepo_p
