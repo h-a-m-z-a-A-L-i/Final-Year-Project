@@ -1,6 +1,6 @@
 {
   "https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit": {
-    "active_revision": "f162307be12b0f1e5b420af367caffc6e93f42fcc828515965e8e6433d8180c6",
+    "active_revision": "8b6788ef95457e2e2139ce2bc182fdd2d8843cad749241a2d644f91236786321",
     "revisions": {
       "fef937ecfd565bf8884fac056b854b58be490166d67cd873a6def3dfa24b94d7": {
         "cells": {
@@ -56,10 +56,10 @@
       "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945": {
         "cells": {},
         "initialized_at": "2026-05-06T10:08:29.480533+00:00",
-        "last_seen_at": "2026-05-11T17:39:45.628631+00:00",
+        "last_seen_at": "2026-05-12T14:05:59.044593+00:00",
         "kernel_active": true,
         "kernel_scenario": "editor_loading",
-        "seen_count": 125
+        "seen_count": 131
       },
       "6eb17fa5db147988a5a29a7e3d80e4491059d29898fccd31e5c6094ed95609c8": {
         "cells": {
@@ -7456,10 +7456,10 @@
           }
         },
         "initialized_at": "2026-05-07T12:09:06.576546+00:00",
-        "last_seen_at": "2026-05-11T14:00:45.332342+00:00",
-        "kernel_active": true,
-        "kernel_scenario": "editor_loading",
-        "seen_count": 12
+        "last_seen_at": "2026-05-12T14:06:01.863795+00:00",
+        "kernel_active": false,
+        "kernel_scenario": "scenario_1_new_notebook_off",
+        "seen_count": 13
       },
       "2650e862d6ecfd7c8f13d43d854cbc9688e490356801f95321c15b9f3ffea4f8": {
         "cells": {
@@ -18888,10 +18888,10 @@
           }
         },
         "initialized_at": "2026-05-11T18:06:27.637797+00:00",
-        "last_seen_at": "2026-05-11T18:24:37.636397+00:00",
-        "kernel_active": true,
-        "kernel_scenario": "scenario_3_reload_running_kernel",
-        "seen_count": 102
+        "last_seen_at": "2026-05-12T14:38:10.633727+00:00",
+        "kernel_active": false,
+        "kernel_scenario": "scenario_1_new_notebook_off",
+        "seen_count": 103
       },
       "06034b64f160baf8368033f5ecc53fe6c76435a17bf4896418c974701ef0a771": {
         "cells": {
@@ -19005,10 +19005,10 @@
           }
         },
         "initialized_at": "2026-05-11T18:24:47.630143+00:00",
-        "last_seen_at": "2026-05-11T18:37:32.316934+00:00",
-        "kernel_active": true,
-        "kernel_scenario": "scenario_3_reload_running_kernel",
-        "seen_count": 25
+        "last_seen_at": "2026-05-12T14:18:51.947145+00:00",
+        "kernel_active": false,
+        "kernel_scenario": "scenario_1_new_notebook_off",
+        "seen_count": 163
       },
       "2ad82f584e700672fc9485e3093cc06be92235c6c1cd7409943f8add9ffb2c60": {
         "cells": {
@@ -19319,10 +19319,10 @@
           }
         },
         "initialized_at": "2026-05-11T18:37:42.309311+00:00",
-        "last_seen_at": "2026-05-11T18:41:32.317602+00:00",
-        "kernel_active": true,
-        "kernel_scenario": "scenario_3_reload_running_kernel",
-        "seen_count": 24
+        "last_seen_at": "2026-05-12T14:34:50.631463+00:00",
+        "kernel_active": false,
+        "kernel_scenario": "scenario_1_new_notebook_off",
+        "seen_count": 156
       },
       "0911e8a34a054dced05b8c37173ff1f2c889039ceb3183c76585c32e94c12403": {
         "cells": {
@@ -19368,10 +19368,10 @@
           }
         },
         "initialized_at": "2026-05-11T18:41:42.322620+00:00",
-        "last_seen_at": "2026-05-11T18:43:42.312756+00:00",
-        "kernel_active": true,
-        "kernel_scenario": "scenario_3_reload_running_kernel",
-        "seen_count": 13
+        "last_seen_at": "2026-05-12T13:53:12.949199+00:00",
+        "kernel_active": false,
+        "kernel_scenario": "scenario_1_new_notebook_off",
+        "seen_count": 14
       },
       "b9145425c91c083fa0267eaa7f00011b0096c063e92618540d4e00ed449e6906": {
         "cells": {
@@ -19614,26 +19614,947 @@
           }
         },
         "initialized_at": "2026-05-11T19:02:34.085518+00:00",
-        "last_seen_at": "2026-05-11T19:03:04.129041+00:00",
-        "kernel_active": true,
-        "kernel_scenario": "scenario_3_reload_running_kernel",
+        "last_seen_at": "2026-05-12T13:53:02.951149+00:00",
+        "kernel_active": false,
+        "kernel_scenario": "scenario_1_new_notebook_off",
+        "seen_count": 7
+      },
+      "226137a785631638ebb44e0cffce4535c6f8220a940c519584656120fd7cf698": {
+        "cells": {
+          "1": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "2": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "3": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "4": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "5": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "6": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "7": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "8": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "9": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "10": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "11": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "12": {
+            "baseline_order": 7,
+            "seen_running": false,
+            "title": ""
+          },
+          "13": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          }
+        },
+        "initialized_at": "2026-05-12T13:51:02.952586+00:00",
+        "last_seen_at": "2026-05-12T13:51:12.935268+00:00",
+        "kernel_active": false,
+        "kernel_scenario": "scenario_1_new_notebook_off",
+        "seen_count": 2
+      },
+      "7cf806a3501077247df97e55bbb2b907d6e9c84bf6a0cfe01cf112e5263c2e60": {
+        "cells": {
+          "1": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "2": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "3": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "4": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "5": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "6": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "7": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "8": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "9": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "10": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "11": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "12": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "13": {
+            "baseline_order": 7,
+            "seen_running": false,
+            "title": ""
+          },
+          "14": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          }
+        },
+        "initialized_at": "2026-05-12T13:51:22.944302+00:00",
+        "last_seen_at": "2026-05-12T13:52:52.948915+00:00",
+        "kernel_active": false,
+        "kernel_scenario": "scenario_1_new_notebook_off",
+        "seen_count": 10
+      },
+      "392dc73f4c8581271b5a7ddc79ff0b0e28f63dc8e50f6c620a3f2df923e9b80c": {
+        "cells": {
+          "1": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "2": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "3": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "4": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "5": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "6": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "7": {
+            "baseline_order": 7,
+            "seen_running": false,
+            "title": ""
+          },
+          "8": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          }
+        },
+        "initialized_at": "2026-05-12T13:53:22.948128+00:00",
+        "last_seen_at": "2026-05-12T14:35:00.639257+00:00",
+        "kernel_active": false,
+        "kernel_scenario": "scenario_1_new_notebook_off",
+        "seen_count": 2
+      },
+      "5d4803adb8165f9b23cfd066df2dc72690501f35db78a81e58755b4feb1cdc50": {
+        "cells": {
+          "1": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "2": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "3": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "4": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "5": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "6": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "7": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "8": {
+            "baseline_order": 7,
+            "seen_running": false,
+            "title": ""
+          },
+          "9": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          }
+        },
+        "initialized_at": "2026-05-12T14:35:10.631722+00:00",
+        "last_seen_at": "2026-05-12T14:37:50.628463+00:00",
+        "kernel_active": false,
+        "kernel_scenario": "scenario_1_new_notebook_off",
+        "seen_count": 17
+      },
+      "9e680c9306f89a035d5f6dbdb223718effcac2cf9a1fc2d948c0e5de4fd54e22": {
+        "cells": {
+          "1": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "2": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "3": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "4": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "5": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "6": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "7": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "8": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "9": {
+            "baseline_order": 7,
+            "seen_running": false,
+            "title": ""
+          },
+          "10": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          }
+        },
+        "initialized_at": "2026-05-12T14:38:00.642200+00:00",
+        "last_seen_at": "2026-05-12T14:38:00.642200+00:00",
+        "kernel_active": false,
+        "kernel_scenario": "scenario_1_new_notebook_off",
+        "seen_count": 1
+      },
+      "7aa3cef9153730828abaf024c84468dbfe2df1eec5fb6d3bbc8ec535a4735928": {
+        "cells": {
+          "1": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "2": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "3": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "4": {
+            "baseline_order": 7,
+            "seen_running": false,
+            "title": ""
+          }
+        },
+        "initialized_at": "2026-05-12T14:38:20.644823+00:00",
+        "last_seen_at": "2026-05-12T15:32:05.536013+00:00",
+        "kernel_active": false,
+        "kernel_scenario": "scenario_1_new_notebook_off",
+        "seen_count": 185
+      },
+      "e5bd2655d927a926a0e47c56c03343bcf86fba490828cad44bfe3c8d24e40db2": {
+        "cells": {
+          "1": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "2": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "3": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "4": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "5": {
+            "baseline_order": 7,
+            "seen_running": false,
+            "title": ""
+          }
+        },
+        "initialized_at": "2026-05-12T14:44:11.426160+00:00",
+        "last_seen_at": "2026-05-12T15:32:15.556703+00:00",
+        "kernel_active": false,
+        "kernel_scenario": "scenario_1_new_notebook_off",
+        "seen_count": 36
+      },
+      "173c139b3cbe20c58990d129d4493097f71a0f60fd906f671edd28fa070db7a5": {
+        "cells": {
+          "1": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "2": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "3": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "4": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "5": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "6": {
+            "baseline_order": 7,
+            "seen_running": false,
+            "title": ""
+          }
+        },
+        "initialized_at": "2026-05-12T15:10:27.292633+00:00",
+        "last_seen_at": "2026-05-12T15:13:57.283452+00:00",
+        "kernel_active": false,
+        "kernel_scenario": "scenario_1_new_notebook_off",
         "seen_count": 4
+      },
+      "d07696fdced402ee94521f74cf9173f8c4aefa86fae2e8aef6d160ae3e948bc5": {
+        "cells": {
+          "1": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "2": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "3": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "4": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "5": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "6": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "7": {
+            "baseline_order": 7,
+            "seen_running": false,
+            "title": ""
+          }
+        },
+        "initialized_at": "2026-05-12T15:14:07.283605+00:00",
+        "last_seen_at": "2026-05-12T15:14:57.299480+00:00",
+        "kernel_active": false,
+        "kernel_scenario": "scenario_1_new_notebook_off",
+        "seen_count": 6
+      },
+      "3f5584ec1702c29c4b7df61cd2c82fe20754e2247a8a77c4b999dd2836c7369c": {
+        "cells": {
+          "1": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "2": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "3": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "4": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "5": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "6": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "7": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "8": {
+            "baseline_order": 7,
+            "seen_running": false,
+            "title": ""
+          }
+        },
+        "initialized_at": "2026-05-12T15:15:07.297563+00:00",
+        "last_seen_at": "2026-05-12T15:15:37.283586+00:00",
+        "kernel_active": false,
+        "kernel_scenario": "scenario_1_new_notebook_off",
+        "seen_count": 4
+      },
+      "9a6784572afc585c1b9bd1e354837a27b71577f5ffc655ebb08e451de55a1b63": {
+        "cells": {
+          "1": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "2": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "3": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "4": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "5": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "6": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "7": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "8": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "9": {
+            "baseline_order": 7,
+            "seen_running": false,
+            "title": ""
+          }
+        },
+        "initialized_at": "2026-05-12T15:15:47.318932+00:00",
+        "last_seen_at": "2026-05-12T15:31:59.593341+00:00",
+        "kernel_active": false,
+        "kernel_scenario": "scenario_1_new_notebook_off",
+        "seen_count": 99
+      },
+      "07cdca324d02cb2c303c55d0f5041733c3c9315ba2fe579899f6ff56f71bf769": {
+        "cells": {
+          "1": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "2": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "3": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "4": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "5": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "6": {
+            "baseline_order": 7,
+            "seen_running": false,
+            "title": ""
+          }
+        },
+        "initialized_at": "2026-05-12T15:32:25.525599+00:00",
+        "last_seen_at": "2026-05-12T15:41:35.520612+00:00",
+        "kernel_active": false,
+        "kernel_scenario": "scenario_1_new_notebook_off",
+        "seen_count": 57
+      },
+      "1291536d4e78b8f650404516982cc444535850a94610916a81e53f8650032f00": {
+        "cells": {
+          "1": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "2": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "3": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "4": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "5": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "6": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "7": {
+            "baseline_order": 7,
+            "seen_running": false,
+            "title": ""
+          }
+        },
+        "initialized_at": "2026-05-12T15:41:45.539579+00:00",
+        "last_seen_at": "2026-05-12T15:42:05.531164+00:00",
+        "kernel_active": false,
+        "kernel_scenario": "scenario_1_new_notebook_off",
+        "seen_count": 3
+      },
+      "c955f54457fccdcd7a32965bf859789ab80d7d537f67f477bd60c0d6f2abaa9d": {
+        "cells": {
+          "1": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "2": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "3": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "4": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "5": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "6": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "7": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "8": {
+            "baseline_order": 7,
+            "seen_running": false,
+            "title": ""
+          }
+        },
+        "initialized_at": "2026-05-12T15:42:15.736696+00:00",
+        "last_seen_at": "2026-05-12T15:45:05.516316+00:00",
+        "kernel_active": false,
+        "kernel_scenario": "scenario_1_new_notebook_off",
+        "seen_count": 18
+      },
+      "5b326a9da16d8cf1b202b5ebe490335aec0f9d013e3ed61e2ae4eaba2adf0b73": {
+        "cells": {
+          "1": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "2": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "3": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "4": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "5": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "6": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "7": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "8": {
+            "baseline_order": 7,
+            "seen_running": false,
+            "title": ""
+          }
+        },
+        "initialized_at": "2026-05-12T15:45:15.521567+00:00",
+        "last_seen_at": "2026-05-12T15:45:15.521567+00:00",
+        "kernel_active": false,
+        "kernel_scenario": "scenario_1_new_notebook_off",
+        "seen_count": 1
+      },
+      "716f8181f18e4c7f6b490f4d028a6056ff513a5a687444f89be5bc746f6c51d1": {
+        "cells": {
+          "1": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "2": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "3": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "4": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "5": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "6": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "7": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "8": {
+            "baseline_order": 7,
+            "seen_running": false,
+            "title": ""
+          }
+        },
+        "initialized_at": "2026-05-12T15:45:25.542180+00:00",
+        "last_seen_at": "2026-05-12T16:37:16.670671+00:00",
+        "kernel_active": false,
+        "kernel_scenario": "scenario_1_new_notebook_off",
+        "seen_count": 369
+      },
+      "fc4ecb00e57225a9ac22c385379fddea0b311cc43adff75f992d92e49e684bc9": {
+        "cells": {
+          "1": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "2": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "3": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "4": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "5": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "6": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "7": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "8": {
+            "baseline_order": 7,
+            "seen_running": false,
+            "title": ""
+          }
+        },
+        "initialized_at": "2026-05-12T16:37:26.666565+00:00",
+        "last_seen_at": "2026-05-12T16:37:26.666565+00:00",
+        "kernel_active": false,
+        "kernel_scenario": "scenario_1_new_notebook_off",
+        "seen_count": 1
+      },
+      "2878efe0de42c9498abbfc1966907240623054b69619db69db6c0bfc22ca876c": {
+        "cells": {
+          "1": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "2": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "3": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "4": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "5": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "6": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "7": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "8": {
+            "baseline_order": 7,
+            "seen_running": false,
+            "title": ""
+          }
+        },
+        "initialized_at": "2026-05-12T16:37:36.678765+00:00",
+        "last_seen_at": "2026-05-12T16:43:48.988083+00:00",
+        "kernel_active": false,
+        "kernel_scenario": "scenario_1_new_notebook_off",
+        "seen_count": 39
+      },
+      "8b6788ef95457e2e2139ce2bc182fdd2d8843cad749241a2d644f91236786321": {
+        "cells": {
+          "2": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "4": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "5": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "8": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          }
+        },
+        "initialized_at": "2026-05-12T16:43:52.877638+00:00",
+        "last_seen_at": "2026-05-12T17:57:39.092653+00:00",
+        "kernel_active": true,
+        "kernel_scenario": "scenario_2_fresh_kernel_started",
+        "seen_count": 467
       }
     },
-    "last_seen_at": "2026-05-11T19:03:04.129041+00:00",
+    "last_seen_at": "2026-05-12T17:57:39.092653+00:00",
     "kernel_active": true,
-    "last_kernel_scenario": "scenario_3_reload_running_kernel",
-    "kernel_session_started_at": "2026-05-11T17:35:57.453706+00:00"
+    "last_kernel_scenario": "scenario_2_fresh_kernel_started",
+    "kernel_session_started_at": "2026-05-12T17:39:49.207660+00:00"
   },
   "https://www.kaggle.com/code/codekey/testing-only/edit": {
-    "active_revision": "6dbca5ee897f1d7be18a3af0a02c569de1180d40564fe930a4de793f0636dc1d",
+    "active_revision": "7bc472e0a241dff35c5bdd2bb1326d83f8137d7d62a12c5c5342f31ebc3578be",
     "revisions": {
       "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945": {
         "cells": {},
         "initialized_at": "2026-05-07T12:09:19.743366+00:00",
-        "last_seen_at": "2026-05-11T13:06:15.441131+00:00",
+        "last_seen_at": "2026-05-12T16:09:46.839990+00:00",
         "kernel_active": true,
-        "seen_count": 76,
+        "seen_count": 80,
         "kernel_scenario": "editor_loading"
       },
       "9b4a1a30a6842b455dff0f51adac21a02b04608a055efed72c5b1c5e5b8a4c76": {
@@ -19790,9 +20711,9 @@
           }
         },
         "initialized_at": "2026-05-07T15:58:34.287201+00:00",
-        "last_seen_at": "2026-05-11T13:06:25.489992+00:00",
+        "last_seen_at": "2026-05-12T16:09:50.052798+00:00",
         "kernel_active": false,
-        "seen_count": 6,
+        "seen_count": 7,
         "kernel_scenario": "scenario_1_new_notebook_off"
       },
       "37b31c1756c6319fa91d87536e3f355974ff218e9cf00cda79fc2d7766bd4c2e": {
@@ -19918,9 +20839,9 @@
           }
         },
         "initialized_at": "2026-05-07T16:41:21.872757+00:00",
-        "last_seen_at": "2026-05-10T16:56:54.844562+00:00",
+        "last_seen_at": "2026-05-12T16:17:25.539151+00:00",
         "kernel_active": false,
-        "seen_count": 206,
+        "seen_count": 252,
         "kernel_scenario": "scenario_1_new_notebook_off"
       },
       "93b2fd0e5cc4d73632f24de5772ec0149f53745bced1d595093885b2dd9b03f3": {
@@ -20174,12 +21095,41 @@
         "kernel_active": false,
         "kernel_scenario": "scenario_1_new_notebook_off",
         "seen_count": 36
+      },
+      "9fb8c04e27b62384ba117c9be03dc4d012c40ef6d90b0ef9d162e2fd2ad143d0": {
+        "cells": {
+          "1": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "2": {
+            "baseline_order": 2,
+            "seen_running": false,
+            "title": ""
+          },
+          "3": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "4": {
+            "baseline_order": 2,
+            "seen_running": false,
+            "title": ""
+          }
+        },
+        "initialized_at": "2026-05-12T16:09:55.551656+00:00",
+        "last_seen_at": "2026-05-12T16:09:55.551656+00:00",
+        "kernel_active": false,
+        "kernel_scenario": "scenario_1_new_notebook_off",
+        "seen_count": 1
       }
     },
-    "last_seen_at": "2026-05-11T13:06:35.298215+00:00",
+    "last_seen_at": "2026-05-12T16:17:25.539151+00:00",
     "kernel_active": false,
     "last_kernel_scenario": "scenario_1_new_notebook_off",
-    "kernel_session_stopped_at": "2026-05-11T13:06:25.489992+00:00"
+    "kernel_session_stopped_at": "2026-05-12T16:09:50.052798+00:00"
   },
   "https://www.kaggle.com/code/codekey/github-copilot-deepseek-1-3/edit": {
     "active_revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -20193,15 +21143,15 @@
     "last_seen_at": "2026-05-07T12:09:34.923815+00:00"
   },
   "https://www.kaggle.com/code/codekey/qwen-qwen3-coder-30b-a3b-instruct/edit": {
-    "active_revision": "25d882403eae45e8eb2292f30c8e329a614e4a7d93eee754e05ae013142b3e1c",
+    "active_revision": "89e464546352950c9eebb4213cdd45d091d6a31adf2d49e189074fa14b7fc8ac",
     "revisions": {
       "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945": {
         "cells": {},
         "initialized_at": "2026-05-07T15:55:55.851849+00:00",
-        "last_seen_at": "2026-05-11T17:02:14.194018+00:00",
+        "last_seen_at": "2026-05-12T17:00:39.865552+00:00",
         "kernel_active": true,
         "kernel_scenario": "editor_loading",
-        "seen_count": 95
+        "seen_count": 106
       },
       "480ca4ebd8d7beac979baac98c8098cfb09eb5e0f70366169c6d374c7a257dd0": {
         "cells": {
@@ -20585,10 +21535,10 @@
           }
         },
         "initialized_at": "2026-05-11T05:12:14.993689+00:00",
-        "last_seen_at": "2026-05-11T13:39:15.663100+00:00",
+        "last_seen_at": "2026-05-12T17:48:09.082183+00:00",
         "kernel_active": false,
         "kernel_scenario": "scenario_1_new_notebook_off",
-        "seen_count": 438
+        "seen_count": 847
       },
       "af0104a892945fe904c86020ed297623286473d205f6a5d7e16ec440b2aecfc8": {
         "cells": {
@@ -20653,10 +21603,10 @@
           }
         },
         "initialized_at": "2026-05-11T13:06:35.466376+00:00",
-        "last_seen_at": "2026-05-11T17:11:54.204610+00:00",
+        "last_seen_at": "2026-05-12T16:19:46.373833+00:00",
         "kernel_active": false,
         "kernel_scenario": "scenario_1_new_notebook_off",
-        "seen_count": 738
+        "seen_count": 805
       },
       "41a75c0de3771c233e6a287e6be4085d3b4e5efe3f7536a7b29c2802d32f2376": {
         "cells": {
@@ -20710,11 +21660,214 @@
         "kernel_active": false,
         "kernel_scenario": "scenario_1_new_notebook_off",
         "seen_count": 1
+      },
+      "6aebb0f88d8d667e399c2b35cb19522ef56b6265fbfcc4b476eb2ef380caf5ff": {
+        "cells": {
+          "1": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          }
+        },
+        "initialized_at": "2026-05-12T16:09:55.783388+00:00",
+        "last_seen_at": "2026-05-12T16:09:55.783388+00:00",
+        "kernel_active": false,
+        "kernel_scenario": "scenario_1_new_notebook_off",
+        "seen_count": 1
+      },
+      "444d37db6f1c5fc0d731038cb6bbed4b78dd6d54bff3e14b392d8582caefef2f": {
+        "cells": {
+          "1": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "2": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "3": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "4": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "5": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          }
+        },
+        "initialized_at": "2026-05-12T16:10:05.722172+00:00",
+        "last_seen_at": "2026-05-12T16:10:25.533417+00:00",
+        "kernel_active": false,
+        "kernel_scenario": "scenario_1_new_notebook_off",
+        "seen_count": 3
       }
     },
-    "last_seen_at": "2026-05-11T17:11:54.204610+00:00",
+    "last_seen_at": "2026-05-12T17:48:09.082183+00:00",
     "kernel_active": false,
     "last_kernel_scenario": "scenario_1_new_notebook_off",
-    "kernel_session_stopped_at": "2026-05-11T17:02:24.192434+00:00"
+    "kernel_session_stopped_at": "2026-05-12T17:00:49.070297+00:00"
+  },
+  "https://www.kaggle.com/code/codekey/pakistan-housing/edit": {
+    "active_revision": "3b051e7904461f512e273bbd239fdd293d5793efa7a68baf4fd756d41daeded8",
+    "revisions": {
+      "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945": {
+        "cells": {},
+        "initialized_at": "2026-05-12T16:19:40.659160+00:00",
+        "last_seen_at": "2026-05-12T16:19:40.659160+00:00",
+        "kernel_active": true,
+        "kernel_scenario": "editor_loading",
+        "seen_count": 1
+      },
+      "cba76cfdfda15b38f85b74463f001931c3789ad634aecba33ba4b71f1a92a2da": {
+        "cells": {
+          "1": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          }
+        },
+        "initialized_at": "2026-05-12T16:19:46.136764+00:00",
+        "last_seen_at": "2026-05-12T16:19:46.136764+00:00",
+        "kernel_active": false,
+        "kernel_scenario": "scenario_1_new_notebook_off",
+        "seen_count": 1
+      },
+      "3b051e7904461f512e273bbd239fdd293d5793efa7a68baf4fd756d41daeded8": {
+        "cells": {
+          "1": {
+            "baseline_order": 1,
+            "seen_running": false,
+            "title": ""
+          },
+          "2": {
+            "baseline_order": 2,
+            "seen_running": false,
+            "title": ""
+          },
+          "3": {
+            "baseline_order": 3,
+            "seen_running": false,
+            "title": ""
+          },
+          "4": {
+            "baseline_order": 4,
+            "seen_running": false,
+            "title": ""
+          },
+          "5": {
+            "baseline_order": 5,
+            "seen_running": false,
+            "title": ""
+          },
+          "6": {
+            "baseline_order": 6,
+            "seen_running": false,
+            "title": ""
+          },
+          "7": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "8": {
+            "baseline_order": 7,
+            "seen_running": false,
+            "title": ""
+          },
+          "9": {
+            "baseline_order": 8,
+            "seen_running": false,
+            "title": ""
+          },
+          "10": {
+            "baseline_order": 9,
+            "seen_running": false,
+            "title": ""
+          },
+          "11": {
+            "baseline_order": 10,
+            "seen_running": false,
+            "title": ""
+          },
+          "12": {
+            "baseline_order": 11,
+            "seen_running": false,
+            "title": ""
+          },
+          "13": {
+            "baseline_order": 12,
+            "seen_running": false,
+            "title": ""
+          },
+          "14": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "15": {
+            "baseline_order": 13,
+            "seen_running": false,
+            "title": ""
+          },
+          "16": {
+            "baseline_order": 14,
+            "seen_running": false,
+            "title": ""
+          },
+          "17": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          },
+          "18": {
+            "baseline_order": 15,
+            "seen_running": false,
+            "title": ""
+          },
+          "19": {
+            "baseline_order": 22,
+            "seen_running": false,
+            "title": ""
+          },
+          "20": {
+            "baseline_order": 17,
+            "seen_running": false,
+            "title": ""
+          },
+          "21": {
+            "baseline_order": 18,
+            "seen_running": false,
+            "title": ""
+          },
+          "22": {
+            "baseline_order": 19,
+            "seen_running": false,
+            "title": ""
+          },
+          "23": {
+            "baseline_order": null,
+            "seen_running": false,
+            "title": ""
+          }
+        },
+        "initialized_at": "2026-05-12T16:19:55.738274+00:00",
+        "last_seen_at": "2026-05-12T16:19:55.738274+00:00",
+        "kernel_active": false,
+        "kernel_scenario": "scenario_1_new_notebook_off",
+        "seen_count": 1
+      }
+    },
+    "last_seen_at": "2026-05-12T16:19:55.738274+00:00",
+    "kernel_active": false,
+    "last_kernel_scenario": "scenario_1_new_notebook_off",
+    "kernel_session_stopped_at": "2026-05-12T16:19:46.136764+00:00"
   }
 }

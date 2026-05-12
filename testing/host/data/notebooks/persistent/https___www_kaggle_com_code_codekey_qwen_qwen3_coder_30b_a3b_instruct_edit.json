@@ -1,16 +1,18 @@
 {
   "tabUrl": "https://www.kaggle.com/code/codekey/qwen-qwen3-coder-30b-a3b-instruct/edit",
   "title": "__notebook_source__",
-  "lastUpdated": "2026-05-11T17:02:34.193156+00:00",
+  "lastUpdated": "2026-05-12T17:00:49.070297+00:00",
   "cells": [
     {
+      "type": "code",
       "index": 1,
-      "input": "",
+      "input": "# ================== CELL 1: Load Pre‑quantized Model (GPTQ, 4‑bit, <20GB disk) ==================\n!pip install -q fastapi uvicorn transformers torch accelerate auto-gptq pyngrok nest-asyncio\n\n\nimport torch\nfrom transformers import AutoTokenizer, AutoModelForCausalLM\n\n\nmodel_name = \"ramblingpolymath/Qwen3-Coder-30B-A3B-Instruct-W4A16\"\n\n\nprint(f\"Loading {model_name} (pre‑quantized GPTQ, disk ≈17.4 GB, mem ≈16 GB)…\")\n\n\ntokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)\nif tokenizer.pad_token is None:\n    tokenizer.pad_token = tokenizer.eos_token\n\n\n# GPTQ models are loaded directly – no BitsAndBytesConfig needed\nmodel = AutoModelForCausalLM.from_pretrained(\n    model_name,\n    device_map=\"balanced\",      # splits layers evenly across both T4s\n    trust_remote_code=True,\n    torch_dtype=torch.float16,  # activations stay fp16\n    use_cache=True\n)\nmodel.eval()\n\n\nprint(\"✅ Model loaded successfully, sharded across 2×T4\")",
       "output": "",
       "execution_order": null,
       "execution_title": ""
     },
     {
+      "type": "code",
       "index": 2,
       "input": "",
       "output": "",
@@ -18,20 +20,23 @@
       "execution_title": ""
     },
     {
+      "type": "code",
       "index": 3,
-      "input": "",
+      "input": "# ================== CELL 2: FastAPI App ==================\nfrom fastapi import FastAPI, HTTPException, Query, Header\nfrom fastapi.responses import StreamingResponse, JSONResponse\nfrom pydantic import BaseModel, Field\nfrom typing import List, Optional, Dict\nimport threading\nimport uuid\nimport traceback\nimport torch\nfrom transformers import TextIteratorStreamer, StoppingCriteria, StoppingCriteriaList\n\n\ndevice = \"cuda\" if torch.cuda.is_available() else \"cpu\"\n\n\napp = FastAPI(title=\"Kaggle Qwen3-Coder API (host-compatible)\")\n\n\n# -------------------------------------------------------------------\n# Request model – exactly what your local host sends\n# -------------------------------------------------------------------\nclass ChatRequest(BaseModel):\n    prompt: str                                # user question\n    history: List[Dict[str, str]] = Field(     # conversation history\n        default_factory=list,\n        description=\"Chronological list of {role, content} pairs\"\n    )\n    context: str = \"\"                          # cell context / user facts (max 1800 chars)\n    mode: str = \"simple\"                       # simple|explain_error|dependency|code_review|explain_code\n    session_id: str = \"default\"\n    stream: bool = True                        # always true from your host\n\n\n# -------------------------------------------------------------------\n# Session‑scoped stop events\n# -------------------------------------------------------------------\nSTOP_EVENTS: Dict[str, threading.Event] = {}\nstop_lock = threading.RLock()\n\n\nclass StopOnEvent(StoppingCriteria):",
       "output": "",
       "execution_order": null,
       "execution_title": ""
     },
     {
+      "type": "code",
       "index": 4,
-      "input": "",
+      "input": "# ================== CELL 3: Server & ngrok (simple) ==================\nimport uvicorn\nimport threading\nimport time\nfrom pyngrok import ngrok\n\n\n# -------- Set your ngrok token directly (paste your authtoken here) --------\nNGROK_AUTH_TOKEN = \"3AI9OWDE3aXoIvlRbBIICBlo4Ur_7uVYv7Bp193sPiarvYLp6\"   # <-- replace this string\n\n\nif not NGROK_AUTH_TOKEN or NGROK_AUTH_TOKEN.startswith(\"YOUR_\"):\n    raise RuntimeError(\"Please set your real ngrok authtoken in the variable above.\")\n\n\nngrok.set_auth_token(NGROK_AUTH_TOKEN)\n\n\n# -------- Launch FastAPI in background thread --------\ndef run():\n    uvicorn.run(app, host=\"0.0.0.0\", port=8000, log_level=\"info\")\n\n\nserver_thread = threading.Thread(target=run, daemon=True)\nserver_thread.start()\ntime.sleep(2)   # let the server start\n\n\n# -------- Expose via ngrok --------\ntry:\n    public_url = ngrok.connect(8000).public_url\n    print(f\"\\n✅ Server live at: {public_url}/generate\")\n    print(f\"   Health check:    {public_url}/health\")\n    print(f\"   Stop stream:     {public_url}/stop?session_id=<id>\")\nexcept Exception as e:\n    print(f\"ngrok error: {e}\")\n    ngrok.kill()\n    raise\n\n\n# Keep the notebook alive\ntry:\n    while True:",
       "output": "",
       "execution_order": null,
       "execution_title": ""
     },
     {
+      "type": "code",
       "index": 5,
       "input": "",
       "output": "",

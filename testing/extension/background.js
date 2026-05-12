@@ -159,16 +159,44 @@ function scrapeNotebook() {
   };
   for (const cell of cellElements) {
     const cellData = {};
-    if (cell.classList.contains("code_cell") || cell.classList.contains("jp-CodeCell") || cell.querySelector(".CodeMirror, .jp-Editor, .cm-editor")) {
+    
+    // Extract index from data-windowed-list-index for fault-tolerant identification
+    const cellIndex = cell.getAttribute("data-windowed-list-index");
+    if (cellIndex !== null) {
+      cellData.index = parseInt(cellIndex, 10);
+    }
+    
+    // Cell type detection: check for jp-MarkdownCell first, then code indicators
+    const isMarkdownCollapsed = cell.classList.contains("jp-MarkdownCell") && cell.classList.contains("jp-mod-selected") && cell.classList.contains("jp-mod-active");
+
+    if (cell.classList.contains("jp-MarkdownCell")) {
+      cellData.type = "markdown";
+      // For markdown cells, extract rendered text content only
+      const markdownContent = cell.querySelector(".jp-Cell-outputArea, .jp-OutputArea, [class*='output'], .cell-content");
+      cellData.input = markdownContent ? markdownContent.innerText.trim() : cell.innerText.trim();
+      // Add state indicator using the distinct markdown cell class signatures
+      cellData.state = isMarkdownCollapsed ? "collapsed" : "open";
+      // Markdown cells have no execution metadata
+    } else if (cell.classList.contains("code_cell") || cell.classList.contains("jp-CodeCell") || cell.querySelector(".CodeMirror, .jp-Editor, .cm-editor")) {
       cellData.type = "code";
+      const codeEl = cell.querySelector(".CodeMirror-code, .jp-Editor .cm-content, .cm-editor .cm-content, .input_area pre, .jp-InputArea-editor pre, textarea");
+      cellData.input = codeEl ? codeEl.innerText.trim() : "";
+      
+      // Execution metadata (for code cells only)
+      Object.assign(cellData, extractExecutionMeta(cell));
+      
+      // Output extraction (for code cells only)
+      const outputEl = cell.querySelector(".output, .jp-OutputArea, .output_area, .jp-Cell-outputArea");
+      cellData.output = outputEl ? outputEl.innerText.trim() : "";
     } else {
       cellData.type = "markdown";
+      const markdownContent = cell.querySelector(".jp-Cell-outputArea, .jp-OutputArea, [class*='output'], .cell-content");
+      cellData.input = markdownContent ? markdownContent.innerText.trim() : cell.innerText.trim();
+      // Add state indicator for fallback markdown detection
+      cellData.state = cell.classList.contains("jp-mod-selected") && cell.classList.contains("jp-mod-active") ? "collapsed" : "open";
+      // Markdown cells have no execution metadata
     }
-    Object.assign(cellData, extractExecutionMeta(cell));
-    const codeEl = cell.querySelector(".CodeMirror-code, .jp-Editor .cm-content, .cm-editor .cm-content, .input_area pre, .jp-InputArea-editor pre, textarea");
-    cellData.source = codeEl ? codeEl.innerText.trim() : "";
-    const outputEl = cell.querySelector(".output, .jp-OutputArea, .output_area, .jp-Cell-outputArea");
-    cellData.output = outputEl ? outputEl.innerText.trim() : "";
+    
     cells.push(cellData);
   }
   return { title: document.title || "", cellCount: cells.length, cells: cells };
@@ -496,6 +524,22 @@ function getPort() {
               resolve(reply?.result || { ok: false, error: "No response from content script.", frameId: frame.frameId });
             });
           });
+
+          const isKeyDispatch = payload?.type === "SEND_KEY" || payload?.type === "SEND_KEYS";
+          const landedOnIframe =
+            isKeyDispatch &&
+            String(response?.tagName || "").toUpperCase() === "IFRAME";
+
+          if (landedOnIframe) {
+            lastFailure = {
+              ok: false,
+              error: "Key event landed on iframe element; trying next frame.",
+              frameId: frame.frameId,
+              tagName: response?.tagName,
+              key: response?.key,
+            };
+            continue;
+          }
 
           if (response?.ok) {
             onResult(response);

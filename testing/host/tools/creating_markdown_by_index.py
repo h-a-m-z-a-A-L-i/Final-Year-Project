@@ -3,10 +3,12 @@
 Flow:
 - Select the target cell by index (click without running).
 - Insert a new cell "above" the target using the host insert action.
-- Wait 0.5s, then send single `m` key to convert the new cell to Markdown.
+- Click inside the newly inserted cell.
+- Send Escape once to ensure command mode.
+- Send `m` once to convert the new cell to Markdown.
 
 This file follows the project's robust JSONL queueing pattern (bot_commands.jsonl / bot_results.jsonl)
-and uses single-key `send_key` actions rather than bulk key sequences.
+and sends the `m` key itself after inserting the cell.
 """
 import argparse
 import json
@@ -54,7 +56,7 @@ def _wait_for_request_result(request_id: str, timeout_seconds: float):
             if event.get("requestId") == request_id:
                 seen.add(eid)
                 return event
-        time.sleep(0.15)
+        time.sleep(0.5)
     return None
 
 
@@ -82,18 +84,12 @@ def _build_insert_command(
     tab_id: int | None,
     direction: str,
     url: str,
-    to_markdown: bool = False,
-    markdown_delay_ms: int | None = None,
 ):
     cmd = {
         "action": "insert_cell",
         "requestId": request_id,
         "direction": direction,
     }
-    if to_markdown:
-        cmd["toMarkdown"] = True
-    if markdown_delay_ms is not None:
-        cmd["markdownDelayMs"] = int(markdown_delay_ms)
     if tab_id is not None:
         cmd["tabId"] = tab_id
     if url:
@@ -154,17 +150,10 @@ def main():
 
     print(json.dumps({"ok": True, "phase": "cell_selected", "cellIndex": args.index, "tabId": resolved_tab_id}, ensure_ascii=False))
 
-    # 2) Insert above and request markdown conversion (m key) after 0.5s in extension context
+    # 2) Insert above
     print(json.dumps({"ok": True, "phase": "inserting_cell_above"}, ensure_ascii=False))
     insert_request_id = str(uuid.uuid4())
-    insert_cmd = _build_insert_command(
-        insert_request_id,
-        resolved_tab_id,
-        "above",
-        args.url,
-        to_markdown=True,
-        markdown_delay_ms=500,
-    )
+    insert_cmd = _build_insert_command(insert_request_id, resolved_tab_id, "above", args.url)
     _queue_command(insert_cmd)
     insert_result = _wait_for_request_result(insert_request_id, args.timeout)
 
@@ -177,7 +166,76 @@ def main():
         print(json.dumps({"ok": False, "phase": "insert_cell", "error": "Insert failed", "details": insert_result}, ensure_ascii=False))
         return
 
-    print(json.dumps({"ok": True, "phase": "complete", "cellIndex": args.index, "note": "Inserted above and converted to markdown"}, ensure_ascii=False))
+    # 3) Click inside the newly inserted cell (same index after inserting above)
+    time.sleep(0.5)
+    print(json.dumps({"ok": True, "phase": "selecting_new_cell", "cellIndex": args.index}, ensure_ascii=False))
+    new_cell_click_request_id = str(uuid.uuid4())
+    new_cell_click_cmd = _build_click_command(new_cell_click_request_id, resolved_tab_id, args.index, args.url)
+    _queue_command(new_cell_click_cmd)
+    new_cell_click_result = _wait_for_request_result(new_cell_click_request_id, args.timeout)
+
+    if new_cell_click_result is None:
+        print(json.dumps({"ok": False, "phase": "new_cell_selection", "error": "Timeout waiting for new cell selection"}, ensure_ascii=False))
+        return
+
+    if not new_cell_click_result.get("result", {}).get("ok", False):
+        print(json.dumps({"ok": False, "phase": "new_cell_selection", "error": "New cell selection failed", "details": new_cell_click_result}, ensure_ascii=False))
+        return
+
+    # 4) Send Escape once to force command mode
+    time.sleep(0.2)
+    print(json.dumps({"ok": True, "phase": "sending_escape_key"}, ensure_ascii=False))
+    escape_request_id = str(uuid.uuid4())
+    escape_cmd = _build_send_key_command(escape_request_id, resolved_tab_id, "Escape", args.url)
+    _queue_command(escape_cmd)
+    escape_result = _wait_for_request_result(escape_request_id, args.timeout)
+
+    if escape_result is None:
+        print(json.dumps({"ok": False, "phase": "send_key_escape", "error": "Timeout waiting for Escape key result"}, ensure_ascii=False))
+        return
+
+    if not escape_result.get("result", {}).get("ok", False):
+        print(json.dumps({"ok": False, "phase": "send_key_escape", "error": "Escape key failed", "details": escape_result}, ensure_ascii=False))
+        return
+
+    escape_tag = str(escape_result.get("result", {}).get("tagName", "")).upper()
+    if escape_tag == "IFRAME":
+        print(json.dumps({
+            "ok": False,
+            "phase": "send_key_escape",
+            "error": "Escape key landed on IFRAME (false-positive dispatch). Reload extension once so updated frame routing takes effect.",
+            "details": escape_result,
+        }, ensure_ascii=False))
+        return
+
+    # 5) Send m once in command mode
+    time.sleep(0.5)
+
+    print(json.dumps({"ok": True, "phase": "sending_m_key"}, ensure_ascii=False))
+    m_request_id = str(uuid.uuid4())
+    m_cmd = _build_send_key_command(m_request_id, resolved_tab_id, "m", args.url)
+    _queue_command(m_cmd)
+    m_result = _wait_for_request_result(m_request_id, args.timeout)
+
+    if m_result is None:
+        print(json.dumps({"ok": False, "phase": "send_key_m", "error": "Timeout waiting for m key result"}, ensure_ascii=False))
+        return
+
+    if not m_result.get("result", {}).get("ok", False):
+        print(json.dumps({"ok": False, "phase": "send_key_m", "error": "m key failed", "details": m_result}, ensure_ascii=False))
+        return
+
+    m_tag = str(m_result.get("result", {}).get("tagName", "")).upper()
+    if m_tag == "IFRAME":
+        print(json.dumps({
+            "ok": False,
+            "phase": "send_key_m",
+            "error": "m key landed on IFRAME (false-positive dispatch). Reload extension once so updated frame routing takes effect.",
+            "details": m_result,
+        }, ensure_ascii=False))
+        return
+
+    print(json.dumps({"ok": True, "phase": "complete", "cellIndex": args.index, "tabId": resolved_tab_id, "note": "Inserted above, focused new cell, entered command mode, and converted to markdown"}, ensure_ascii=False))
 
 
 if __name__ == "__main__":

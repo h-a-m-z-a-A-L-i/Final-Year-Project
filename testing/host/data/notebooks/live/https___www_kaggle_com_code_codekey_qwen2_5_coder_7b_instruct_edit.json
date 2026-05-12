@@ -1,89 +1,61 @@
 {
   "tabUrl": "https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit",
   "title": "__notebook_source__",
-  "lastUpdated": "2026-05-11T19:03:04.129041+00:00",
+  "lastUpdated": "2026-05-12T17:39:49.207660+00:00",
   "cells": [
     {
+      "type": "markdown",
       "index": 1,
-      "input": "",
-      "output": "",
-      "execution_order": null,
-      "execution_title": ""
+      "input": "1st markdown\n\nwe we sdf sdf sdfg sfgv dfb dfgb grfh fhn hgj yujk yuik iuki uk",
+      "state": "open"
     },
     {
+      "type": "code",
       "index": 2,
-      "input": "",
-      "output": "",
-      "execution_order": null,
-      "execution_title": ""
-    },
-    {
-      "index": 3,
-      "input": "",
-      "output": "",
-      "execution_order": null,
-      "execution_title": ""
-    },
-    {
-      "index": 4,
-      "input": "",
-      "output": "",
-      "execution_order": 7,
-      "execution_title": "Execution #7"
-    },
-    {
-      "index": 5,
-      "input": "",
-      "output": "",
-      "execution_order": 7,
-      "execution_title": "Execution #7"
-    },
-    {
-      "index": 6,
       "input": "while(True):\n    pass",
       "output": "",
-      "execution_order": 7,
-      "execution_title": "Execution #7"
+      "execution_order": null,
+      "execution_title": ""
     },
     {
-      "index": 7,
-      "input": "",
-      "output": "",
-      "execution_order": 7,
-      "execution_title": "Execution #7"
+      "type": "markdown",
+      "index": 3,
+      "input": "Type Markdown and LaTeX: \n𝛼\n2",
+      "state": "open"
     },
     {
-      "index": 8,
+      "type": "code",
+      "index": 4,
       "input": "print(211)",
       "output": "",
-      "execution_order": 7,
-      "execution_title": "Execution #7"
+      "execution_order": null,
+      "execution_title": ""
     },
     {
-      "index": 9,
-      "input": "",
-      "output": "",
-      "execution_order": 7,
-      "execution_title": "Execution #7"
-    },
-    {
-      "index": 10,
+      "type": "code",
+      "index": 5,
       "input": "print(21)",
       "output": "",
-      "execution_order": 7,
-      "execution_title": "Execution #7"
+      "execution_order": null,
+      "execution_title": ""
     },
     {
-      "index": 11,
+      "type": "markdown",
+      "index": 6,
+      "input": "hamza",
+      "state": "open"
+    },
+    {
+      "type": "markdown",
+      "index": 7,
+      "input": "ali",
+      "state": "open"
+    },
+    {
+      "type": "code",
+      "index": 8,
       "input": "print(131)",
       "output": "131",
-      "execution_order": 7,
-      "execution_title": "Execution #7"
-    },
-    {
-      "index": 12,
-      "input": "",
-      "output": "",
       "execution_order": null,
       "execution_title": ""
     }

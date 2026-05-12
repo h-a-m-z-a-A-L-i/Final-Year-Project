@@ -24,7 +24,7 @@ def _load_dotenv(env_path: Path):
 # ========== CONFIGURATION ==========
 _load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 CEREBRAS_API_KEY = os.environ.get("CEREBRAS_API_KEY", "").strip()
-CEREBRAS_MODEL = os.environ.get("CEREBRAS_MODEL", "qwen-3-235b-a22b-instruct-2507")
+CEREBRAS_MODEL = os.environ.get("CEREBRAS_MODEL", "llama3.1-8b")
 TEMPERATURE = float(os.environ.get("CEREBRAS_TEMPERATURE", "0.5"))
 TOP_P = float(os.environ.get("CEREBRAS_TOP_P", "1.0"))
 DATA_ROOT = Path(__file__).parent / "data"
@@ -1570,22 +1570,37 @@ def main():
                 raw_cells = []
             
             code_cells = []
+            all_cells = []  # All cells (code + markdown)
             for i, cell in enumerate(raw_cells):
-                if cell.get("type") == "code":
+                cell_type = cell.get("type", "code")
+                cell_index = i + 1
+                
+                if cell_type == "code":
                     execution_order = cell.get("execution_order")
                     try:
                         if execution_order is not None:
                             execution_order = int(execution_order)
                     except Exception:
                         execution_order = None
-                    code_cells.append({
-                        "index": i + 1,
-                        "input": str(cell.get("source") or ""),
+                    code_cell = {
+                        "index": cell_index,
+                        "input": str(cell.get("source") or cell.get("input") or ""),
                         "output": str(cell.get("output") or ""),
                         "execution_order": execution_order,
                         "execution_title": str(cell.get("execution_title") or "").strip(),
                         "execution_status": str(cell.get("execution_status") or "idle"),
-                    })
+                    }
+                    code_cells.append(code_cell)
+                    all_cells.append((cell_index, cell_type, code_cell))
+                elif cell_type == "markdown":
+                    # Markdown cells: type, input, index, state
+                    markdown_cell = {
+                        "type": "markdown",
+                        "index": cell_index,
+                        "input": str(cell.get("input") or ""),
+                        "state": str(cell.get("state") or "open"),  # open or collapsed
+                    }
+                    all_cells.append((cell_index, cell_type, markdown_cell))
             
             import hashlib
             data_str = json.dumps(
@@ -1758,12 +1773,18 @@ def main():
                         "title": saved_title,
                     }
                     save_cells.append({
+                        "type": "code",
                         "index": cell["index"],
                         "input": cell["input"],
                         "output": cell["output"],
                         "execution_order": saved_order,
                         "execution_title": saved_title,
                     })
+                
+                # Add markdown cells to save_cells (no execution metadata)
+                for cell_index, cell_type, cell_data in all_cells:
+                    if cell_type == "markdown":
+                        save_cells.append(cell_data)
 
                 revision_state["cells"] = updated_cells
                 revision_state["last_seen_at"] = now_iso
@@ -1794,12 +1815,14 @@ def main():
                     }
                     for cell in save_cells:
                         prev_cell = existing_by_index.get(str(cell["index"]), {})
-                        if (
-                            str(prev_cell.get("execution_order")) != str(cell.get("execution_order"))
-                            or str(prev_cell.get("execution_title") or "") != str(cell.get("execution_title") or "")
-                        ):
-                            should_save = True
-                            break
+                        # Only compare execution metadata for code cells (markdown cells don't have it)
+                        if cell.get("type") != "markdown":
+                            if (
+                                str(prev_cell.get("execution_order")) != str(cell.get("execution_order"))
+                                or str(prev_cell.get("execution_title") or "") != str(cell.get("execution_title") or "")
+                            ):
+                                should_save = True
+                                break
                 except Exception:
                     should_save = True
 
@@ -1808,6 +1831,10 @@ def main():
                 # The polling loop must never wipe or overwrite established execution data.
                 if existing_by_index:
                     for cell in save_cells:
+                        # Skip merge logic for markdown cells (they don't have execution metadata)
+                        if cell.get("type") == "markdown":
+                            continue
+                        
                         prev_cell = existing_by_index.get(str(cell["index"]), {})
                         if not isinstance(prev_cell, dict):
                             continue
@@ -1856,8 +1883,12 @@ def main():
                                     except Exception:
                                         cell["execution_order"] = prev_order
                                         cell["execution_title"] = prev_title
-                # Post-merge sanitization: ensure titles exist and strip timestamps
+                # Post-merge sanitization: ensure titles exist and strip timestamps (code cells only)
                 for c in save_cells:
+                    # Skip sanitization for markdown cells
+                    if c.get("type") == "markdown":
+                        continue
+                    
                     # Remove any execution_timestamp if present (do not persist timestamps)
                     if "execution_timestamp" in c:
                         try:
@@ -1873,6 +1904,9 @@ def main():
                             c["execution_title"] = f"Execution #{int(order)}"
                         except Exception:
                             c["execution_title"] = f"Execution"
+
+                # Sort cells by index
+                save_cells.sort(key=lambda cell: int(cell.get("index", 0)))
 
                 final_data = {
                     "tabUrl": tab_url,

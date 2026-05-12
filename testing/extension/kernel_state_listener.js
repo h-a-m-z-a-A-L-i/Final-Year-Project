@@ -1,13 +1,24 @@
 // Content script to relay kernel state updates from background to page scripts
 (function initKernelStateListener() {
-  if (window.__kernelStateListenerReady) {
+  const LISTENER_VERSION = '2026-05-12-key-dispatch-fix-v2';
+  if (window.__kernelStateListenerVersion === LISTENER_VERSION) {
     return;
+  }
+
+  // Support hot reinjection: remove previous handler so new logic takes effect.
+  if (window.__kernelStateListenerHandler) {
+    try {
+      chrome.runtime.onMessage.removeListener(window.__kernelStateListenerHandler);
+    } catch (error) {
+      console.warn('[kernel_state_listener] Failed to remove previous listener:', error?.message || error);
+    }
   }
   console.log('[kernel_state_listener] Content script initializing at:', new Date().toISOString());
   console.log('[kernel_state_listener] Current URL:', window.location.href);
 
   // Flag to track if listener is active
   window.__kernelStateListenerReady = true;
+  window.__kernelStateListenerVersion = LISTENER_VERSION;
 
   // Message listener for kernel state updates
   const messageHandler = (msg, sender, sendResponse) => {
@@ -67,6 +78,15 @@
     // Get the active element, preferring focused editable elements
     let targetEl = document.activeElement || document.body;
 
+    // If this frame is not a notebook frame, do not consume the key command here.
+    // Returning ok:false allows background dispatchToFrames to continue into other frames.
+    const hasNotebookSurface = Boolean(
+      document.querySelector('.jp-Notebook, .jp-Cell, [data-windowed-list-index]')
+    );
+    if (!hasNotebookSurface) {
+      return { ok: false, error: 'No notebook surface in this frame, skipping.', key: normalizedKey };
+    }
+
     // Descend into iframes to find the truly active element
     while (targetEl && targetEl.tagName === 'IFRAME' && targetEl.contentDocument) {
       const nextActive = targetEl.contentDocument.activeElement;
@@ -82,6 +102,12 @@
     if (!targetEl) {
       console.error('[sendKey] No target element found');
       return { ok: false, error: 'No target element found.' };
+    }
+
+    // Never treat an iframe element as a successful key target.
+    // This is a common false-positive where shortcuts are not handled.
+    if (targetEl.tagName === 'IFRAME' || targetEl.tagName === 'FRAME') {
+      return { ok: false, error: 'Active target is iframe/frame, skipping frame.', key: normalizedKey };
     }
 
     // Map single character keys to their keyCode values
@@ -125,8 +151,7 @@
       
       console.log('[sendKey] Key event dispatched:', normalizedKey, 'on', targetEl.tagName || 'unknown', 'hasFocus:', hasFocus);
       
-      // If we are just clicking the body and this frame doesn't even have focus,
-      // return ok: false so that dispatchToFrames can try the next frame (like the notebook iframe).
+      // If this frame does not have focus, skip so dispatchToFrames can try other frames.
       if (isBody && !hasFocus) {
         return { ok: false, error: 'Frame not focused, skipping to next.', key: normalizedKey };
       }
@@ -673,5 +698,6 @@
   }
 
   chrome.runtime.onMessage.addListener(messageHandler);
+  window.__kernelStateListenerHandler = messageHandler;
   console.log('[kernel_state_listener] Message listener registered and ready');
 })();
