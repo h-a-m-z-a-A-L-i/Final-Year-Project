@@ -2,12 +2,18 @@ import json
 import sys
 from typing import Optional
 from pathlib import Path
+import persistence
 from datetime import datetime
 from urllib.parse import urlparse, urlunparse
 
 DATA_ROOT = Path(__file__).parent / "data"
 SCRAPED_DIR = DATA_ROOT / "notebooks"
 LOG_FILE = DATA_ROOT / "logs" / "update_exec.log"
+
+LIVE_DIR = SCRAPED_DIR / "live"
+PERSISTENT_DIR = SCRAPED_DIR / "persistent"
+
+# use canonical atomic writer from persistence module
 
 def log_msg(msg):
     try:
@@ -30,8 +36,7 @@ def _normalized_url(url: str) -> str:
         return raw.split("#", 1)[0].split("?", 1)[0].rstrip("/")
 
 def get_safe_filename(url: str) -> str:
-    safe_name = "".join(c if c.isalnum() else "_" for c in _normalized_url(url)).strip("_")
-    return f"{safe_name[:200]}.json"
+    return persistence.get_safe_filename(url)
 
 def _system_time_label() -> str:
     return datetime.now().strftime("%I:%M%p").lstrip("0").lower()
@@ -41,9 +46,19 @@ def update_cell_execution(cell_index: int, tab_url: str, exec_timestamp_ms: Opti
     if cell_index is None:
         log_msg(f"SKIP cell_index=None")
         return
+    try:
+        cell_index = int(cell_index)
+    except Exception:
+        log_msg(f"SKIP invalid cell_index={cell_index}")
+        return
+    if cell_index <= 0:
+        log_msg(f"SKIP invalid cell_index={cell_index}")
+        return
     
     filename = get_safe_filename(tab_url)
-    json_path = SCRAPED_DIR / get_safe_filename(tab_url)
+    json_path = PERSISTENT_DIR / filename
+    if not json_path.exists():
+        json_path = SCRAPED_DIR / filename
     log_msg(f"START cell={cell_index} url={tab_url} file={filename} ts={exec_timestamp_ms} exists={json_path.exists()}")
 
     try:
@@ -100,13 +115,15 @@ def update_cell_execution(cell_index: int, tab_url: str, exec_timestamp_ms: Opti
         # Print to terminal for verification
         print(f"[EXEC-UPDATE] Cell {cell_index}: order={exec_order}, title='{target_cell['execution_title']}'")
         
-        # Write back atomically
-        tmp_path = json_path.with_suffix(json_path.suffix + ".tmp")
-        with tmp_path.open("w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-        tmp_path.replace(json_path)
-        
-        log_msg(f"SUCCESS updated cell {cell_index} order={exec_order} time={exec_time}")
+        # Write back atomically to legacy, live, and persistent locations
+        try:
+            persistence.atomic_write_json(json_path, data)
+            persistence.atomic_write_json(LIVE_DIR / filename, data)
+            persistence.atomic_write_json(PERSISTENT_DIR / filename, data)
+            log_msg(f"SUCCESS updated cell {cell_index} order={exec_order} time={exec_time}")
+        except Exception as e:
+            log_msg(f"WRITE-ERROR {type(e).__name__}: {e}")
+            raise
         
     except Exception as e:
         log_msg(f"ERROR {type(e).__name__}: {str(e)}")

@@ -1,63 +1,6 @@
 {
   "tabUrl": "https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit",
-  "title": "__notebook_source__",
-  "lastUpdated": "2026-05-12T17:39:49.207660+00:00",
-  "cells": [
-    {
-      "type": "markdown",
-      "index": 1,
-      "input": "1st markdown\n\nwe we sdf sdf sdfg sfgv dfb dfgb grfh fhn hgj yujk yuik iuki uk",
-      "state": "open"
-    },
-    {
-      "type": "code",
-      "index": 2,
-      "input": "while(True):\n    pass",
-      "output": "",
-      "execution_order": null,
-      "execution_title": ""
-    },
-    {
-      "type": "markdown",
-      "index": 3,
-      "input": "Type Markdown and LaTeX: \n𝛼\n2",
-      "state": "open"
-    },
-    {
-      "type": "code",
-      "index": 4,
-      "input": "print(211)",
-      "output": "",
-      "execution_order": null,
-      "execution_title": ""
-    },
-    {
-      "type": "code",
-      "index": 5,
-      "input": "print(21)",
-      "output": "",
-      "execution_order": null,
-      "execution_title": ""
-    },
-    {
-      "type": "markdown",
-      "index": 6,
-      "input": "hamza",
-      "state": "open"
-    },
-    {
-      "type": "markdown",
-      "index": 7,
-      "input": "ali",
-      "state": "open"
-    },
-    {
-      "type": "code",
-      "index": 8,
-      "input": "print(131)",
-      "output": "131",
-      "execution_order": null,
-      "execution_title": ""
-    }
-  ]
+  "title": "",
+  "lastUpdated": "2026-05-20T09:13:48.824179+00:00",
+  "cells": []
 }

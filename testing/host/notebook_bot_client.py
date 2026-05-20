@@ -3,6 +3,7 @@ import json
 import time
 from pathlib import Path
 from urllib.parse import urlparse
+from . import jsonl_queue
 
 
 ROOT = Path(__file__).resolve().parent
@@ -14,9 +15,7 @@ DEFAULT_TAB_ID = 2015853912
 
 
 def append_jsonl(path: Path, payload: dict):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    return jsonl_queue.append_jsonl(path, payload)
 
 
 def queue_command(payload: dict):
@@ -24,29 +23,11 @@ def queue_command(payload: dict):
 
 
 def read_jsonl(path: Path):
-    if not path.exists():
-        return []
-    out = []
-    with path.open("r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                out.append(json.loads(line))
-            except Exception:
-                continue
-    return out
+    return jsonl_queue.read_jsonl(path)
 
 
 def wait_for_request_result(request_id: str, timeout_seconds: float):
-    deadline = time.time() + max(0.5, timeout_seconds)
-    while time.time() < deadline:
-        for event in read_jsonl(BOT_RESULTS_PATH):
-            if event.get("requestId") == request_id:
-                return event
-        time.sleep(0.2)
-    return None
+    return jsonl_queue.wait_for_request_result(request_id, BOT_RESULTS_PATH, 0, timeout_seconds)
 
 
 def url_to_hash(url: str) -> str:

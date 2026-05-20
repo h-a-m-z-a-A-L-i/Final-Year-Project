@@ -13,6 +13,7 @@ import json
 import time
 import uuid
 from pathlib import Path
+import sys
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -20,46 +21,20 @@ DATA_META = ROOT / "data" / "meta"
 BOT_COMMANDS_PATH = DATA_META / "bot_commands.jsonl"
 BOT_RESULTS_PATH = DATA_META / "bot_results.jsonl"
 
-
-def _append_jsonl(path: Path, payload: dict):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(payload, ensure_ascii=False) + "\n")
-
-
-def _read_all_jsonl(path: Path):
-    if not path.exists():
-        return []
-    out = []
-    with path.open("r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                out.append(json.loads(line))
-            except Exception:
-                continue
-    return out
+# Centralized JSONL helpers
+HOST_PKG = ROOT
+if str(HOST_PKG) not in sys.path:
+    sys.path.insert(0, str(HOST_PKG))
+from jsonl_queue import append_jsonl, tail_from, wait_for_request_result
 
 
 def _wait_for_request_result(request_id: str, timeout_seconds: float):
-    deadline = time.time() + max(0.5, timeout_seconds)
-    seen = set()
-    while time.time() < deadline:
-        for event in _read_all_jsonl(BOT_RESULTS_PATH):
-            eid = id(event)
-            if eid in seen:
-                continue
-            if event.get("requestId") == request_id:
-                seen.add(eid)
-                return event
-        time.sleep(0.2)
-    return None
+    before = BOT_RESULTS_PATH.stat().st_size if BOT_RESULTS_PATH.exists() else 0
+    return wait_for_request_result(request_id, BOT_RESULTS_PATH, timeout_seconds, before)
 
 
 def _queue_command(cmd: dict):
-    _append_jsonl(BOT_COMMANDS_PATH, cmd)
+    append_jsonl(BOT_COMMANDS_PATH, cmd)
 
 
 def _build_click_command(request_id: str, tab_id: int | None, cell_index: int, url: str):
@@ -82,6 +57,19 @@ def _build_selector_command(request_id: str, tab_id: int | None, selector: str, 
         "action": "click_selector",
         "requestId": request_id,
         "selector": selector,
+    }
+    if tab_id is not None:
+        cmd["tabId"] = tab_id
+    if url:
+        cmd["url"] = url
+    return cmd
+
+
+def _build_send_key_command(request_id: str, tab_id: int | None, key: str, url: str):
+    cmd = {
+        "action": "send_key",
+        "requestId": request_id,
+        "key": key,
     }
     if tab_id is not None:
         cmd["tabId"] = tab_id
@@ -150,8 +138,23 @@ def main():
         else:
             cell_type = "markdown"
 
-    # For code cells: click the input area to enter edit mode
+
+    # For code cells: pressing Enter will reveal the input area reliably
     if cell_type == "code":
+        # 1) Send Enter to put the cell into edit mode (brings up the input area)
+        enter_id = str(uuid.uuid4())
+        enter_cmd = _build_send_key_command(enter_id, resolved_tab_id, "Enter", args.url)
+        _queue_command(enter_cmd)
+        enter_res = _wait_for_request_result(enter_id, args.timeout)
+
+        if not (enter_res and enter_res.get("result", {}).get("ok", False)):
+            print(json.dumps({"ok": False, "phase": "send_enter", "error": "Timeout or failure sending Enter key", "details": enter_res}, ensure_ascii=False))
+            return
+
+        # small delay to allow UI to reveal the input area
+        time.sleep(0.06)
+
+        # 2) Probe for known code editor selectors to confirm edit mode
         sels = [
             f'[data-windowed-list-index="{args.index}"] .jp-InputArea-editor',
             f'[data-windowed-list-index="{args.index}"] .cm-editor',
@@ -170,7 +173,7 @@ def main():
                 print(json.dumps({"ok": True, "phase": "entered_edit_mode", "cellType": "code", "selector": sel}, ensure_ascii=False))
                 break
         if not success:
-            print(json.dumps({"ok": False, "phase": "enter_edit_mode", "error": "Failed to click code editor area", "lastResult": last_res}, ensure_ascii=False))
+            print(json.dumps({"ok": False, "phase": "enter_edit_mode", "error": "Editor did not appear after Enter", "lastResult": last_res}, ensure_ascii=False))
             return
 
     else:  # markdown

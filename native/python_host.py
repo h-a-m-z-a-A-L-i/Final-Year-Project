@@ -10,6 +10,15 @@ from urllib.parse import urlparse
 WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
 DATABASE_DIR = Path(os.environ.get("KAGGLE_SCRAPER_DB_DIR", WORKSPACE_ROOT / "database"))
 LOG_FILE = DATABASE_DIR / "native_host.log"
+# Import persistence helpers from testing/host when available
+try:
+    import sys
+    HOST_PKG = Path(__file__).resolve().parents[1] / "testing" / "host"
+    if str(HOST_PKG) not in sys.path:
+        sys.path.insert(0, str(HOST_PKG))
+    import persistence
+except Exception:
+    persistence = None
 
 
 def log_line(message: str) -> None:
@@ -77,9 +86,12 @@ def save_payload(payload):
     slug = notebook_slug(str(payload.get("tabUrl", "")))
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     output_path = DATABASE_DIR / f"{slug}_{timestamp}.json"
-
-    with output_path.open("w", encoding="utf-8") as handle:
-        json.dump(payload, handle, ensure_ascii=False, indent=2)
+    # Use atomic writer when available to avoid partial writes
+    if persistence:
+        persistence.atomic_write_json(output_path, payload)
+    else:
+        with output_path.open("w", encoding="utf-8") as handle:
+            json.dump(payload, handle, ensure_ascii=False, indent=2)
 
     return output_path
 

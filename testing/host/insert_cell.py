@@ -11,6 +11,7 @@ import json
 import time
 import uuid
 from pathlib import Path
+import sys
 
 
 ROOT = Path(__file__).resolve().parent
@@ -19,50 +20,22 @@ DATA_NOTEBOOKS = ROOT / "data" / "notebooks"
 BOT_COMMANDS_PATH = DATA_META / "bot_commands.jsonl"
 BOT_RESULTS_PATH = DATA_META / "bot_results.jsonl"
 
-
-def _append_jsonl(path: Path, payload: dict):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(payload, ensure_ascii=False) + "\n")
-
-
-def _read_all_jsonl(path: Path):
-    """Read entire JSONL file and return list of valid JSON objects."""
-    if not path.exists():
-        return []
-    out = []
-    with path.open("r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                out.append(json.loads(line))
-            except Exception:
-                continue
-    return out
+# centralized jsonl helpers
+HOST_PKG = ROOT
+if str(HOST_PKG) not in sys.path:
+    sys.path.insert(0, str(HOST_PKG))
+from jsonl_queue import append_jsonl, read_jsonl, tail_from, wait_for_request_result
 
 
 def _wait_for_request_result(request_id: str, timeout_seconds: float):
     """Poll bot_results.jsonl for exact requestId match."""
-    deadline = time.time() + max(0.5, timeout_seconds)
-    seen_lines = set()
-    
-    while time.time() < deadline:
-        results = _read_all_jsonl(BOT_RESULTS_PATH)
-        for event in results:
-            event_id = id(event)
-            if event_id not in seen_lines and event.get("requestId") == request_id:
-                seen_lines.add(event_id)
-                return event
-        time.sleep(0.2)
-    
-    return None
+    before = BOT_RESULTS_PATH.stat().st_size if BOT_RESULTS_PATH.exists() else 0
+    return wait_for_request_result(request_id, BOT_RESULTS_PATH, timeout_seconds, before)
 
 
 def _queue_command(cmd: dict):
     """Queue a command to bot_commands.jsonl."""
-    _append_jsonl(BOT_COMMANDS_PATH, cmd)
+    append_jsonl(BOT_COMMANDS_PATH, cmd)
 
 
 def _build_click_command(request_id: str, tab_id: int | None, cell_index: int, url: str):

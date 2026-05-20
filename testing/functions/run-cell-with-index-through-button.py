@@ -8,12 +8,19 @@ import json
 import time
 import uuid
 from pathlib import Path
+import sys
 
 
 ROOT = Path(__file__).resolve().parent
 DATA_META = ROOT / "data" / "meta"
 BOT_COMMANDS_PATH = DATA_META / "bot_commands.jsonl"
 BOT_RESULTS_PATH = DATA_META / "bot_results.jsonl"
+
+# Centralized JSONL helpers
+HOST_PKG = ROOT.parent / "host"
+if str(HOST_PKG) not in sys.path:
+    sys.path.insert(0, str(HOST_PKG))
+from jsonl_queue import append_jsonl, tail_from, wait_for_request_result
 DEFAULT_RUN_BUTTON_SELECTOR = (
     "button[data-test-id='run-cell'], "
     "button[aria-label*='Run Cell'], "
@@ -26,41 +33,19 @@ DEFAULT_RUN_BUTTON_SELECTOR = (
 
 
 def _append_jsonl(path: Path, payload: dict):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    append_jsonl(path, payload)
 
 
 def _read_results_since(path: Path, since_size: int):
-    if not path.exists():
-        return []
-    with path.open("r", encoding="utf-8") as f:
-        f.seek(since_size)
-        raw = f.read()
-    out = []
-    for line in raw.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            out.append(json.loads(line))
-        except Exception:
-            continue
-    return out
+    return tail_from(path, since_size)[1]
 
 
 def _wait_for_request_result(request_id: str, before_size: int, timeout_seconds: float):
-    deadline = time.time() + max(0.5, timeout_seconds)
-    while time.time() < deadline:
-        for event in _read_results_since(BOT_RESULTS_PATH, before_size):
-            if event.get("requestId") == request_id:
-                return event
-        time.sleep(0.2)
-    return None
+    return wait_for_request_result(request_id, BOT_RESULTS_PATH, timeout_seconds, before_size)
 
 
 def _queue_command(cmd: dict):
-    _append_jsonl(BOT_COMMANDS_PATH, cmd)
+    append_jsonl(BOT_COMMANDS_PATH, cmd)
 
 
 def _make_request_id():

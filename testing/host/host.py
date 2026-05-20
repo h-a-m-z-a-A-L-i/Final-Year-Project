@@ -4,346 +4,39 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 from cerebras.cloud.sdk import Cerebras
-
-def _load_dotenv(env_path: Path):
-    if not env_path.is_file():
-        return
-    try:
-        for raw_line in env_path.read_text(encoding="utf-8").splitlines():
-            line = raw_line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, value = line.split("=", 1)
-            key = key.strip()
-            value = value.strip().strip('"').strip("'")
-            if key and key not in os.environ:
-                os.environ[key] = value
-    except Exception:
-        pass
-
-# ========== CONFIGURATION ==========
-_load_dotenv(Path(__file__).resolve().parents[2] / ".env")
-CEREBRAS_API_KEY = os.environ.get("CEREBRAS_API_KEY", "").strip()
-CEREBRAS_MODEL = os.environ.get("CEREBRAS_MODEL", "llama3.1-8b")
-TEMPERATURE = float(os.environ.get("CEREBRAS_TEMPERATURE", "0.5"))
-TOP_P = float(os.environ.get("CEREBRAS_TOP_P", "1.0"))
-DATA_ROOT = Path(__file__).parent / "data"
-CHAT_MEMORY_DB = DATA_ROOT / "sessions" / "chat_history.sqlite3"
-SCRAPED_DIR = DATA_ROOT / "notebooks"
-HASHES_PATH = DATA_ROOT / "meta" / "hashes.json"
-EXECUTION_STATE_PATH = DATA_ROOT / "meta" / "execution_state.json"
-LOG_PATH = DATA_ROOT / "logs" / "host.log"
-RATE_LIMIT_TRACKER = DATA_ROOT / "meta" / "rate_limit_tracker.json"
-BOT_COMMANDS_PATH = DATA_ROOT / "meta" / "bot_commands.jsonl"
-BOT_RESULTS_PATH = DATA_ROOT / "meta" / "bot_results.jsonl"
-DB_TIMEOUT_SECONDS = 10
-MAX_HISTORY_MESSAGES = 24
-MAX_CONTEXT_CHARS = 1800
-MAX_PROFILE_FACTS = 12
-ALLOWED_MODES = {"simple", "explain_error", "dependency", "code_review", "explain_code"}
-
-# Free-tier limits.
-TPM_LIMIT = int(os.environ.get("CEREBRAS_TPM_LIMIT", "60000"))
-TPH_LIMIT = int(os.environ.get("CEREBRAS_TPH_LIMIT", "1000000"))
-TPD_LIMIT = int(os.environ.get("CEREBRAS_TPD_LIMIT", "1000000"))
-RPM_LIMIT = int(os.environ.get("CEREBRAS_RPM_LIMIT", "30"))
-RPH_LIMIT = int(os.environ.get("CEREBRAS_RPH_LIMIT", "900"))
-RPD_LIMIT = int(os.environ.get("CEREBRAS_RPD_LIMIT", "14400"))
-
-_HASHES_LOCK = threading.Lock()
-_EXECUTION_STATE_LOCK = threading.Lock()
-_SEND_LOCK = threading.Lock()
-_ACTIVE_STREAMS = {}
-_ACTIVE_STREAMS_LOCK = threading.Lock()
-_RATE_LOCK = threading.Lock()
-_BOT_STATE_LOCK = threading.Lock()
-_LAST_NOTEBOOK_TAB_ID = None
-_LAST_NOTEBOOK_URL = ""
-_CEREBRAS_CLIENT = Cerebras(api_key=CEREBRAS_API_KEY) if CEREBRAS_API_KEY else None
-# Set up dependency mode path with fallbacks.
-_WS_ROOT = Path(__file__).resolve().parents[2]
-_DEP_CANDIDATES = [
-    _WS_ROOT / "DB" / "dependency_mode",
-    _WS_ROOT / "database" / "dependency_mode",
-    _WS_ROOT / "dependency_mode",
-]
-for _cand in _DEP_CANDIDATES:
-    if _cand.is_dir():
-        _cand_str = str(_cand)
-        if _cand_str not in sys.path:
-            sys.path.insert(0, _cand_str)
-
 try:
-    from dependency_tracker import DependencyTracker
-    from context_builder import ContextBuilder
-    _DEP_AVAILABLE = True
-    _DEP_FALLBACK = False
-except ImportError:
-    _DEP_FALLBACK = True
+    import persistence
+except Exception:
+    persistence = None
+try:
+    from . import jsonl_queue
+except Exception:
+    jsonl_queue = None
 
-    class DependencyTracker:
-        """Fallback dependency tracker based on symbol define/use analysis."""
-        def __init__(self):
-            self._symbol_table = {}
-            self._deps = {}
-            self._reverse = {}
+# Import centralized config and dispatcher helpers (support running as script)
+try:
+    from .config import *
+    from .config import _HASHES_LOCK, _EXECUTION_STATE_LOCK, _SEND_LOCK, _ACTIVE_STREAMS, _ACTIVE_STREAMS_LOCK, _RATE_LOCK, _BOT_STATE_LOCK, _CEREBRAS_CLIENT
+    from .dispatcher import read_msg, send_msg, _append_jsonl, _start_bot_command_watcher
+except Exception:
+    # When executed as a script (no package context), import from the filesystem
+    repo_root = Path(__file__).resolve().parents[2]
+    host_pkg = Path(__file__).resolve().parent
+    if str(host_pkg) not in sys.path:
+        sys.path.insert(0, str(host_pkg))
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
+    try:
+        from config import *
+        from config import _HASHES_LOCK, _EXECUTION_STATE_LOCK, _SEND_LOCK, _ACTIVE_STREAMS, _ACTIVE_STREAMS_LOCK, _RATE_LOCK, _BOT_STATE_LOCK, _CEREBRAS_CLIENT
+        from dispatcher import read_msg, send_msg, _append_jsonl, _start_bot_command_watcher
+    except Exception:
+        # As a final fallback try package-style import using repo folder name
+        from testing.host.config import *
+        from testing.host.config import _HASHES_LOCK, _EXECUTION_STATE_LOCK, _SEND_LOCK, _ACTIVE_STREAMS, _ACTIVE_STREAMS_LOCK, _RATE_LOCK, _BOT_STATE_LOCK, _CEREBRAS_CLIENT
+        from testing.host.dispatcher import read_msg, send_msg, _append_jsonl, _start_bot_command_watcher
 
-        @staticmethod
-        def _collect_target_names(target, out_set):
-            if isinstance(target, ast.Name):
-                out_set.add(target.id)
-                return
-            if isinstance(target, (ast.Tuple, ast.List)):
-                for elt in target.elts:
-                    DependencyTracker._collect_target_names(elt, out_set)
-
-        def _parse_symbols(self, code: str):
-            defines, uses = set(), set()
-            if not code.strip():
-                return defines, uses
-            try:
-                tree = ast.parse(code)
-                builtin_names = set(dir(__builtins__))
-
-                class SymbolVisitor(ast.NodeVisitor):
-                    def __init__(self, defs_out, uses_out, builtins):
-                        self.defines = defs_out
-                        self.uses = uses_out
-                        self.builtins = builtins
-                        self.scope_stack = [set()]
-
-                    def _add_local_define(self, name):
-                        if not name:
-                            return
-                        self.scope_stack[-1].add(name)
-
-                    def _is_local(self, name):
-                        return any(name in scope for scope in reversed(self.scope_stack))
-
-                    def visit_Assign(self, node):
-                        for t in node.targets:
-                            DependencyTracker._collect_target_names(t, self.defines)
-                            names = set()
-                            DependencyTracker._collect_target_names(t, names)
-                            for n in names:
-                                self._add_local_define(n)
-                        self.generic_visit(node.value)
-
-                    def visit_AnnAssign(self, node):
-                        names = set()
-                        DependencyTracker._collect_target_names(node.target, names)
-                        self.defines.update(names)
-                        for n in names:
-                            self._add_local_define(n)
-                        if node.value:
-                            self.generic_visit(node.value)
-
-                    def visit_AugAssign(self, node):
-                        names = set()
-                        DependencyTracker._collect_target_names(node.target, names)
-                        self.defines.update(names)
-                        for n in names:
-                            self._add_local_define(n)
-                        self.generic_visit(node.value)
-
-                    def visit_NamedExpr(self, node):
-                        names = set()
-                        DependencyTracker._collect_target_names(node.target, names)
-                        self.defines.update(names)
-                        for n in names:
-                            self._add_local_define(n)
-                        self.generic_visit(node.value)
-
-                    def visit_For(self, node):
-                        names = set()
-                        DependencyTracker._collect_target_names(node.target, names)
-                        self.defines.update(names)
-                        for n in names:
-                            self._add_local_define(n)
-                        self.generic_visit(node.iter)
-                        for stmt in node.body:
-                            self.visit(stmt)
-                        for stmt in node.orelse:
-                            self.visit(stmt)
-
-                    def visit_AsyncFor(self, node):
-                        self.visit_For(node)
-
-                    def visit_With(self, node):
-                        for item in node.items:
-                            self.visit(item.context_expr)
-                            if item.optional_vars is not None:
-                                names = set()
-                                DependencyTracker._collect_target_names(item.optional_vars, names)
-                                self.defines.update(names)
-                                for n in names:
-                                    self._add_local_define(n)
-                        for stmt in node.body:
-                            self.visit(stmt)
-
-                    def visit_AsyncWith(self, node):
-                        self.visit_With(node)
-
-                    def visit_ExceptHandler(self, node):
-                        if isinstance(node.name, str):
-                            self.defines.add(node.name)
-                            self._add_local_define(node.name)
-                        for stmt in node.body:
-                            self.visit(stmt)
-
-                    def visit_Import(self, node):
-                        for alias in node.names:
-                            name = alias.asname or alias.name.split('.')[0]
-                            self.defines.add(name)
-                            self._add_local_define(name)
-
-                    def visit_ImportFrom(self, node):
-                        for alias in node.names:
-                            name = alias.asname or alias.name.split('.')[0]
-                            self.defines.add(name)
-                            self._add_local_define(name)
-
-                    def _visit_scoped_body(self, args, body):
-                        self.scope_stack.append(set())
-                        for arg in getattr(args, 'posonlyargs', []):
-                            self._add_local_define(arg.arg)
-                        for arg in getattr(args, 'args', []):
-                            self._add_local_define(arg.arg)
-                        for arg in getattr(args, 'kwonlyargs', []):
-                            self._add_local_define(arg.arg)
-                        vararg = getattr(args, 'vararg', None)
-                        if vararg:
-                            self._add_local_define(vararg.arg)
-                        kwarg = getattr(args, 'kwarg', None)
-                        if kwarg:
-                            self._add_local_define(kwarg.arg)
-                        for stmt in body:
-                            self.visit(stmt)
-                        self.scope_stack.pop()
-
-                    def visit_FunctionDef(self, node):
-                        self.defines.add(node.name)
-                        self._add_local_define(node.name)
-                        self._visit_scoped_body(node.args, node.body)
-
-                    def visit_AsyncFunctionDef(self, node):
-                        self.visit_FunctionDef(node)
-
-                    def visit_ClassDef(self, node):
-                        self.defines.add(node.name)
-                        self._add_local_define(node.name)
-                        self.scope_stack.append(set())
-                        for base in node.bases:
-                            self.visit(base)
-                        for dec in node.decorator_list:
-                            self.visit(dec)
-                        for stmt in node.body:
-                            self.visit(stmt)
-                        self.scope_stack.pop()
-
-                    def visit_Name(self, node):
-                        if isinstance(node.ctx, ast.Load):
-                            if node.id not in self.builtins and not self._is_local(node.id):
-                                self.uses.add(node.id)
-
-                SymbolVisitor(defines, uses, builtin_names).visit(tree)
-            except SyntaxError:
-                defines.update(re.findall(r'^(\w+)\s*=', code, re.M))
-            return defines, uses
-
-        def update_cell(self, cell_id: int, code: str):
-            defines, uses = self._parse_symbols(code or "")
-            self._symbol_table[cell_id] = {"defines": defines, "uses": uses}
-            self._recompute_graph()
-
-        def _recompute_graph(self):
-            cell_ids = list(self._symbol_table.keys())
-            try:
-                ordered_ids = sorted(cell_ids, key=lambda x: int(x))
-            except Exception:
-                ordered_ids = sorted(cell_ids, key=lambda x: str(x))
-
-            pos_by_id = {cid: i for i, cid in enumerate(ordered_ids)}
-            define_sites = {}
-            for cid, syms in self._symbol_table.items():
-                for name in syms["defines"]:
-                    define_sites.setdefault(name, []).append(cid)
-
-            for name, ids in define_sites.items():
-                define_sites[name] = sorted(ids, key=lambda x: pos_by_id.get(x, 10**9))
-
-            deps = {}
-            for idx in ordered_ids:
-                used = self._symbol_table[idx]["uses"]
-                linked = set()
-                idx_pos = pos_by_id.get(idx, -1)
-
-                for symbol in used:
-                    candidates = [cid for cid in define_sites.get(symbol, []) if cid != idx]
-                    if not candidates:
-                        continue
-
-                    prior = [cid for cid in candidates if pos_by_id.get(cid, -1) < idx_pos]
-                    if prior:
-                        linked.add(prior[-1])
-                    else:
-                        linked.add(candidates[-1])
-
-                deps[idx] = sorted(linked, key=lambda x: pos_by_id.get(x, 10**9))
-            self._deps = deps
-            self.update_all_reverse_dependencies()
-
-        def update_all_reverse_dependencies(self):
-            reverse = {idx: [] for idx in self._symbol_table.keys()}
-            for idx, dep_list in self._deps.items():
-                for dep in dep_list:
-                    reverse.setdefault(dep, []).append(idx)
-            self._reverse = {k: sorted(v) for k, v in reverse.items()}
-
-        def get_dependencies(self, cell_id: int, transitive: bool = False):
-            direct = self._deps.get(cell_id, [])
-            if not transitive:
-                return direct
-            seen = set(direct)
-            stack = list(direct)
-            while stack:
-                node = stack.pop()
-                for nxt in self._deps.get(node, []):
-                    if nxt not in seen:
-                        seen.add(nxt)
-                        stack.append(nxt)
-            return sorted(seen)
-
-        def get_reverse_dependencies(self, cell_id: int):
-            return self._reverse.get(cell_id, [])
-
-    class ContextBuilder:
-        """Fallback context builder with same surface used by host.py."""
-        def __init__(self, tracker, cells_data):
-            self.tracker = tracker
-            self.cells = cells_data
-
-        def get_cell_context(self, cell_id: int) -> str:
-            cell = self.cells.get(cell_id)
-            if not cell:
-                return ""
-            deps = self.tracker.get_dependencies(cell_id, transitive=False)
-            rev = self.tracker.get_reverse_dependencies(cell_id)
-            lines = [f"Cell {cell_id}", f"Code:\n{cell.get('code', '')}"]
-            if cell.get("output"):
-                lines.append(f"Output:\n{cell.get('output', '')}")
-            lines.append(f"Depends on cells: {deps}")
-            lines.append(f"Used by cells: {rev}")
-            return "\n\n".join(lines)
-
-        def get_full_context(self) -> str:
-            parts = []
-            for idx in sorted(self.cells.keys()):
-                c = self.cells[idx]
-                parts.append(f"Cell {idx}:\n{c.get('code', '')}")
-            return "\n\n".join(parts)
-
-    _DEP_AVAILABLE = True
+# configuration comes from testing/host/config.py
 
 def _normalized_url(url: str) -> str:
     raw = (url or "").strip()
@@ -352,326 +45,50 @@ def _normalized_url(url: str) -> str:
     try:
         parsed = urlparse(raw)
         if not parsed.scheme or not parsed.netloc:
-            return raw.split("#", 1)[0].split("?", 1)[0].rstrip("/")
-        return urlunparse((parsed.scheme.lower(), parsed.netloc.lower(), parsed.path.rstrip("/"), "", "", ""))
+            return raw.split('#', 1)[0].split('?', 1)[0].rstrip('/')
+        return urlunparse((parsed.scheme.lower(), parsed.netloc.lower(), (parsed.path or '').rstrip('/'), "", "", ""))
     except Exception:
-        return raw.split("#", 1)[0].split("?", 1)[0].rstrip("/")
+        return raw.split('#', 1)[0].split('?', 1)[0].rstrip('/')
 
-def _history_url_key(raw_url: str) -> str:
-    """Return a stable URL key for history isolation; empty means invalid/missing URL."""
-    return _normalized_url(raw_url or "")
+def _history_url_key(url: str) -> str:
+    return _normalized_url(url)
 
-def _kernel_is_active(kernel_status) -> bool:
-    if isinstance(kernel_status, bool):
-        return kernel_status
-    status = str(kernel_status or "").strip().lower()
-    return status in {"running", "active", "on", "started", "true", "1"}
+def get_safe_filename(url: str) -> str:
+    safe_name = "".join(c if c.isalnum() else "_" for c in _normalized_url(url)).strip("_")
+    return f"{safe_name[:200]}.json"
 
-def _extract_user_profile_facts(prompt: str) -> dict:
-    """Extract small, stable user facts from plain-text prompts."""
-    text = str(prompt or "").strip()
-    if not text:
-        return {}
+def _live_dir() -> Path:
+    d = SCRAPED_DIR / "live"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
 
-    facts = {}
-    name_match = re.search(r"\bmy\s+name\s+is\s+([A-Za-z][A-Za-z\-']*(?:\s+[A-Za-z][A-Za-z\-']*){0,3})\b", text, re.IGNORECASE)
-    if name_match:
-        raw_name = re.sub(r"\s+", " ", name_match.group(1)).strip()
-        if raw_name:
-            facts["name"] = raw_name
-    return facts
+def _persistent_dir() -> Path:
+    d = SCRAPED_DIR / "persistent"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
 
-def _build_profile_memory_context(facts: dict) -> str:
-    if not facts:
-        return ""
-    items = []
-    if facts.get("name"):
-        items.append(f"- user_name: {facts['name']}")
-    if not items:
-        return ""
-    return "User Profile Memory:\n" + "\n".join(items)
+def _atomic_write_json(file_path: Path, data):
+    if persistence:
+        return persistence.atomic_write_json(file_path, data)
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = file_path.with_suffix(file_path.suffix + ".tmp")
+    with tmp_path.open("w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    tmp_path.replace(file_path)
 
-def _extract_cell_number(prompt: str):
-    """Extract a referenced cell number from free-form prompt text.
+def save_live_json(data, tab_url):
+    filename = get_safe_filename(tab_url)
+    path = _live_dir() / filename
+    _atomic_write_json(path, data)
+    return path
 
-    Supported examples:
-    - cell 1
-    - cell1
-    - cell#1
-    - (cell 1)
-    - [cell 1]
-    """
-    text = str(prompt or "")
-    m = re.search(r"(?:\(|\[)?\s*cell\s*#?\s*(\d+)\s*(?:\)|\])?", text, re.IGNORECASE)
-    if not m:
-        return None
-    try:
-        n = int(m.group(1))
-        return n if n > 0 else None
-    except Exception:
-        return None
-
-def log(msg):
-    line = f"[{datetime.now(timezone.utc).strftime('%H:%M:%S')}] {msg}"
-    print(line, file=sys.stderr, flush=True)
-    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with LOG_PATH.open("a", encoding="utf-8") as f:
-        f.write(line + "\n")
-
-def read_msg():
-    raw = sys.stdin.buffer.read(4)
-    if not raw:
-        return None
-    if len(raw) < 4:
-        raise ValueError("Incomplete native message length")
-    length = struct.unpack("<I", raw)[0]
-    payload = sys.stdin.buffer.read(length)
-    if len(payload) < length:
-        raise ValueError("Incomplete native message payload")
-    if not payload:
-        return {}
-    return json.loads(payload)
-
-def send_msg(obj):
-    data = json.dumps(obj, ensure_ascii=False).encode("utf-8")
-    with _SEND_LOCK:
-        sys.stdout.buffer.write(struct.pack("<I", len(data)) + data)
-        sys.stdout.buffer.flush()
-
-def _append_jsonl(path: Path, payload: dict):
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(payload, ensure_ascii=False) + "\n")
-    except Exception as e:
-        log(f"Failed writing {path.name}: {e}")
-
-def _start_bot_command_watcher():
-    def _worker():
-        offset = 0
-        try:
-            BOT_COMMANDS_PATH.parent.mkdir(parents=True, exist_ok=True)
-            BOT_COMMANDS_PATH.touch(exist_ok=True)
-            offset = BOT_COMMANDS_PATH.stat().st_size
-            log("Bot watcher started (data/meta/bot_commands.jsonl)")
-        except Exception as e:
-            log(f"Bot watcher init failed: {e}")
-            return
-
-        while True:
-            try:
-                if not BOT_COMMANDS_PATH.exists():
-                    time.sleep(0.25)
-                    continue
-                size = BOT_COMMANDS_PATH.stat().st_size
-                if size < offset:
-                    offset = 0
-                if size == offset:
-                    time.sleep(0.25)
-                    continue
-
-                with BOT_COMMANDS_PATH.open("r", encoding="utf-8") as f:
-                    f.seek(offset)
-                    chunk = f.read()
-                    offset = f.tell()
-
-                for raw in chunk.splitlines():
-                    line = raw.strip()
-                    if not line:
-                        continue
-
-                    try:
-                        cmd = json.loads(line)
-                    except Exception:
-                        _append_jsonl(BOT_RESULTS_PATH, {
-                            "ts": datetime.now(timezone.utc).isoformat(),
-                            "ok": False,
-                            "error": "Invalid JSON command",
-                            "raw": line,
-                        })
-                        continue
-
-                    action = str(cmd.get("action") or cmd.get("type") or "").strip().lower()
-                    # Allow send_keys as a valid action so sequences like "d d" are dispatched.
-                    if action not in {"click", "click_cell_by_index", "click_selector", "select_cell_by_index", "insert_cell", "send_key", "send_keys"}:
-                        if action not in {"send_key", "send_keys"}:
-                            _append_jsonl(BOT_RESULTS_PATH, {
-                                "ts": datetime.now(timezone.utc).isoformat(),
-                                "ok": False,
-                                "error": f"Unsupported action: {action or 'missing'}",
-                                "requestId": cmd.get("requestId"),
-                            })
-                            continue
-
-                    with _BOT_STATE_LOCK:
-                        tab_id = cmd.get("tabId")
-                        if not isinstance(tab_id, int):
-                            tab_id = _LAST_NOTEBOOK_TAB_ID
-                        url = str(cmd.get("url") or _LAST_NOTEBOOK_URL or "")
-
-                    if action == "select_cell_by_index":
-                        try:
-                            cell_index = int(cmd.get("cellIndex"))
-                        except Exception:
-                            _append_jsonl(BOT_RESULTS_PATH, {
-                                "ts": datetime.now(timezone.utc).isoformat(),
-                                "ok": False,
-                                "error": "Missing or invalid cellIndex",
-                                "requestId": cmd.get("requestId"),
-                                "tabId": tab_id,
-                            })
-                            continue
-
-                        send_msg({
-                            "type": "SELECT_CELL_BY_INDEX",
-                            "tabId": tab_id,
-                            "url": url,
-                            "cellIndex": cell_index,
-                            "scrollIntoView": bool(cmd.get("scrollIntoView", True)),
-                            "requestId": cmd.get("requestId"),
-                        })
-                        log(f"Bot dispatched SELECT_CELL_BY_INDEX tabId={tab_id} cellIndex={cell_index}")
-                        continue
-
-                    if action == "insert_cell":
-                        direction = str(cmd.get("direction") or "").strip().lower()
-                        if direction not in {"above", "below"}:
-                            _append_jsonl(BOT_RESULTS_PATH, {
-                                "ts": datetime.now(timezone.utc).isoformat(),
-                                "ok": False,
-                                "error": "Missing or invalid direction",
-                                "requestId": cmd.get("requestId"),
-                                "tabId": tab_id,
-                            })
-                            continue
-
-                        send_msg({
-                            "type": "INSERT_CELL",
-                            "tabId": tab_id,
-                            "url": url,
-                            "direction": direction,
-                            "toMarkdown": bool(cmd.get("toMarkdown", False)),
-                            "markdownDelayMs": cmd.get("markdownDelayMs"),
-                            "requestId": cmd.get("requestId"),
-                        })
-                        log(f"Bot dispatched INSERT_CELL tabId={tab_id} direction={direction}")
-                        continue
-
-                    if action == "send_key":
-                        key = str(cmd.get("key") or "").strip()
-                        if not key:
-                            _append_jsonl(BOT_RESULTS_PATH, {
-                                "ts": datetime.now(timezone.utc).isoformat(),
-                                "ok": False,
-                                "error": "Missing or empty key",
-                                "requestId": cmd.get("requestId"),
-                                "tabId": tab_id,
-                            })
-                            continue
-
-                        send_msg({
-                            "type": "SEND_KEY",
-                            "tabId": tab_id,
-                            "url": url,
-                            "key": key,
-                            "requestId": cmd.get("requestId"),
-                        })
-                        log(f"Bot dispatched SEND_KEY tabId={tab_id} key={key}")
-                        continue
-
-                    if not isinstance(tab_id, int):
-                        _append_jsonl(BOT_RESULTS_PATH, {
-                            "ts": datetime.now(timezone.utc).isoformat(),
-                            "ok": False,
-                            "error": "No active notebook tabId available",
-                            "requestId": cmd.get("requestId"),
-                        })
-                        continue
-
-                    if action == "click_selector":
-                        selector = str(cmd.get("selector") or "").strip()
-                        if not selector:
-                            _append_jsonl(BOT_RESULTS_PATH, {
-                                "ts": datetime.now(timezone.utc).isoformat(),
-                                "ok": False,
-                                "error": "Missing selector",
-                                "requestId": cmd.get("requestId"),
-                                "tabId": tab_id,
-                            })
-                            continue
-
-                        send_msg({
-                            "type": "CLICK_SELECTOR",
-                            "tabId": tab_id,
-                            "url": url,
-                            "selector": selector,
-                            "requestId": cmd.get("requestId"),
-                        })
-                        log(f"Bot dispatched CLICK_SELECTOR tabId={tab_id} selector={selector}")
-                    elif action == "send_key":
-                        key = str(cmd.get("key") or "").strip()
-                        if not key:
-                            _append_jsonl(BOT_RESULTS_PATH, {
-                                "ts": datetime.now(timezone.utc).isoformat(),
-                                "ok": False,
-                                "error": "Missing key",
-                                "requestId": cmd.get("requestId"),
-                                "tabId": tab_id,
-                            })
-                            continue
-                        send_msg({
-                            "type": "SEND_KEY",
-                            "tabId": tab_id,
-                            "url": url,
-                            "key": key,
-                            "requestId": cmd.get("requestId"),
-                        })
-                        log(f"Bot dispatched SEND_KEY tabId={tab_id} key={key}")
-                    elif action == "delete_cell":
-                        send_msg({
-                            "type": "DELETE_CELL",
-                            "tabId": tab_id,
-                            "url": url,
-                            "requestId": cmd.get("requestId"),
-                        })
-                        log(f"Bot dispatched DELETE_CELL tabId={tab_id}")
-                    elif action == "send_keys":
-                        send_msg({
-                            "type": "SEND_KEYS",
-                            "tabId": tab_id,
-                            "url": url,
-                            "keys": cmd.get("keys"),
-                            "requestId": cmd.get("requestId"),
-                        })
-                        log(f"Bot dispatched SEND_KEYS tabId={tab_id} keys={cmd.get('keys')}")
-                    else:
-                        try:
-                            cell_index = int(cmd.get("cellIndex"))
-                        except Exception:
-                            _append_jsonl(BOT_RESULTS_PATH, {
-                                "ts": datetime.now(timezone.utc).isoformat(),
-                                "ok": False,
-                                "error": "Missing or invalid cellIndex",
-                                "requestId": cmd.get("requestId"),
-                                "tabId": tab_id,
-                            })
-                            continue
-
-                        send_msg({
-                            "type": "CLICK_CELL_BY_INDEX",
-                            "tabId": tab_id,
-                            "url": url,
-                            "cellIndex": cell_index,
-                            "scrollIntoView": bool(cmd.get("scrollIntoView", True)),
-                            "runCell": bool(cmd.get("runCell", True)),
-                            "requestId": cmd.get("requestId"),
-                        })
-                        log(f"Bot dispatched CLICK_CELL_BY_INDEX tabId={tab_id} cellIndex={cell_index}")
-            except Exception as e:
-                log(f"Bot watcher loop error: {e}")
-                time.sleep(0.25)
-
-    threading.Thread(target=_worker, daemon=True).start()
+def save_persistent_json(data, tab_url):
+    filename = get_safe_filename(tab_url)
+    path = _persistent_dir() / filename
+    _atomic_write_json(path, data)
+    legacy_path = SCRAPED_DIR / filename
+    _atomic_write_json(legacy_path, data)
+    return path
 
 def _signal_remote_stop(session_id: str):
     # No remote stop endpoint is needed with direct SDK streaming.
@@ -859,8 +276,10 @@ def _rate_usage(events: list):
             rpd += reqs
     return tpm, rpm, tph, rph, tpd, rpd
 
-def _wait_for_request_slot():
+def _wait_for_request_slot(cancel_check=None):
     while True:
+        if callable(cancel_check) and cancel_check():
+            return False
         with _RATE_LOCK:
             tracker = _prune_rate_tracker(_load_rate_tracker())
             events = tracker.get("events", [])
@@ -875,7 +294,7 @@ def _wait_for_request_slot():
 
             if rpm < RPM_LIMIT and rph < RPH_LIMIT and rpd < RPD_LIMIT:
                 _save_rate_tracker(tracker)
-                return
+                return True
 
             waits = []
             if rpm >= RPM_LIMIT:
@@ -921,6 +340,11 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode)
     attempt_id = ""
     state = None
 
+    def _is_stopped() -> bool:
+        with _ACTIVE_STREAMS_LOCK:
+            current = _ACTIVE_STREAMS.get(active_key)
+            return bool(current and current.get("stopped"))
+
     if _CEREBRAS_CLIENT is None:
         err = "Missing CEREBRAS_API_KEY environment variable."
         log(err)
@@ -945,7 +369,15 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode)
         messages.append({"role": "user", "content": str(prompt or "")})
 
         while True:
-            _wait_for_request_slot()
+            if _is_stopped():
+                break
+
+            if not _wait_for_request_slot(cancel_check=_is_stopped):
+                break
+
+            if _is_stopped():
+                break
+
             attempt_id = str(uuid.uuid4())
             _record_request_attempt(attempt_id)
             allowed, details = _check_token_limits()
@@ -962,16 +394,51 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode)
                 break
             except Exception as stream_error:
                 err = str(stream_error)
+                if _is_stopped():
+                    break
                 if "429" in err or "queue_exceeded" in err or "too_many_requests_error" in err:
                     log("Queue busy. Retrying in 2.5s...")
+                    if _is_stopped():
+                        break
                     time.sleep(2.5)
                     continue
                 raise
+
+        if _is_stopped():
+            final_text = ""
+            if attempt_id:
+                _finalize_request_attempt(attempt_id, 0)
+            send_msg({
+                "type": "CHAT_STREAM_END",
+                "response": "",
+                "stopped": True,
+                "tabId": tab_id,
+                "url": url,
+                "sessionId": session_id,
+            })
+            return
 
         with _ACTIVE_STREAMS_LOCK:
             state = _ACTIVE_STREAMS.get(active_key)
             if state is not None:
                 state["stream"] = stream
+
+        if _is_stopped():
+            try:
+                _close_stream_handle(stream)
+            except Exception:
+                pass
+            if attempt_id:
+                _finalize_request_attempt(attempt_id, 0)
+            send_msg({
+                "type": "CHAT_STREAM_END",
+                "response": "",
+                "stopped": True,
+                "tabId": tab_id,
+                "url": url,
+                "sessionId": session_id,
+            })
+            return
 
         for event in stream:
             with _ACTIVE_STREAMS_LOCK:
@@ -1028,7 +495,8 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode)
         log(f"AI Stream Error: {e}")
         if attempt_id:
             _finalize_request_attempt(attempt_id, 0)
-        memory_store.append(url, "assistant", err_text, session_id=session_id)
+        if not _is_stopped():
+            memory_store.append(url, "assistant", err_text, session_id=session_id)
         send_msg({"type": "CHAT_RESPONSE", "error": str(e), "tabId": tab_id, "url": url, "sessionId": session_id})
         send_msg({"type": "CHAT_STREAM_END", "error": str(e), "stopped": False, "tabId": tab_id, "url": url, "sessionId": session_id})
     finally:
@@ -1037,83 +505,30 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode)
             if current and current.get("sessionId") == session_id:
                 _ACTIVE_STREAMS.pop(active_key, None)
 
-def _atomic_write_json(file_path: Path, data):
-    file_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = file_path.with_suffix(file_path.suffix + ".tmp")
-    with tmp_path.open("w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-    tmp_path.replace(file_path)
-
-def save_json(data, tab_url):
-    """Save the scraped data into a persistent JSON file for this URL."""
-    SCRAPED_DIR.mkdir(parents=True, exist_ok=True)
-    filename = get_safe_filename(tab_url)
-    filepath = SCRAPED_DIR / filename
-    _atomic_write_json(filepath, data)
-    return filepath
-
-
-def _live_dir() -> Path:
-    d = SCRAPED_DIR / "live"
-    d.mkdir(parents=True, exist_ok=True)
-    return d
-
-
-def _persistent_dir() -> Path:
-    d = SCRAPED_DIR / "persistent"
-    d.mkdir(parents=True, exist_ok=True)
-    return d
-
-
-def save_live_json(data, tab_url):
-    filename = get_safe_filename(tab_url)
-    path = _live_dir() / filename
-    _atomic_write_json(path, data)
-    return path
-
-
-def save_persistent_json(data, tab_url):
-    filename = get_safe_filename(tab_url)
-    path = _persistent_dir() / filename
-    _atomic_write_json(path, data)
-    return path
-
-def get_safe_filename(url: str) -> str:
-    """Consistently turn a tab URL into the same JSON filename used for scraping."""
-    safe_name = "".join(c if c.isalnum() else "_" for c in _normalized_url(url)).strip("_")
-    return f"{safe_name[:200]}.json"
-
-def _load_hashes() -> dict:
-    if not HASHES_PATH.is_file():
-        return {}
-    try:
-        raw = HASHES_PATH.read_text(encoding="utf-8")
-        data = json.loads(raw)
-        return data if isinstance(data, dict) else {}
-    except Exception as e:
-        try:
-            corrupt = HASHES_PATH.with_suffix(HASHES_PATH.suffix + f".corrupt.{int(datetime.now(timezone.utc).timestamp())}")
-            HASHES_PATH.replace(corrupt)
-            log(f"Invalid hashes file moved to: {corrupt.name}")
-        except Exception:
-            pass
-        log(f"Failed reading hashes file: {e}")
-        return {}
-
-def _save_hashes(hashes: dict):
-    _atomic_write_json(HASHES_PATH, hashes)
-
-def _load_execution_state() -> dict:
-    if not EXECUTION_STATE_PATH.is_file():
-        return {}
-    try:
-        data = json.loads(EXECUTION_STATE_PATH.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
-    except Exception:
-        return {}
-
-def _save_execution_state(state: dict):
-    _atomic_write_json(EXECUTION_STATE_PATH, state)
+try:
+    from .persistence_helpers import (
+        _atomic_write_json,
+        save_json,
+        save_live_json,
+        save_persistent_json,
+        get_safe_filename,
+        _load_hashes,
+        _save_hashes,
+        _load_execution_state,
+        _save_execution_state,
+    )
+except Exception:
+    from persistence_helpers import (
+        _atomic_write_json,
+        save_json,
+        save_live_json,
+        save_persistent_json,
+        get_safe_filename,
+        _load_hashes,
+        _save_hashes,
+        _load_execution_state,
+        _save_execution_state,
+    )
 
 def _system_time_label() -> str:
     return datetime.now().strftime("%I:%M%p").lstrip("0").lower()
@@ -1138,6 +553,9 @@ def _cell_execution_title(execution_order, execution_timestamp=None):
 def _normalize_kernel_scenario(kernel_scenario: str) -> str:
     return str(kernel_scenario or "unknown").strip().lower()
 
+def _kernel_is_active(kernel_status: str) -> bool:
+    return str(kernel_status or "").strip().lower() == "running"
+
 def _scenario_is_fresh(kernel_scenario: str) -> bool:
     return _normalize_kernel_scenario(kernel_scenario) == "scenario_2_fresh_kernel_started"
 
@@ -1157,29 +575,23 @@ def _default_execution_snapshot(cell_index: int, source: str, output: str) -> di
         "execution_timestamp": None,
     }
 
-def _build_fallback_graph(notebook_url: str):
-    """Build a minimal graph from saved notebook JSON when dependency modules are unavailable."""
-    json_path = SCRAPED_DIR / get_safe_filename(notebook_url)
-    if not json_path.exists():
-        return None
+try:
+    from .dependency import _build_fallback_graph, DependencyManager
+except Exception:
     try:
-        with json_path.open("r", encoding="utf-8") as f:
-            data = json.load(f)
-        cells = data.get("cells", [])
-        graph = []
-        for cell in cells:
-            idx = cell.get("index", 0)
-            code = str(cell.get("input", ""))
-            graph.append({
-                "cell_number": idx,
-                "input_preview": code[:120],
-                "dependencies": [],
-                "reverse_dependencies": []
-            })
-        return graph
-    except Exception as e:
-        log(f"Fallback graph build error: {e}")
-        return None
+        from dependency import _build_fallback_graph, DependencyManager
+    except Exception:
+        from testing.host.dependency import _build_fallback_graph, DependencyManager
+
+# Dependency engine availability flags
+try:
+    from dependency_tracker import DependencyTracker
+    from context_builder import ContextBuilder
+    _DEP_AVAILABLE = True
+    _DEP_FALLBACK = False
+except Exception:
+    _DEP_AVAILABLE = False
+    _DEP_FALLBACK = False
 
 class DependencyManager:
     """Manages ContextBuilder instances for each notebook, loading from SCRAPED_DIR."""
@@ -1190,8 +602,14 @@ class DependencyManager:
     def get_builder(self, notebook_url: str):
         if not _DEP_AVAILABLE or not notebook_url: return None
         filename = get_safe_filename(notebook_url)
-        json_path = self.json_dir / filename
-        if not json_path.exists(): return None
+        candidates = [_persistent_dir() / filename]
+        json_path = None
+        for p in candidates:
+            if p.exists():
+                json_path = p
+                break
+        if not json_path:
+            return None
 
         mtime = json_path.stat().st_mtime
         if filename not in self._cache or self._cache[filename]['mtime'] != mtime:
@@ -1338,7 +756,16 @@ class LocalMemoryStore:
                 return out
 
 dep_manager = DependencyManager(SCRAPED_DIR)
-memory_store = LocalMemoryStore(CHAT_MEMORY_DB)
+try:
+    from .memory import memory_store
+except Exception:
+    memory_store = None
+
+if memory_store is None:
+    try:
+        memory_store = LocalMemoryStore(CHAT_MEMORY_DB)
+    except Exception as e:
+        log(f"Failed to initialize LocalMemoryStore: {e}")
 
 def main():
     global _LAST_NOTEBOOK_TAB_ID, _LAST_NOTEBOOK_URL
@@ -1350,6 +777,7 @@ def main():
             break
 
         m_type = msg.get("type")
+        log(f"Received message type: {m_type}")
         
         if m_type == "CHAT_REQUEST":
             url = _history_url_key(msg.get("url"))
@@ -1571,9 +999,14 @@ def main():
             
             code_cells = []
             all_cells = []  # All cells (code + markdown)
+            live_cells = []  # Immediate scraped snapshot for live JSON
             for i, cell in enumerate(raw_cells):
                 cell_type = cell.get("type", "code")
-                cell_index = i + 1
+                # Prefer the authoritative index sent by the extension (data-windowed-list-index)
+                try:
+                    cell_index = int(cell.get("index")) if cell.get("index") is not None else i + 1
+                except Exception:
+                    cell_index = i + 1
                 
                 if cell_type == "code":
                     execution_order = cell.get("execution_order")
@@ -1592,6 +1025,14 @@ def main():
                     }
                     code_cells.append(code_cell)
                     all_cells.append((cell_index, cell_type, code_cell))
+                    live_cells.append({
+                        "type": "code",
+                        "index": cell_index,
+                        "input": code_cell["input"],
+                        "output": code_cell["output"],
+                        "execution_order": execution_order,
+                        "execution_title": str(cell.get("execution_title") or "").strip(),
+                    })
                 elif cell_type == "markdown":
                     # Markdown cells: type, input, index, state
                     markdown_cell = {
@@ -1601,6 +1042,16 @@ def main():
                         "state": str(cell.get("state") or "open"),  # open or collapsed
                     }
                     all_cells.append((cell_index, cell_type, markdown_cell))
+                    live_cells.append(markdown_cell)
+
+            now_iso = datetime.now(timezone.utc).isoformat()
+            live_cells.sort(key=lambda cell: int(cell.get("index", 0)))
+            live_data = {
+                "tabUrl": tab_url,
+                "title": str(msg.get("title", "notebook")),
+                "lastUpdated": now_iso,
+                "cells": live_cells,
+            }
             
             import hashlib
             data_str = json.dumps(
@@ -1618,7 +1069,6 @@ def main():
             ).encode("utf-8")
             data_hash = hashlib.sha256(data_str).hexdigest()
 
-            now_iso = datetime.now(timezone.utc).isoformat()
             should_save = False
             save_cells = []
 
@@ -1626,6 +1076,11 @@ def main():
                 stored_hashes = _load_hashes()
                 if stored_hashes.get(tab_url) != data_hash:
                     should_save = True
+
+            # If persistent JSON file is missing from disk, always allow saving.
+            persistent_path = _persistent_dir() / get_safe_filename(tab_url)
+            if not persistent_path.exists():
+                should_save = True
 
             with _EXECUTION_STATE_LOCK:
                 execution_state = _load_execution_state()
@@ -1916,9 +1371,9 @@ def main():
                 }
 
                 # Always write a live snapshot (reflects immediate scraped state)
-                save_live_json(final_data, tab_url)
+                save_live_json(live_data, tab_url)
 
-                # Persist only when revision appears stable (seen_count >= 2) or the persistent
+                # Persist only when revision appears stable (seen_count >= 1) or the persistent
                 # file doesn't yet exist. This prevents transient reloads from overwriting
                 # the stable persistent metadata.
                 rev_state = revisions.get(data_hash, {})
@@ -1927,8 +1382,34 @@ def main():
                 should_write_persistent = False
                 if not persistent_path.exists():
                     should_write_persistent = True
-                elif seen_count >= 2:
+                elif seen_count >= 1:
                     should_write_persistent = True
+
+                # Also persist if execution_order or cell contents changed compared to existing persistent file
+                if not should_write_persistent and persistent_path.exists():
+                    try:
+                        with persistent_path.open('r', encoding='utf-8') as f:
+                            existing = json.load(f)
+                        existing_by_idx = {int(c.get('index', 0)): c for c in existing.get('cells', []) if isinstance(c, dict)}
+                        incoming_cells = final_data.get('cells', [])
+                        if incoming_cells and len(incoming_cells) > 0:
+                            if len(existing_by_idx) != len(incoming_cells):
+                                should_write_persistent = True
+                            else:
+                                for c in incoming_cells:
+                                    idx = int(c.get('index', 0))
+                                    prev = existing_by_idx.get(idx, {})
+                                    if (
+                                        prev.get('type') != c.get('type')
+                                        or prev.get('input') != c.get('input')
+                                        or prev.get('output') != c.get('output')
+                                        or str(prev.get('execution_order')) != str(c.get('execution_order'))
+                                    ):
+                                        should_write_persistent = True
+                                        break
+                    except Exception:
+                        # On any error, fall back to existing gating logic
+                        pass
 
                 if should_write_persistent:
                     save_persistent_json(final_data, tab_url)

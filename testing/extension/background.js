@@ -892,7 +892,7 @@ chrome.runtime.onStartup.addListener(() => {
   sendTabs();
 });
 
-setInterval(sendTabs, 10000);
+setInterval(sendTabs, 5000);
 
 chrome.tabs.onUpdated.addListener((id, info) => {
   console.log(`[Tab ${id}] Updated: ${info.status}`);

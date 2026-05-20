@@ -110,7 +110,7 @@
       return { ok: false, error: 'Active target is iframe/frame, skipping frame.', key: normalizedKey };
     }
 
-    // Map single character keys to their keyCode values
+    // Map single character keys and named keys to their keyCode values
     const keyCodeMap = {
       'a': 65, 'b': 66, 'c': 67, 'd': 68, 'e': 69, 'f': 70, 'g': 71, 'h': 72, 'i': 73, 'j': 74,
       'k': 75, 'l': 76, 'm': 77, 'n': 78, 'o': 79, 'p': 80, 'q': 81, 'r': 82, 's': 83, 't': 84,
@@ -119,7 +119,8 @@
       'Enter': 13, 'Escape': 27, ' ': 32,
     };
 
-    const keyCode = keyCodeMap[normalizedKey.toLowerCase()] || normalizedKey.charCodeAt(0);
+    // Support lookup by either exact name (e.g. 'Enter') or lowercase single-char (e.g. 'm')
+    const keyCode = keyCodeMap[normalizedKey] || keyCodeMap[normalizedKey.toLowerCase()] || normalizedKey.charCodeAt(0);
 
     const eventInit = {
       key: normalizedKey,

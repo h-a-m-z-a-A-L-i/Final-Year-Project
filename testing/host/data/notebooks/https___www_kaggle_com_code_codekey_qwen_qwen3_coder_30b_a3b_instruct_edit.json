@@ -1,47 +1,6 @@
 {
   "tabUrl": "https://www.kaggle.com/code/codekey/qwen-qwen3-coder-30b-a3b-instruct/edit",
-  "title": "__notebook_source__",
-  "lastUpdated": "2026-05-07T20:55:40.423281+00:00",
-  "cells": [
-    {
-      "index": 1,
-      "input": "",
-      "output": "",
-      "execution_order": 2,
-      "execution_title": "Cell executed at 10:14am",
-      "execution_timestamp": null
-    },
-    {
-      "index": 2,
-      "input": "",
-      "output": "",
-      "execution_order": null,
-      "execution_title": "Cell is not executed yet",
-      "execution_timestamp": null
-    },
-    {
-      "index": 3,
-      "input": "",
-      "output": "",
-      "execution_order": null,
-      "execution_title": "Cell is not executed yet",
-      "execution_timestamp": null
-    },
-    {
-      "index": 4,
-      "input": "",
-      "output": "",
-      "execution_order": null,
-      "execution_title": "Cell is not executed yet",
-      "execution_timestamp": null
-    },
-    {
-      "index": 5,
-      "input": "",
-      "output": "",
-      "execution_order": null,
-      "execution_title": "Cell is not executed yet",
-      "execution_timestamp": null
-    }
-  ]
+  "title": "",
+  "lastUpdated": "2026-05-20T09:13:25.257778+00:00",
+  "cells": []
 }
