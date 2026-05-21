@@ -1,0 +1,6 @@
+click_cell: Click a notebook cell by index. Args: {"cell_index": integer, "tab_id": integer (optional), "url": string (optional)}
+insert_cell: Insert a cell above or below a target cell. Args: {"index": integer, "direction": "above"|"below", "tab_id": integer (optional), "url": string (optional)}
+edit_cell_by_index: Edit a notebook cell by index. Args: {"cell_index": integer, "content": string}
+delete_by_index: Delete a notebook cell by index. Args: {"cell_index": integer}
+select_cell_by_index: Select a notebook cell by index. Args: {"cell_index": integer}
+notebook_graph_query: Return a small graph summary from the persistent notebook snapshot. Args: {"url": string}

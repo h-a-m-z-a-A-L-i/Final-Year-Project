@@ -1,0 +1,6 @@
+click_cell example args: {"cell_index": 1}
+insert_cell example args: {"index": 1}
+edit_cell_by_index example args: {"cell_index": 1}
+delete_by_index example args: {"cell_index": 1}
+select_cell_by_index example args: {"cell_index": 1}
+notebook_graph_query example args: {"url": "example"}

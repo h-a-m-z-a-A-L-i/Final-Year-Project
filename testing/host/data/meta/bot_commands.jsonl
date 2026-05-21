@@ -487,3 +487,7 @@
 {"action": "click", "requestId": "e8b75fab-89bd-4547-9678-35ba365cb6a9", "cellIndex": 3, "scrollIntoView": true, "runCell": false}
 {"action": "send_key", "requestId": "de6c40e8-2beb-4597-9bfa-83889cd73e57", "key": "Enter", "tabId": 2015875780}
 {"action": "click_selector", "requestId": "5bf5084d-21c5-4efe-b3bf-8e579e4e1341", "selector": "[data-windowed-list-index=\"3\"] .jp-InputArea-editor", "tabId": 2015875780}
+{"action": "click", "requestId": "fe78c286-9114-4418-9314-9e6c575551f9", "cellIndex": 1, "scrollIntoView": true, "runCell": false}
+{"action": "click", "requestId": "4825a75e-6cc3-4aaf-8ba9-ef0d811a9aa9", "cellIndex": 1, "scrollIntoView": true, "runCell": false}
+{"action": "click", "requestId": "f6456bb4-0004-4c1d-a190-f521f62e2671", "cellIndex": 1, "scrollIntoView": true, "runCell": false}
+{"action": "click", "requestId": "1fc7033c-c216-4f68-94c3-7c0789193367", "cellIndex": 1, "scrollIntoView": true, "runCell": false}

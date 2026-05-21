@@ -1,0 +1,11 @@
+Example: call notebook_graph_query to inspect notebook
+
+User: "Show me which cells affect cell 5 and give me a small summary of the notebook."
+Assistant (function_call):
+  {
+    "name": "notebook_graph_query",
+    "arguments": {"url": "https://www.kaggle.com/.../notebook"}
+  }
+
+Assistant (after tool result):
+  "I inspected the notebook and found X code cells. Cell 5 depends on cells 2 and 3. Here is a brief summary: ..."

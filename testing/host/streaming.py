@@ -1,9 +1,50 @@
 import time
 import uuid
+import json
 from datetime import datetime, timezone, timedelta
 from .config import *
 from .memory import memory_store
 from .dispatcher import send_msg
+from .tool_registry import registry as tool_registry
+
+# Require runtime locks/structures to be provided by config; import explicitly
+try:
+    from .config import (
+        _ACTIVE_STREAMS,
+        _ACTIVE_STREAMS_LOCK,
+        _RATE_LOCK,
+        _HASHES_LOCK,
+        _EXECUTION_STATE_LOCK,
+        _SEND_LOCK,
+        _BOT_STATE_LOCK,
+        CEREBRAS_API_KEY,
+        _CEREBRAS_CLIENT,
+    )
+except Exception:
+    try:
+        # fallback to testing.host.config absolute import
+        from testing.host.config import (
+            _ACTIVE_STREAMS,
+            _ACTIVE_STREAMS_LOCK,
+            _RATE_LOCK,
+            _HASHES_LOCK,
+            _EXECUTION_STATE_LOCK,
+            _SEND_LOCK,
+            _BOT_STATE_LOCK,
+            CEREBRAS_API_KEY,
+            _CEREBRAS_CLIENT,
+        )
+    except Exception as e:
+        raise RuntimeError("streaming requires proper initialization of config locks and client: " + str(e))
+
+# Ensure _atomic_write_json is available from persistence_helpers
+try:
+    from .persistence_helpers import _atomic_write_json
+except Exception:
+    try:
+        from persistence_helpers import _atomic_write_json
+    except Exception as e:
+        raise RuntimeError("streaming requires persistence_helpers._atomic_write_json: " + str(e))
 
 
 def _load_rate_tracker() -> dict:
@@ -269,6 +310,7 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode)
     active_key = str(tab_id)
     attempt_id = ""
     state = None
+    response = None
 
     def _is_stopped() -> bool:
         with _ACTIVE_STREAMS_LOCK:
@@ -286,11 +328,36 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode)
         log(f"AI Stream Request for {url} (session={session_id}, model={CEREBRAS_MODEL})")
 
         messages = []
+        # Build system prompt including autogen tool descriptions when available
+        system_parts = [f"Mode: {mode}", ""]
         if context:
-            messages.append({
-                "role": "system",
-                "content": f"Mode: {mode}\n\nContext:\n{context}",
-            })
+            system_parts.append("Context:")
+            system_parts.append(str(context))
+            system_parts.append("")
+        try:
+            from pathlib import Path
+            pdir = Path(__file__).resolve().parent / "prompts" / "tool_calling"
+            prompt_file = pdir / "tool_descriptions_autogen.txt"
+            examples_file = pdir / "tool_examples_autogen.txt"
+            if prompt_file.exists():
+                try:
+                    autogen = prompt_file.read_text(encoding="utf-8")
+                    system_parts.append("Tools:\n" + autogen)
+                except Exception:
+                    pass
+            if examples_file.exists():
+                try:
+                    examples = examples_file.read_text(encoding="utf-8")
+                    system_parts.append("\nTool examples:\n" + examples)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        messages.append({
+            "role": "system",
+            "content": "\n".join(system_parts),
+        })
         for h in history or []:
             role = str(h.get("role", "")).strip().lower()
             content = str(h.get("content", ""))
@@ -410,6 +477,99 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode)
 
         if final_text and not was_stopped:
             memory_store.append(url, "assistant", final_text, session_id=session_id)
+
+        # Simple tool-call orchestration:
+        try:
+            # Use the previously-obtained non-stream response if available, otherwise ask the model
+            if response is not None:
+                structured = response
+            else:
+                try:
+                    structured = _CEREBRAS_CLIENT.chat.completions.create(
+                        messages=messages,
+                        model=CEREBRAS_MODEL,
+                        temperature=TEMPERATURE,
+                        top_p=TOP_P,
+                    )
+                except Exception as e:
+                    log(f"Structured model call failed: {e}")
+                    structured = None
+
+            if structured is None:
+                pass
+            else:
+                dumped = None
+                if hasattr(structured, "model_dump"):
+                    try:
+                        dumped = structured.model_dump()
+                    except Exception as e:
+                        log(f"Failed to dump structured response: {e}")
+                        dumped = None
+                if not dumped and isinstance(structured, dict):
+                    dumped = structured
+
+                if dumped:
+                    from .tool_registry import registry as _registry_factory
+                    try:
+                        choices = dumped.get("choices") or []
+                    except Exception:
+                        choices = []
+
+                    if choices:
+                        msg = choices[0].get("message") or {}
+                        func_call = msg.get("function_call") or msg.get("tool_call") or msg.get("call")
+                        if func_call and isinstance(func_call, dict):
+                            fname = func_call.get("name") or func_call.get("tool")
+                            fargs_text = func_call.get("arguments") or func_call.get("args") or func_call.get("content")
+                            parsed_args = None
+                            if isinstance(fargs_text, dict):
+                                parsed_args = fargs_text
+                            elif isinstance(fargs_text, str):
+                                try:
+                                    parsed_args = json.loads(fargs_text)
+                                except Exception as e:
+                                    log(f"Failed to parse tool arguments JSON: {e}")
+                                    parsed_args = None
+
+                            if fname and parsed_args is not None:
+                                try:
+                                    reg = _registry_factory()
+                                    tool_entry = reg.get(fname)
+                                    if tool_entry:
+                                        result = reg.call(fname, parsed_args)
+                                        # If registry returned a validation/error structure, surface it to the assistant
+                                        if isinstance(result, dict) and result.get("ok") is False and result.get("error"):
+                                            err_msg = f"Tool '{fname}' failed: {result.get('error')}"
+                                            log(err_msg)
+                                            # Append an assistant-friendly note and include in final_text
+                                            try:
+                                                memory_store.append(url, "assistant", err_msg, session_id=session_id)
+                                            except Exception:
+                                                pass
+                                            final_text = (final_text + "\n\n" + err_msg).strip()
+                                            # Do not re-query the model; we'll return the current final_text including error
+                                        else:
+                                            try:
+                                                content = json.dumps(result, ensure_ascii=False)
+                                            except Exception:
+                                                content = str(result)
+                                            messages.append({"role": "tool", "name": fname, "content": content})
+
+                                            # Ask model again for final assistant response; don't crash if it fails
+                                            try:
+                                                final_resp = _CEREBRAS_CLIENT.chat.completions.create(
+                                                    messages=messages,
+                                                    model=CEREBRAS_MODEL,
+                                                    temperature=TEMPERATURE,
+                                                    top_p=TOP_P,
+                                                )
+                                                final_text = _final_text_from_response(final_resp).strip() or final_text
+                                            except Exception as e:
+                                                log(f"Final model call after tool failed: {e}")
+                                except Exception as e:
+                                    log(f"Tool execution failed: {e}")
+        except Exception as e:
+            log(f"Orchestration error: {e}")
 
         send_msg({
             "type": "CHAT_STREAM_END",

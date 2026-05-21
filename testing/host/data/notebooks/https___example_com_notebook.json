@@ -1,0 +1,20 @@
+{
+  "cells": [
+    {
+      "index": 1,
+      "input": "print(1)"
+    },
+    {
+      "index": 2,
+      "input": "print(2)"
+    },
+    {
+      "type": "code",
+      "index": 3,
+      "input": "",
+      "output": "",
+      "execution_order": null,
+      "execution_title": ""
+    }
+  ]
+}
