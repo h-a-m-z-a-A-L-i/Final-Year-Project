@@ -90,7 +90,38 @@ function setBadgeForScenario(tabId, scenario) {
 
 function scrapeNotebook() {
   const cells = [];
-  const cellElements = document.querySelectorAll(".cell, .jp-Cell, .code_cell, .text_cell, .markdown_cell");
+  const seen = new Set();
+  const cellElements = [];
+
+  const collectFromRoot = (root) => {
+    if (!root || typeof root.querySelectorAll !== "function") return;
+    const selectors = ".cell, .jp-Cell, .code_cell, .text_cell, .markdown_cell, [data-windowed-list-index]";
+    for (const el of root.querySelectorAll(selectors)) {
+      if (!seen.has(el)) {
+        seen.add(el);
+        cellElements.push(el);
+      }
+    }
+
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      if (node && node.shadowRoot) {
+        collectFromRoot(node.shadowRoot);
+      }
+      if (node && node.tagName === "IFRAME") {
+        try {
+          if (node.contentDocument) {
+            collectFromRoot(node.contentDocument);
+          }
+        } catch {
+          // ignore cross-origin or detached frames
+        }
+      }
+    }
+  };
+
+  collectFromRoot(document);
   const extractExecutionMeta = (cell) => {
     const buttonHost = cell.querySelector(
       ".cell-execution-button, [title*='Cell executed'], [title*='Cell started execution'], [title*='Cell execution queued'], [aria-label*='Cell executed'], [aria-label*='Cell started execution'], [aria-label*='Cell execution queued']"
@@ -489,6 +520,39 @@ function isTargetUrl(rawUrl) {
   }
 }
 
+function normalizeNotebookUrl(rawUrl) {
+  try {
+    const parsed = new URL(String(rawUrl || ""));
+    const path = (parsed.pathname || "/").replace(/\/+$/, "") || "/";
+    return `${parsed.protocol}//${parsed.host}${path}`.toLowerCase();
+  } catch {
+    return String(rawUrl || "").split("#", 1)[0].split("?", 1)[0].replace(/\/+$/, "").toLowerCase();
+  }
+}
+
+function resolveTabIdForUrl(rawUrl, sender, callback) {
+  if (typeof sender?.tab?.id === "number") {
+    callback(sender.tab.id);
+    return;
+  }
+
+  const normalized = normalizeNotebookUrl(rawUrl);
+  if (!normalized) {
+    callback(null);
+    return;
+  }
+
+  chrome.tabs.query({}, (tabs) => {
+    if (chrome.runtime.lastError) {
+      callback(null);
+      return;
+    }
+
+    const match = (tabs || []).find((tab) => normalizeNotebookUrl(tab.url) === normalized);
+    callback(typeof match?.id === "number" ? match.id : null);
+  });
+}
+
 function getPort() {
 
   if (port) return port;
@@ -709,9 +773,20 @@ function getPort() {
       return;
     }
 
-    // Ignore untargeted host messages for UI-bound payloads.
+    // Forward untargeted host messages by resolving the tab from the URL.
     if (["CHAT_RESPONSE", "HISTORY_DATA", "HISTORY_CLEARED", "GRAPH_DATA"].includes(msg?.type)) {
-      console.warn("Dropped untargeted host message:", msg?.type);
+      const notebookUrl = msg?.url || msg?.tabUrl || null;
+      if (!notebookUrl) {
+        console.warn("No URL present on untargeted host message:", msg?.type);
+        return;
+      }
+      resolveTabIdForUrl(notebookUrl, null, (resolvedTabId) => {
+        if (typeof resolvedTabId === 'number') {
+          chrome.tabs.sendMessage(resolvedTabId, msg);
+        } else {
+          console.warn("Could not resolve tab for host message:", msg?.type, notebookUrl);
+        }
+      });
       return;
     }
   });
@@ -764,6 +839,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   const p = getPort();
   if (p) {
+    if (msg?.type === "GET_GRAPH" && typeof msg?.tabId !== "number") {
+      resolveTabIdForUrl(msg?.url, sender, (tabId) => {
+        if (typeof tabId === "number") {
+          p.postMessage({ ...msg, tabId });
+        }
+      });
+      return true;
+    }
+
     // Tag the message with the sender's tabId so we know where to send the AI's reply
     msg.tabId = sender.tab?.id;
     p.postMessage(msg);
@@ -813,13 +897,25 @@ function sendTabs() {
                 return;
               }
               const allCells = [];
+              const seenCells = new Set();
               let notebookTitle = "";
               for (const r of (scrapeResults || [])) {
                 if (r?.result?.cellCount > 0) {
-                  allCells.push(...r.result.cells);
+                  for (const cell of r.result.cells) {
+                    const key = [
+                      String(cell?.index ?? ""),
+                      String(cell?.type ?? ""),
+                      String(cell?.input ?? ""),
+                      String(cell?.output ?? ""),
+                    ].join("||");
+                    if (seenCells.has(key)) continue;
+                    seenCells.add(key);
+                    allCells.push(cell);
+                  }
                   if (r.result.title) notebookTitle = r.result.title;
                 }
               }
+              console.log(`[sendTabs] Tab ${tab.id} - scraped ${allCells.length} unique cells from ${Array.isArray(scrapeResults) ? scrapeResults.length : 0} frame results`);
               chrome.scripting.executeScript({
                 target: { tabId: tab.id, allFrames: true },
                 func: probeExecutionMetaFetch

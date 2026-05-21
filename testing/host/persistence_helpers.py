@@ -15,6 +15,19 @@ except Exception:
         from testing.host.config import SCRAPED_DIR, HASHES_PATH, EXECUTION_STATE_PATH, LOG_PATH
 
 
+def read_json_file(file_path: Path) -> dict | None:
+    if persistence:
+        return persistence.read_json_file(file_path)
+    file_path = Path(file_path)
+    if not file_path.is_file():
+        return None
+    try:
+        with file_path.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
 def _atomic_write_json(file_path: Path, data):
     if persistence:
         return persistence.atomic_write_json(file_path, data)
@@ -67,13 +80,10 @@ def get_safe_filename(url: str) -> str:
 
 
 def _load_hashes() -> dict:
-    if not HASHES_PATH.is_file():
-        return {}
-    try:
-        raw = HASHES_PATH.read_text(encoding="utf-8")
-        data = json.loads(raw)
-        return data if isinstance(data, dict) else {}
-    except Exception as e:
+    data = read_json_file(HASHES_PATH)
+    if data is not None and isinstance(data, dict):
+        return data
+    if HASHES_PATH.is_file():
         try:
             corrupt = HASHES_PATH.with_suffix(HASHES_PATH.suffix + f".corrupt.{int(datetime.now(timezone.utc).timestamp())}")
             HASHES_PATH.replace(corrupt)
@@ -84,7 +94,7 @@ def _load_hashes() -> dict:
                 f.write(f"Invalid hashes file moved to: {corrupt.name}\n")
         except Exception:
             pass
-        return {}
+    return {}
 
 
 def _save_hashes(hashes: dict):
@@ -92,13 +102,10 @@ def _save_hashes(hashes: dict):
 
 
 def _load_execution_state() -> dict:
-    if not EXECUTION_STATE_PATH.is_file():
-        return {}
-    try:
-        data = json.loads(EXECUTION_STATE_PATH.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
-    except Exception:
-        return {}
+    data = read_json_file(EXECUTION_STATE_PATH)
+    if isinstance(data, dict):
+        return data
+    return {}
 
 
 def _save_execution_state(state: dict):

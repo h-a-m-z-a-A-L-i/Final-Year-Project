@@ -62,10 +62,8 @@ def update_cell_execution(cell_index: int, tab_url: str, exec_timestamp_ms: Opti
     log_msg(f"START cell={cell_index} url={tab_url} file={filename} ts={exec_timestamp_ms} exists={json_path.exists()}")
 
     try:
-        if json_path.exists():
-            with json_path.open("r", encoding="utf-8") as f:
-                data = json.load(f)
-        else:
+        data = persistence.read_json_file(json_path)
+        if data is None:
             data = {
                 "tabUrl": tab_url,
                 "title": "notebook",

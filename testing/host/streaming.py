@@ -257,6 +257,13 @@ def _stop_active_stream(state: dict | None):
     _close_stream_handle(state.get("stream"))
 
 
+def _signal_remote_stop(session_id: str):
+    with _ACTIVE_STREAMS_LOCK:
+        for k, state in list(_ACTIVE_STREAMS.items()):
+            if state.get("sessionId") == session_id:
+                _stop_active_stream(state)
+
+
 def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode):
     full_text = ""
     active_key = str(tab_id)

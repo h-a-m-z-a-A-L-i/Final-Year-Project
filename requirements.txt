@@ -1,3 +1,2 @@
 playwright>=1.52.0
-requests>=2.31.0
 cerebras-cloud-sdk>=1.27.0

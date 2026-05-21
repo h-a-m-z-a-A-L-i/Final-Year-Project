@@ -1,16 +1,10 @@
-import re
+try:
+    from .prompt_utils import _extract_cell_number
+except Exception:
+    from prompt_utils import _extract_cell_number
 
 
-def extract_cell_number(prompt: str):
-    text = str(prompt or "")
-    m = re.search(r"(?:\(|\[)?\s*cell\s*#?\s*(\d+)\s*(?:\)|\])?", text, re.IGNORECASE)
-    if not m:
-        return None
-    try:
-        n = int(m.group(1))
-        return n if n > 0 else None
-    except Exception:
-        return None
+extract_cell_number = _extract_cell_number
 
 
 def run_tests():
