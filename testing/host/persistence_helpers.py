@@ -15,6 +15,18 @@ except Exception:
         from testing.host.config import SCRAPED_DIR, HASHES_PATH, EXECUTION_STATE_PATH, LOG_PATH
 
 
+def _current_scraped_dir() -> Path:
+    try:
+        from . import config as _config
+        return _config.SCRAPED_DIR
+    except Exception:
+        try:
+            from config import SCRAPED_DIR as _scraped_dir
+            return _scraped_dir
+        except Exception:
+            return SCRAPED_DIR
+
+
 def read_json_file(file_path: Path) -> dict | None:
     if persistence:
         return persistence.read_json_file(file_path)
@@ -39,21 +51,22 @@ def _atomic_write_json(file_path: Path, data):
 
 
 def save_json(data, tab_url):
-    SCRAPED_DIR.mkdir(parents=True, exist_ok=True)
+    scraped_dir = _current_scraped_dir()
+    scraped_dir.mkdir(parents=True, exist_ok=True)
     filename = get_safe_filename(tab_url)
-    filepath = SCRAPED_DIR / filename
+    filepath = scraped_dir / filename
     _atomic_write_json(filepath, data)
     return filepath
 
 
 def _live_dir() -> Path:
-    d = SCRAPED_DIR / "live"
+    d = _current_scraped_dir() / "live"
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
 def _persistent_dir() -> Path:
-    d = SCRAPED_DIR / "persistent"
+    d = _current_scraped_dir() / "persistent"
     d.mkdir(parents=True, exist_ok=True)
     return d
 

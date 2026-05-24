@@ -28,7 +28,7 @@
           scrollIntoView: msg.scrollIntoView,
           runCell: false,
         });
-        sendResponse({ ok: true, result });
+        sendResponse({ ok: Boolean(result?.ok), result });
         return;
       }
 
@@ -64,7 +64,7 @@
           scrollIntoView: msg.scrollIntoView,
           runCell: msg.runCell !== false,
         });
-        sendResponse({ ok: true, result });
+        sendResponse({ ok: Boolean(result?.ok), result });
         return;
       }
 
@@ -178,7 +178,7 @@
 
       if (msg.type === 'CLICK_SELECTOR') {
         const result = clickSelector(msg.selector);
-        sendResponse({ ok: true, result });
+        sendResponse({ ok: Boolean(result?.ok), result });
         return;
       }
 
@@ -271,8 +271,50 @@
 
     const cell = findCell(document);
     if (!cell) {
-      console.error('[clickCellByIndex] Cell not found in this frame tree:', targetIndex);
-      return { ok: false, error: 'Cell not found in this frame tree.' };
+      // Try adjacent indices as a fallback (some pages enumerate starting at 1)
+      const altCandidates = [targetIndex + 1, targetIndex - 1];
+      let found = null;
+      for (const cand of altCandidates) {
+        if (!Number.isInteger(cand) || cand < 0) continue;
+        try {
+          const alt = (function tryFind(idx) {
+            const direct = document.querySelector('[data-windowed-list-index="' + idx + '"]');
+            if (direct) return direct;
+            const frames = document.querySelectorAll('iframe');
+            for (const frame of frames) {
+              try {
+                if (frame.contentDocument) {
+                  const nested = (function findIn(doc) {
+                    const direct = doc.querySelector('[data-windowed-list-index="' + idx + '"]');
+                    if (direct) return direct;
+                    for (const f of doc.querySelectorAll('iframe')) {
+                      try {
+                        if (f.contentDocument) {
+                          const nested2 = findIn(f.contentDocument);
+                          if (nested2) return nested2;
+                        }
+                      } catch (e) {}
+                    }
+                    return null;
+                  })(frame.contentDocument);
+                  if (nested) return nested;
+                }
+              } catch (error) {}
+            }
+            return null;
+          })(cand);
+          if (alt) { found = { el: alt, index: cand }; break; }
+        } catch (e) {}
+      }
+      if (!found) {
+        console.error('[clickCellByIndex] Cell not found in this frame tree:', targetIndex);
+        return { ok: false, error: 'Cell not found in this frame tree.' };
+      }
+      // Use the found alternative cell
+      console.warn('[clickCellByIndex] Using alternative cell index', found.index, 'for requested', targetIndex);
+      // overwrite cell and targetIndex for subsequent actions
+      targetIndex = found.index;
+      cell = found.el;
     }
 
 
@@ -319,7 +361,28 @@
         }
 
         if (options.runCell !== false) {
-          // Immediately simulate Shift+Enter to run the cell, bypassing cross-origin iframe limits
+          // First attempt: click any run button inside the cell (more reliable)
+          try {
+            const runSelectors = ['button[aria-label*="Run"]', '.cell-execute-button', 'button[title*="Run"]', 'button[data-test-id="run-cell"]'];
+            for (const rs of runSelectors) {
+              const btn = target.querySelector(rs) || target.querySelectorAll(rs)?.[0];
+              if (btn) {
+                try {
+                  if (typeof btn.scrollIntoView === 'function') btn.scrollIntoView({ block: 'nearest' });
+                  if (typeof btn.focus === 'function') btn.focus({ preventScroll: true });
+                  btn.click();
+                  console.log('[clickCellByIndex] Clicked run button inside cell using selector:', rs);
+                  return { ok: true, cellIndex: targetIndex, clicked: target.className || target.tagName, strategy: 'run-button-click', selector: rs };
+                } catch (e) {
+                  console.warn('[clickCellByIndex] run-button click failed for selector', rs, e?.message || e);
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('[clickCellByIndex] Error while attempting run-button click:', e?.message || e);
+          }
+
+          // Fallback to keyboard sequence if no run button was found
           const kbInit = {
             key: 'Enter',
             code: 'Enter',

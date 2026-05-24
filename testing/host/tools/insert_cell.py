@@ -8,7 +8,6 @@ import json
 import time
 import uuid
 from pathlib import Path
-import sys
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -92,7 +91,7 @@ def main():
     parser = argparse.ArgumentParser(description="Insert a cell above or below a target cell")
     parser.add_argument("index", type=int, help="Cell index to insert next to (0-based)")
     parser.add_argument("--tab-id", type=int, default=None, help="Optional tab id")
-    parser.add_argument("--url", default="", help="Optional notebook URL (for metadata polling)")
+    parser.add_argument("--url", default="https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit", help="Optional notebook URL (for metadata polling)")
     parser.add_argument("--timeout", type=float, default=8.0, help="Timeout in seconds")
     args = parser.parse_args()
 

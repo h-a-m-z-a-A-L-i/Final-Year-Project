@@ -1,18 +1,18 @@
 {
   "tabUrl": "https://www.kaggle.com/code/codekey/housing-final-updated-4/edit",
   "title": "__notebook_source__",
-  "lastUpdated": "2026-05-21T12:15:42.006518+00:00",
+  "lastUpdated": "2026-05-21T13:36:25.409176+00:00",
   "cells": [
     {
       "type": "markdown",
       "index": 0,
       "input": "Housing - Local Preprocessing Notebook\n\nThis notebook prepares the scraped dataset locally and exports clean artifacts for later Kaggle training/tuning. Changes include:\n\nDrop purpose after filtering for 'For Sale'\nPersistable robust outlier bounds and clipping\nFold-safe (train-only) target encoding\nRemove target-derived features like price_per_sqft\nConvert bed/bath derived ratio to bath_by_bed safely\nAdd RobustScaler for numeric features\nSave preprocessed splits and preprocessing artifacts locally\nPipeline versioning and artifact saving, lookup handling, and seeds/logging\n\nAdjust column names where necessary to match your dataset (there are guards in the code).",
-      "state": "collapsed"
+      "state": "open"
     },
     {
       "type": "code",
       "index": 1,
-      "input": "# Imports, seeds, logging, and device detection\nimport os, random, datetime, logging, joblib\nimport numpy as np, pandas as pd\nimport matplotlib.pyplot as plt\nimport seaborn as sns\n\n\n# sklearn imports\nfrom sklearn.model_selection import train_test_split, RandomizedSearchCV, cross_val_predict\nfrom sklearn.preprocessing import OneHotEncoder, RobustScaler\nfrom sklearn.compose import ColumnTransformer\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.linear_model import Ridge, ElasticNet, HuberRegressor, SGDRegressor\nfrom sklearn.ensemble import RandomForestRegressor\nfrom sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score\nfrom sklearn.kernel_approximation import RBFSampler\nfrom sklearn.svm import LinearSVR\nimport scipy.optimize as opt\n\n\n# Optional model libs (used if available)\ntry:\n    import lightgbm as lgb\nexcept Exception:\n    lgb = None\ntry:\n    from catboost import CatBoostRegressor\nexcept Exception:\n    CatBoostRegressor = None\n\n\n# Seeds\nSEED = 42\nrandom.seed(SEED)\nnp.random.seed(SEED)\n\n\n# Logging\nlogging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')\nlogger = logging.getLogger('housing-upgraded')",
+      "input": "# Imports, seeds, logging, and device detection\nimport os, random, datetime, logging, joblib\nimport numpy as np, pandas as pd\nimport matplotlib.pyplot as plt\nimport seaborn as sns\n\n\n# sklearn imports\nfrom sklearn.model_selection import train_test_split, RandomizedSearchCV, cross_val_predict\nfrom sklearn.preprocessing import OneHotEncoder, RobustScaler\nfrom sklearn.compose import ColumnTransformer\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.linear_model import Ridge, ElasticNet, HuberRegressor, SGDRegressor\nfrom sklearn.ensemble import RandomForestRegressor\nfrom sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score\nfrom sklearn.kernel_approximation import RBFSampler\nfrom sklearn.svm import LinearSVR\nimport scipy.optimize as opt\n\n\n# Optional model libs (used if available)\ntry:\n    import lightgbm as lgb\nexcept Exception:\n    lgb = None\ntry:\n    from catboost import CatBoostRegressor\nexcept Exception:\n    CatBoostRegressor = None\n\n\n# Seeds\nSEED = 42\nrandom.seed(SEED)\nnp.random.seed(SEED)\n\n\n# Logging\nlogging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')\nlogger = logging.getLogger('housing-upgraded')\n\n\n# GPU detection heuristic: prefer torch.cuda if available, else fall back to env var\ntry:\n    import torch\n    USE_GPU = torch.cuda.is_available() or bool(os.environ.get('CUDA_VISIBLE_DEVICES'))\nexcept Exception:\n    USE_GPU = bool(os.environ.get('CUDA_VISIBLE_DEVICES'))\nlogger.info(f'USE_GPU={USE_GPU}')",
       "output": "2026-05-17 13:41:21,905 INFO USE_GPU=True",
       "execution_order": 14,
       "execution_title": "Execution #14"

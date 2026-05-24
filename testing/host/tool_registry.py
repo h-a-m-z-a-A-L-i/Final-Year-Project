@@ -1,8 +1,8 @@
 import json
 import uuid
-import importlib.util
 from pathlib import Path
 from typing import Callable, Dict, Any
+
 try:
     from jsonschema import validate as _js_validate, ValidationError as _ValidationError
 except Exception:
@@ -27,19 +27,17 @@ class ToolRegistry:
     def get(self, name: str):
         return self._tools.get(name)
 
-    def call(self, name: str, args: dict, timeout: float = 8.0) -> dict:
+    def call(self, name: str, args: dict, timeout: float = 12.0) -> dict:
         entry = self.get(name)
         if not entry:
             raise KeyError(f"Tool not found: {name}")
         func = entry.get("func")
         if not callable(func):
             raise TypeError("Registered tool is not callable")
-        # Basic validation: ensure args is a dict
         if args is None:
             args = {}
         if not isinstance(args, dict):
             raise TypeError("Tool args must be an object/dict")
-        # If jsonschema is available, validate against provided schema
         schema = entry.get("schema")
         if _js_validate and isinstance(schema, dict):
             try:
@@ -56,245 +54,199 @@ def registry() -> ToolRegistry:
     return _REGISTRY
 
 
-def _load_tool_module(name: str):
-    path = TOOLS_DIR / f"{name}.py"
-    if not path.exists():
-        raise FileNotFoundError(f"Tool module not found: {path}")
-    spec = importlib.util.spec_from_file_location(f"testing.host.tools.{name}", str(path))
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+def _pick(*names, src: dict):
+    for n in names:
+        if n in src and src.get(n) is not None:
+            return src.get(n)
+    return None
 
 
-def _make_simple_jsonl_wrapper(tool_name: str):
-    """Create a wrapper callable that queues the command via the tool module
-    and waits for a result using that module's helpers. This preserves existing
-    JSONL-based integration used by the browser extension.
-    """
-
-    mod = _load_tool_module(tool_name)
-
-    def _wrapper(args: dict) -> dict:
-        # Each tool in tools/ exposes helpers: _make_request_id, _build_*_command, _queue_command, _wait_for_request_result
-        request_id = None
-        if hasattr(mod, "_make_request_id"):
-            request_id = mod._make_request_id()
-        else:
-            request_id = str(uuid.uuid4())
-
-        # Determine builder function name heuristically
-        builder = None
-        for attr in dir(mod):
-            if attr.startswith("_build_"):
-                builder = getattr(mod, attr)
-                break
-
-        if builder is None:
-            # Fallback: expect caller provided full command as 'cmd'
-            cmd = args.get("cmd")
-            if not isinstance(cmd, dict):
-                raise ValueError("Tool module has no builder and no 'cmd' provided")
-        else:
-            # Map common arg names
-            tab_id = args.get("tab_id") or args.get("tabId")
-            url = args.get("url") or args.get("url_path") or ""
-            # try common fields
-            if "cell" in builder.__name__ or "click" in builder.__name__:
-                cell_index = args.get("cell_index") or args.get("cellIndex") or args.get("index")
-                cmd = builder(request_id, tab_id, cell_index, url)
-            elif "insert" in builder.__name__:
-                direction = args.get("direction", "below")
-                cmd = builder(request_id, tab_id, direction, url)
-            else:
-                # best-effort attempt
-                try:
-                    cmd = builder(request_id, tab_id, args.get("value"), url)
-                except Exception:
-                    cmd = {"requestId": request_id}
-
-        # Queue command
-        if hasattr(mod, "_queue_command"):
-            mod._queue_command(cmd)
-        else:
-            raise RuntimeError("Tool module missing _queue_command helper")
-
-        # Wait for result
-        if hasattr(mod, "_wait_for_request_result"):
-            timeout = float(args.get("timeout", 8.0))
-            result = mod._wait_for_request_result(request_id, timeout)
-            return result or {"ok": False, "error": "timeout or no result"}
-        else:
-            return {"ok": True, "note": "queued"}
-
-    return _wrapper
-
-
-# Register a few common tools with a minimal schema and description
-def _register_default_tools():
-    candidates = [
-        ("click_cell", {"type": "object", "properties": {"cell_index": {"type": "integer"}}}, "Click a notebook cell by index"),
-        ("insert_cell", {"type": "object", "properties": {"index": {"type": "integer"}}}, "Insert a cell above/below a given index"),
-        ("edit_cell_by_index", {"type": "object", "properties": {"cell_index": {"type": "integer"}}}, "Edit a notebook cell by index"),
-        ("delete_by_index", {"type": "object", "properties": {"cell_index": {"type": "integer"}}}, "Delete a notebook cell by index"),
-        ("select_cell_by_index", {"type": "object", "properties": {"cell_index": {"type": "integer"}}}, "Select a notebook cell by index"),
-        ("creating_markdown_by_index", {"type": "object", "properties": {"index": {"type": "integer"}}}, "Insert a new cell above a given index and convert it to Markdown"),
-    ]
-    # In-process implementations will import persistence helpers and config at call-time
-    # so tests or runtime can patch `config.SCRAPED_DIR` without needing to reload modules.
-
-    def _select_inproc(args: dict) -> dict:
-        idx = args.get("cell_index") or args.get("cellIndex") or args.get("index")
-        url = args.get("url") or args.get("tabUrl") or args.get("tab_url") or ""
-        if idx is None:
-            return {"ok": False, "error": "cell_index is required"}
+def sync_persistence_for_action(action: str, cmd: dict, browser_result: dict) -> None:
+    """Update persistent notebook JSON after a successful browser operation."""
+    try:
+        from .persistence_helpers import read_json_file, save_persistent_json, get_safe_filename
+        from .config import SCRAPED_DIR
+    except Exception:
         try:
-            return {"ok": True, "phase": "cell_selected", "cellIndex": int(idx), "tabId": args.get("tab_id")}
+            from persistence_helpers import read_json_file, save_persistent_json, get_safe_filename
+            from testing.host.config import SCRAPED_DIR
         except Exception:
-            return {"ok": False, "error": "invalid cell_index"}
+            return
 
-    def _click_inproc(args: dict) -> dict:
-        return _select_inproc(args)
+    url = _pick("url", "tabUrl", "tab_url", src=cmd) or ""
+    if not url:
+        return
 
-    def _insert_inproc(args: dict) -> dict:
-        # Import persistence helpers and config at call-time so callers can patch config.SCRAPED_DIR
+    action = str(action or "").strip().lower()
+    filename = get_safe_filename(url)
+    ppath = SCRAPED_DIR / "persistent" / filename
+
+    if action == "insert_cell":
+        direction = cmd.get("direction", "below")
         try:
-            from .persistence_helpers import read_json_file, save_persistent_json, get_safe_filename
-            from .config import SCRAPED_DIR
-        except Exception:
-            try:
-                from persistence_helpers import read_json_file, save_persistent_json, get_safe_filename
-                from testing.host.config import SCRAPED_DIR
-            except Exception:
-                return {"ok": False, "error": "persistence helpers unavailable"}
-
-        url = args.get("url") or args.get("tabUrl") or args.get("tab_url") or ""
-        if not url:
-            return {"ok": False, "error": "url required"}
-        direction = args.get("direction", "below")
-        try:
-            idx = int(args.get("index") or args.get("cell_index") or args.get("cellIndex") or 0)
+            idx_raw = _pick("index", "cell_index", "cellIndex", src=cmd)
+            idx = int(idx_raw) if idx_raw is not None else 0
         except Exception:
             idx = 0
-        filename = get_safe_filename(url)
-        ppath = SCRAPED_DIR / "persistent" / filename
         data = read_json_file(ppath) or {"cells": []}
         cells = list(data.get("cells") or [])
-        # Convert to list insertion index (0-based)
         insert_pos = max(0, idx if direction == "above" else idx + 1)
         new_cell = {"type": "code", "index": 0, "input": "", "output": "", "execution_order": None, "execution_title": ""}
         if insert_pos >= len(cells):
             cells.append(new_cell)
-            inserted_idx = len(cells)
         else:
             cells.insert(insert_pos, new_cell)
-            inserted_idx = insert_pos + 1
-        # renumber indices (1-based)
         for i, c in enumerate(cells, start=1):
-            try:
-                c["index"] = int(i)
-            except Exception:
-                c["index"] = i
+            c["index"] = int(i)
         data["cells"] = cells
-        try:
-            save_persistent_json(data, url)
-        except Exception as e:
-            return {"ok": False, "error": f"failed to save notebook: {e}"}
-        return {"ok": True, "phase": "inserted", "direction": direction, "cellIndex": inserted_idx}
+        save_persistent_json(data, url)
+        return
 
-    def _edit_inproc(args: dict) -> dict:
+    if action in {"edit_cell_by_index", "edit_cell"}:
         try:
-            from .persistence_helpers import read_json_file, save_persistent_json, get_safe_filename
-            from .config import SCRAPED_DIR
+            idx = int(_pick("cell_index", "cellIndex", "index", src=cmd))
         except Exception:
-            try:
-                from persistence_helpers import read_json_file, save_persistent_json, get_safe_filename
-                from testing.host.config import SCRAPED_DIR
-            except Exception:
-                return {"ok": False, "error": "persistence helpers unavailable"}
-
-        url = args.get("url") or args.get("tabUrl") or args.get("tab_url") or ""
-        if not url:
-            return {"ok": False, "error": "url required"}
-        try:
-            idx = int(args.get("cell_index") or args.get("cellIndex") or args.get("index"))
-        except Exception:
-            return {"ok": False, "error": "invalid index"}
-        content = args.get("content") or args.get("input") or ""
-        filename = get_safe_filename(url)
-        ppath = SCRAPED_DIR / "persistent" / filename
+            return
+        content = cmd.get("content") or cmd.get("input") or ""
         data = read_json_file(ppath) or {"cells": []}
         cells = list(data.get("cells") or [])
         for c in cells:
-            try:
-                if int(c.get("index", 0)) == int(idx):
-                    c["input"] = content
-                    data["cells"] = cells
-                    save_persistent_json(data, url)
-                    return {"ok": True, "phase": "edited", "cellIndex": idx}
-            except Exception:
-                continue
-        return {"ok": False, "error": "cell not found"}
+            if int(c.get("index", 0)) == idx:
+                c["input"] = content
+                data["cells"] = cells
+                save_persistent_json(data, url)
+                return
+        return
 
-    def _delete_inproc(args: dict) -> dict:
+    if action == "delete_by_index":
         try:
-            from .persistence_helpers import read_json_file, save_persistent_json, get_safe_filename
-            from .config import SCRAPED_DIR
+            idx = int(_pick("cell_index", "cellIndex", "index", src=cmd))
         except Exception:
-            try:
-                from persistence_helpers import read_json_file, save_persistent_json, get_safe_filename
-                from testing.host.config import SCRAPED_DIR
-            except Exception:
-                return {"ok": False, "error": "persistence helpers unavailable"}
-
-        url = args.get("url") or args.get("tabUrl") or args.get("tab_url") or ""
-        if not url:
-            return {"ok": False, "error": "url required"}
-        try:
-            idx = int(args.get("cell_index") or args.get("cellIndex") or args.get("index"))
-        except Exception:
-            return {"ok": False, "error": "invalid index"}
-        filename = get_safe_filename(url)
-        ppath = SCRAPED_DIR / "persistent" / filename
+            return
         data = read_json_file(ppath) or {"cells": []}
-        cells = list(data.get("cells") or [])
-        new_cells = [c for c in cells if int(c.get("index", 0)) != int(idx)]
-        # renumber
-        for i, c in enumerate(new_cells, start=1):
-            try:
-                c["index"] = int(i)
-            except Exception:
-                c["index"] = i
-        data["cells"] = new_cells
-        try:
-            save_persistent_json(data, url)
-        except Exception as e:
-            return {"ok": False, "error": f"failed to save notebook: {e}"}
-        return {"ok": True, "phase": "deleted", "cellIndex": idx}
+        cells = [c for c in data.get("cells") or [] if int(c.get("index", 0)) != idx]
+        for i, c in enumerate(cells, start=1):
+            c["index"] = int(i)
+        data["cells"] = cells
+        save_persistent_json(data, url)
 
-    inproc_map = {
-        "click_cell": _click_inproc,
-        "select_cell_by_index": _select_inproc,
-        "insert_cell": _insert_inproc,
-        "edit_cell_by_index": _edit_inproc,
-        "delete_by_index": _delete_inproc,
+
+def _browser_tool(action: str):
+    def _runner(args: dict) -> dict:
+        try:
+            from .bot_command import execute_bot_command_sync
+        except Exception:
+            from bot_command import execute_bot_command_sync
+
+        url = _pick("url", "tabUrl", "tab_url", src=args) or ""
+        if not url:
+            return {"ok": False, "error": "url is required (pass the open notebook URL)"}
+
+        cmd = {
+            "action": action,
+            "requestId": str(uuid.uuid4()),
+            "url": url,
+        }
+        tab_id = _pick("tab_id", "tabId", src=args)
+        if isinstance(tab_id, int) and tab_id > 0:
+            cmd["tabId"] = tab_id
+
+        cell_index = _pick("cell_index", "cellIndex", "index", src=args)
+        if cell_index is not None:
+            cmd["cellIndex"] = cell_index
+
+        if action == "insert_cell":
+            cmd["direction"] = args.get("direction", "below")
+        if action in {"edit_cell_by_index", "edit_cell"}:
+            cmd["content"] = args.get("content") or args.get("input") or ""
+
+        timeout = float(args.get("timeout", 12.0))
+        event = execute_bot_command_sync(cmd, timeout=timeout)
+        inner = event.get("result") if isinstance(event.get("result"), dict) else {}
+        if event.get("ok"):
+            return {"ok": True, **inner}
+        return {"ok": False, "error": event.get("error") or inner.get("error") or "tool failed", "details": event}
+
+    return _runner
+
+
+def _register_default_tools():
+    url_schema = {"type": "string"}
+    cell_schema = {"type": "integer"}
+    candidates = [
+        (
+            "click_cell",
+            {
+                "type": "object",
+                "properties": {"cell_index": cell_schema, "url": url_schema},
+                "required": ["cell_index", "url"],
+            },
+            "Click a notebook cell by index in the browser",
+        ),
+        (
+            "select_cell_by_index",
+            {
+                "type": "object",
+                "properties": {"cell_index": cell_schema, "url": url_schema},
+                "required": ["cell_index", "url"],
+            },
+            "Select a notebook cell by index in the browser",
+        ),
+        (
+            "insert_cell",
+            {
+                "type": "object",
+                "properties": {"index": cell_schema, "direction": {"type": "string"}, "url": url_schema},
+                "required": ["index", "url"],
+            },
+            "Insert a cell above/below a given index in the browser",
+        ),
+        (
+            "edit_cell_by_index",
+            {
+                "type": "object",
+                "properties": {"cell_index": cell_schema, "content": {"type": "string"}, "url": url_schema},
+                "required": ["cell_index", "url"],
+            },
+            "Focus and edit a notebook cell by index",
+        ),
+        (
+            "delete_by_index",
+            {
+                "type": "object",
+                "properties": {"cell_index": cell_schema, "url": url_schema},
+                "required": ["cell_index", "url"],
+            },
+            "Delete a notebook cell by index in the browser",
+        ),
+        (
+            "creating_markdown_by_index",
+            {
+                "type": "object",
+                "properties": {"index": cell_schema, "url": url_schema},
+                "required": ["index", "url"],
+            },
+            "Insert a new cell above a given index and convert it to Markdown",
+        ),
+    ]
+
+    action_map = {
+        "click_cell": "click",
+        "select_cell_by_index": "select_cell_by_index",
+        "insert_cell": "insert_cell",
+        "edit_cell_by_index": "edit_cell_by_index",
+        "delete_by_index": "delete_by_index",
+        "creating_markdown_by_index": "creating_markdown_by_index",
     }
 
     for name, schema, desc in candidates:
-        try:
-            if name in inproc_map:
-                _REGISTRY.register(name, schema, desc, inproc_map[name])
-                continue
-            wrapper = _make_simple_jsonl_wrapper(name)
-            _REGISTRY.register(name, schema, desc, wrapper)
-        except Exception:
-            # If a tool fails to load, skip registration but keep moving
-            continue
+        action = action_map.get(name, name)
+        _REGISTRY.register(name, schema, desc, _browser_tool(action))
 
 
 _register_default_tools()
 
 
-# Register a simple notebook graph query tool that reads persistent snapshots
 def _notebook_graph_wrapper(args: dict) -> dict:
     try:
         from .persistence_helpers import read_json_file, get_safe_filename
@@ -334,12 +286,29 @@ def _notebook_graph_wrapper(args: dict) -> dict:
 try:
     _REGISTRY.register(
         "notebook_graph_query",
-        {"type": "object", "properties": {"url": {"type": "string"}}},
+        {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]},
         "Query the persistent notebook snapshot and return a small graph summary",
         _notebook_graph_wrapper,
     )
 except Exception:
     pass
+
+
+def build_cerebras_tools():
+    tools = []
+    for name, entry in _REGISTRY._tools.items():
+        schema = entry.get("schema")
+        if not isinstance(schema, dict):
+            continue
+        tools.append({
+            "type": "function",
+            "function": {
+                "name": name,
+                "description": entry.get("description") or name,
+                "parameters": schema,
+            },
+        })
+    return tools
 
 
 def generate_prompt_autogen():
@@ -356,7 +325,6 @@ def generate_prompt_autogen():
 
         examples_path = prompt_dir / "tool_examples_autogen.txt"
         ex_lines = []
-        # Curated examples for common tools to improve prompt engineering
         curated = {
             "click_cell": {"cell_index": 3, "url": "https://www.kaggle.com/code/alice/sample-notebook"},
             "select_cell_by_index": {"cell_index": 2, "url": "https://www.kaggle.com/code/alice/sample-notebook"},
@@ -373,23 +341,22 @@ def generate_prompt_autogen():
                 schema = v.get("schema") or {}
                 props = schema.get("properties") or {}
                 example = {}
-                for name, prop in props.items():
+                for pname, prop in props.items():
                     ptype = prop.get("type") if isinstance(prop, dict) else None
                     if ptype == "integer":
-                        example[name] = 1
+                        example[pname] = 1
                     elif ptype == "number":
-                        example[name] = 1.0
+                        example[pname] = 1.0
                     elif ptype == "boolean":
-                        example[name] = True
+                        example[pname] = True
                     else:
-                        example[name] = "example"
+                        example[pname] = "https://www.kaggle.com/code/alice/sample-notebook"
             ex_lines.append(f"{k} example args: {json.dumps(example, ensure_ascii=False)}")
         examples_path.write_text("\n".join(ex_lines), encoding="utf-8")
     except Exception:
         pass
 
 
-# Generate autogen prompts now
 generate_prompt_autogen()
 
 

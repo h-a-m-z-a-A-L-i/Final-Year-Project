@@ -4,13 +4,20 @@ import sys
 import threading
 import time
 from pathlib import Path
+
 try:
     from . import jsonl_queue
 except Exception:
     jsonl_queue = None
 
-from .config import BOT_COMMANDS_PATH, BOT_RESULTS_PATH, _SEND_LOCK, _BOT_STATE_LOCK
-from .config import _ACTIVE_STREAMS_LOCK
+from .config import BOT_COMMANDS_PATH, BOT_RESULTS_PATH, _SEND_LOCK
+from .bot_command import execute_bot_command_sync, complete_bot_result
+
+
+def _handle_bot_command(cmd: dict) -> dict:
+    """Execute a bot command and return a normalized bot_results.jsonl event."""
+    timeout = float(cmd.get("timeout", 12.0))
+    return execute_bot_command_sync(cmd, timeout=timeout)
 
 
 def read_msg():
@@ -44,7 +51,6 @@ def _append_jsonl(path: Path, payload: dict):
         with path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(payload, ensure_ascii=False) + "\n")
     except Exception as e:
-        # best-effort logging via stderr
         try:
             print(f"Failed writing {path.name}: {e}", file=sys.stderr)
         except Exception:
@@ -75,7 +81,6 @@ def _start_bot_command_watcher():
                     time.sleep(0.25)
                     continue
 
-                # Tail new commands using jsonl_queue when available
                 cmds = []
                 if jsonl_queue:
                     try:
@@ -83,7 +88,6 @@ def _start_bot_command_watcher():
                         offset = new_offset
                         cmds = events
                     except Exception:
-                        # fallback to manual read
                         pass
 
                 if not cmds:
@@ -106,20 +110,24 @@ def _start_bot_command_watcher():
                             })
                             continue
 
-                # Dispatch simple actions locally by writing responses to BOT_RESULTS_PATH
                 for cmd in cmds:
-                    action = str(cmd.get("action") or cmd.get("type") or "").strip().lower()
-                    # This watcher primarily records bad or unsupported actions; real dispatch occurs in host send_msg
-                    if action not in {"click", "click_cell_by_index", "click_selector", "select_cell_by_index", "insert_cell", "send_key", "send_keys"}:
+                    try:
+                        result_event = _handle_bot_command(cmd)
+                        _append_jsonl(BOT_RESULTS_PATH, result_event)
+                        print(
+                            f"Bot command {str(cmd.get('action') or cmd.get('type') or '').strip().lower()} "
+                            f"requestId={cmd.get('requestId')} ok={result_event.get('ok')}",
+                            file=sys.stderr,
+                        )
+                    except Exception as exc:
                         _append_jsonl(BOT_RESULTS_PATH, {
                             "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                             "ok": False,
-                            "error": f"Unsupported action: {action or 'missing'}",
+                            "error": f"dispatch_error:{exc}",
                             "requestId": cmd.get("requestId"),
+                            "result": {"ok": False, "error": str(exc)},
                         })
-                        continue
 
-                # sleeping loop cadence
             except Exception as e:
                 print(f"Bot watcher loop error: {e}", file=sys.stderr)
                 time.sleep(0.25)

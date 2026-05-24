@@ -8,7 +8,6 @@ import json
 import time
 import uuid
 from pathlib import Path
-import sys
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -16,27 +15,44 @@ DATA_META = ROOT / "data" / "meta"
 BOT_COMMANDS_PATH = DATA_META / "bot_commands.jsonl"
 BOT_RESULTS_PATH = DATA_META / "bot_results.jsonl"
 
-# Centralized JSONL helpers
-HOST_PKG = ROOT
-if str(HOST_PKG) not in sys.path:
-    sys.path.insert(0, str(HOST_PKG))
-from jsonl_queue import append_jsonl, tail_from, wait_for_request_result
 
 
 def _append_jsonl(path: Path, payload: dict):
-    append_jsonl(path, payload)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
 
 def _read_results_since(path: Path, since_size: int):
-    return tail_from(path, since_size)[1]
+    if not path.exists():
+        return []
+    with path.open("r", encoding="utf-8") as f:
+        f.seek(since_size)
+        raw = f.read()
+    out = []
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            out.append(json.loads(line))
+        except Exception:
+            continue
+    return out
 
 
 def _wait_for_request_result(request_id: str, before_size: int, timeout_seconds: float):
-    return wait_for_request_result(request_id, BOT_RESULTS_PATH, timeout_seconds, before_size)
+    deadline = time.time() + max(0.5, timeout_seconds)
+    while time.time() < deadline:
+        for event in _read_results_since(BOT_RESULTS_PATH, before_size):
+            if event.get("requestId") == request_id:
+                return event
+        time.sleep(0.2)
+    return None
 
 
 def _queue_command(cmd: dict):
-    append_jsonl(BOT_COMMANDS_PATH, cmd)
+    _append_jsonl(BOT_COMMANDS_PATH, cmd)
 
 
 def _make_request_id():
@@ -78,7 +94,7 @@ def main():
     parser.add_argument("first", type=int, nargs="?", default=None, help="Cell index (preferred) or tab id (legacy two-positional mode)")
     parser.add_argument("second", type=int, nargs="?", default=None, help="Legacy mode second positional: cell index")
     parser.add_argument("--tab-id", type=int, default=None, help="Optional tab id; defaults to last active notebook tab")
-    parser.add_argument("--url", default="", help="Optional notebook URL")
+    parser.add_argument("--url", default="https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit", help="Optional notebook URL")
     parser.add_argument("--selector", default="", help="Optional CSS selector to click instead of a cell index")
     parser.add_argument("--interactive", action="store_true", help="Prompt for the cell index when no positional index is provided")
     parser.add_argument("--timeout", type=float, default=8.0, help="Seconds to wait for result")

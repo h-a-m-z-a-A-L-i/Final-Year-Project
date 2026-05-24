@@ -478,96 +478,92 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode)
         if final_text and not was_stopped:
             memory_store.append(url, "assistant", final_text, session_id=session_id)
 
-        # Simple tool-call orchestration:
+        # Tool calling via Cerebras tools API (browser-backed registry).
         try:
-            # Use the previously-obtained non-stream response if available, otherwise ask the model
-            if response is not None:
-                structured = response
-            else:
-                try:
-                    structured = _CEREBRAS_CLIENT.chat.completions.create(
-                        messages=messages,
-                        model=CEREBRAS_MODEL,
-                        temperature=TEMPERATURE,
-                        top_p=TOP_P,
-                    )
-                except Exception as e:
-                    log(f"Structured model call failed: {e}")
-                    structured = None
+            from .tool_registry import registry as _registry_factory, build_cerebras_tools
 
-            if structured is None:
-                pass
-            else:
-                dumped = None
-                if hasattr(structured, "model_dump"):
+            tools = build_cerebras_tools()
+            if tools and not was_stopped:
+                tool_messages = list(messages)
+                if final_text:
+                    tool_messages.append({"role": "assistant", "content": final_text})
+
+                for _round in range(3):
+                    if _is_stopped():
+                        break
                     try:
-                        dumped = structured.model_dump()
+                        tool_resp = _CEREBRAS_CLIENT.chat.completions.create(
+                            messages=tool_messages,
+                            model=CEREBRAS_MODEL,
+                            tools=tools,
+                            parallel_tool_calls=False,
+                            temperature=TEMPERATURE,
+                            top_p=TOP_P,
+                        )
                     except Exception as e:
-                        log(f"Failed to dump structured response: {e}")
-                        dumped = None
-                if not dumped and isinstance(structured, dict):
-                    dumped = structured
+                        log(f"Tool-enabled model call failed: {e}")
+                        break
 
-                if dumped:
-                    from .tool_registry import registry as _registry_factory
+                    dumped = tool_resp.model_dump() if hasattr(tool_resp, "model_dump") else {}
+                    choice = (dumped.get("choices") or [{}])[0]
+                    assistant_msg = choice.get("message") or {}
+                    tool_calls = assistant_msg.get("tool_calls") or []
+
+                    if not tool_calls:
+                        followup = _final_text_from_response(tool_resp).strip()
+                        if followup:
+                            final_text = followup
+                        break
+
+                    tool_messages.append({
+                        "role": "assistant",
+                        "content": assistant_msg.get("content") or "",
+                        "tool_calls": tool_calls,
+                    })
+
+                    reg = _registry_factory()
+                    for tc in tool_calls:
+                        fn = (tc.get("function") or {}) if isinstance(tc, dict) else {}
+                        fname = fn.get("name")
+                        raw_args = fn.get("arguments") or "{}"
+                        try:
+                            parsed_args = json.loads(raw_args) if isinstance(raw_args, str) else dict(raw_args or {})
+                        except Exception:
+                            parsed_args = {}
+                        parsed_args.setdefault("url", url)
+                        if isinstance(tab_id, int) and tab_id > 0:
+                            parsed_args.setdefault("tab_id", tab_id)
+
+                        try:
+                            result = reg.call(fname, parsed_args)
+                        except Exception as exc:
+                            result = {"ok": False, "error": str(exc)}
+
+                        tool_messages.append({
+                            "role": "tool",
+                            "tool_call_id": tc.get("id"),
+                            "content": json.dumps(result, ensure_ascii=False),
+                        })
+
+                        if isinstance(result, dict) and result.get("ok") is False:
+                            err_msg = f"Tool '{fname}' failed: {result.get('error')}"
+                            log(err_msg)
+                            final_text = (final_text + "\n\n" + err_msg).strip()
+
+                if not _is_stopped():
                     try:
-                        choices = dumped.get("choices") or []
-                    except Exception:
-                        choices = []
-
-                    if choices:
-                        msg = choices[0].get("message") or {}
-                        func_call = msg.get("function_call") or msg.get("tool_call") or msg.get("call")
-                        if func_call and isinstance(func_call, dict):
-                            fname = func_call.get("name") or func_call.get("tool")
-                            fargs_text = func_call.get("arguments") or func_call.get("args") or func_call.get("content")
-                            parsed_args = None
-                            if isinstance(fargs_text, dict):
-                                parsed_args = fargs_text
-                            elif isinstance(fargs_text, str):
-                                try:
-                                    parsed_args = json.loads(fargs_text)
-                                except Exception as e:
-                                    log(f"Failed to parse tool arguments JSON: {e}")
-                                    parsed_args = None
-
-                            if fname and parsed_args is not None:
-                                try:
-                                    reg = _registry_factory()
-                                    tool_entry = reg.get(fname)
-                                    if tool_entry:
-                                        result = reg.call(fname, parsed_args)
-                                        # If registry returned a validation/error structure, surface it to the assistant
-                                        if isinstance(result, dict) and result.get("ok") is False and result.get("error"):
-                                            err_msg = f"Tool '{fname}' failed: {result.get('error')}"
-                                            log(err_msg)
-                                            # Append an assistant-friendly note and include in final_text
-                                            try:
-                                                memory_store.append(url, "assistant", err_msg, session_id=session_id)
-                                            except Exception:
-                                                pass
-                                            final_text = (final_text + "\n\n" + err_msg).strip()
-                                            # Do not re-query the model; we'll return the current final_text including error
-                                        else:
-                                            try:
-                                                content = json.dumps(result, ensure_ascii=False)
-                                            except Exception:
-                                                content = str(result)
-                                            messages.append({"role": "tool", "name": fname, "content": content})
-
-                                            # Ask model again for final assistant response; don't crash if it fails
-                                            try:
-                                                final_resp = _CEREBRAS_CLIENT.chat.completions.create(
-                                                    messages=messages,
-                                                    model=CEREBRAS_MODEL,
-                                                    temperature=TEMPERATURE,
-                                                    top_p=TOP_P,
-                                                )
-                                                final_text = _final_text_from_response(final_resp).strip() or final_text
-                                            except Exception as e:
-                                                log(f"Final model call after tool failed: {e}")
-                                except Exception as e:
-                                    log(f"Tool execution failed: {e}")
+                        final_resp = _CEREBRAS_CLIENT.chat.completions.create(
+                            messages=tool_messages,
+                            model=CEREBRAS_MODEL,
+                            temperature=TEMPERATURE,
+                            top_p=TOP_P,
+                        )
+                        followup = _final_text_from_response(final_resp).strip()
+                        if followup:
+                            final_text = followup
+                            memory_store.append(url, "assistant", final_text, session_id=session_id)
+                    except Exception as e:
+                        log(f"Final model call after tools failed: {e}")
         except Exception as e:
             log(f"Orchestration error: {e}")
 

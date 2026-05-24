@@ -264,9 +264,20 @@ def main():
             send_msg({"type": "HISTORY_CLEARED", "url": url, "tabId": tab_id, "sessionId": session_id})
             continue
 
-        if m_type in {"CLICK_CELL_RESULT", "CLICK_CELL_ERROR", "CLICK_SELECTOR_RESULT", "CLICK_SELECTOR_ERROR", "SELECT_CELL_RESULT", "SELECT_CELL_ERROR", "INSERT_CELL_RESULT", "INSERT_CELL_ERROR", "SEND_KEY_RESULT", "SEND_KEY_ERROR"}:
-            _append_jsonl(BOT_RESULTS_PATH, {"ts": datetime.now(timezone.utc).isoformat(), "type": m_type, "tabId": msg.get("tabId"), "url": msg.get("url"), "cellIndex": msg.get("cellIndex"), "selector": msg.get("selector"), "key": msg.get("key"), "direction": msg.get("direction"), "requestId": msg.get("requestId"), "result": msg.get("result")})
-            log(f"Bot result {m_type} tabId={msg.get('tabId')} cellIndex={msg.get('cellIndex')} selector={msg.get('selector')} key={msg.get('key')} direction={msg.get('direction')}")
+        if m_type in {"CLICK_CELL_RESULT", "CLICK_CELL_ERROR", "CLICK_SELECTOR_RESULT", "CLICK_SELECTOR_ERROR", "SELECT_CELL_RESULT", "SELECT_CELL_ERROR", "INSERT_CELL_RESULT", "INSERT_CELL_ERROR", "SEND_KEY_RESULT", "SEND_KEY_ERROR", "DELETE_CELL_RESULT", "DELETE_CELL_ERROR", "SEND_KEYS_RESULT", "SEND_KEYS_ERROR"}:
+            try:
+                from .bot_command import complete_bot_result
+            except Exception:
+                from bot_command import complete_bot_result
+            record = complete_bot_result(msg)
+            record["diagnostics"] = msg.get("diagnostics")
+            if msg.get("tunnel"):
+                record["tunnel"] = msg.get("tunnel")
+            _append_jsonl(BOT_RESULTS_PATH, record)
+            log(
+                f"Bot result {m_type} ok={record.get('ok')} tabId={msg.get('tabId')} "
+                f"cellIndex={msg.get('cellIndex')} requestId={msg.get('requestId')}"
+            )
             continue
 
         if m_type == "NOTEBOOK_DATA":

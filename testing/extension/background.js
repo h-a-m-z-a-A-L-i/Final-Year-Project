@@ -566,16 +566,17 @@ function getPort() {
           chrome.tabs.sendMessage(tabId, payload, (response) => {
             const lastError = chrome.runtime.lastError;
             if (lastError) {
-              onResult({ ok: false, error: lastError.message || String(lastError) });
+              // Include diagnostics when failing early
+              onResult({ ok: false, error: lastError.message || String(lastError), diagnostics: { frames: null, error: lastError.message } });
               return;
             }
-            onResult(response?.result || { ok: false, error: "No response from content script." });
+            onResult(response?.result || { ok: false, error: "No response from content script.", diagnostics: { frames: null } });
           });
           return;
         }
-
         const orderedFrames = Array.isArray(frames) ? frames.slice().sort((a, b) => (a.frameId || 0) - (b.frameId || 0)) : [];
         let lastFailure = null;
+        const frameAttempts = [];
 
         for (const frame of orderedFrames) {
           const response = await new Promise((resolve) => {
@@ -589,10 +590,11 @@ function getPort() {
             });
           });
 
+          // record attempt
+          frameAttempts.push({ frameId: frame.frameId, result: response });
+
           const isKeyDispatch = payload?.type === "SEND_KEY" || payload?.type === "SEND_KEYS";
-          const landedOnIframe =
-            isKeyDispatch &&
-            String(response?.tagName || "").toUpperCase() === "IFRAME";
+          const landedOnIframe = isKeyDispatch && String(response?.tagName || "").toUpperCase() === "IFRAME";
 
           if (landedOnIframe) {
             lastFailure = {
@@ -606,6 +608,8 @@ function getPort() {
           }
 
           if (response?.ok) {
+            // attach diagnostics
+            response.diagnostics = { frames: frameAttempts };
             onResult(response);
             return;
           }
@@ -613,7 +617,8 @@ function getPort() {
           lastFailure = response;
         }
 
-        onResult(lastFailure || { ok: false, error: "No frame accepted the command." });
+        if (lastFailure) lastFailure.diagnostics = { frames: frameAttempts };
+        onResult(lastFailure || { ok: false, error: "No frame accepted the command.", diagnostics: { frames: frameAttempts } });
       });
     };
 
@@ -633,6 +638,8 @@ function getPort() {
           url: msg.url,
           requestId: msg.requestId,
           cellIndex: msg.cellIndex,
+          tunnel: payload.type,
+          diagnostics: result?.diagnostics || null,
           result,
         });
       });
@@ -656,6 +663,8 @@ function getPort() {
           url: msg.url,
           requestId: msg.requestId,
           direction: msg.direction,
+          tunnel: payload.type,
+          diagnostics: result?.diagnostics || null,
           result,
         });
       });
@@ -679,6 +688,8 @@ function getPort() {
           url: msg.url,
           requestId: msg.requestId,
           cellIndex: msg.cellIndex,
+          tunnel: payload.type,
+          diagnostics: result?.diagnostics || null,
           result,
         });
       });
@@ -700,6 +711,8 @@ function getPort() {
           url: msg.url,
           requestId: msg.requestId,
           selector: msg.selector,
+          tunnel: payload.type,
+          diagnostics: result?.diagnostics || null,
           result,
         });
       });
@@ -719,6 +732,8 @@ function getPort() {
           tabId: msg.tabId,
           url: msg.url,
           requestId: msg.requestId,
+          tunnel: payload.type,
+          diagnostics: result?.diagnostics || null,
           result,
         });
       });
@@ -740,6 +755,8 @@ function getPort() {
           url: msg.url,
           requestId: msg.requestId,
           key: msg.key,
+          tunnel: payload.type,
+          diagnostics: result?.diagnostics || null,
           result,
         });
       });
@@ -761,6 +778,8 @@ function getPort() {
           url: msg.url,
           requestId: msg.requestId,
           keys: msg.keys,
+          tunnel: payload.type,
+          diagnostics: result?.diagnostics || null,
           result,
         });
       });
@@ -773,22 +792,78 @@ function getPort() {
       return;
     }
 
-    // Forward untargeted host messages by resolving the tab from the URL.
-    if (["CHAT_RESPONSE", "HISTORY_DATA", "HISTORY_CLEARED", "GRAPH_DATA"].includes(msg?.type)) {
-      const notebookUrl = msg?.url || msg?.tabUrl || null;
-      if (!notebookUrl) {
-        console.warn("No URL present on untargeted host message:", msg?.type);
-        return;
-      }
-      resolveTabIdForUrl(notebookUrl, null, (resolvedTabId) => {
-        if (typeof resolvedTabId === 'number') {
-          chrome.tabs.sendMessage(resolvedTabId, msg);
-        } else {
-          console.warn("Could not resolve tab for host message:", msg?.type, notebookUrl);
-        }
-      });
+    // If the host message was not tab-scoped, prefer resolving the tab from URL
+    // for both passive updates and actionable commands so tools can target pages
+    // by `url` instead of requiring a `tabId` value.
+    const notebookUrl = msg?.url || msg?.tabUrl || null;
+    if (!notebookUrl) {
+      // No URL to resolve; there is nothing more sensible we can do here.
+      console.warn("No URL present on untargeted host message:", msg?.type);
       return;
     }
+
+    // Types that should be dispatched to a tab/frame and may return a result
+    const tabTargetTypes = new Set([
+      "CLICK_CELL_BY_INDEX",
+      "SELECT_CELL_BY_INDEX",
+      "INSERT_CELL",
+      "CLICK_SELECTOR",
+      "DELETE_CELL",
+      "SEND_KEY",
+      "SEND_KEYS",
+    ]);
+
+    resolveTabIdForUrl(notebookUrl, null, (resolvedTabId) => {
+      if (typeof resolvedTabId !== 'number') {
+        console.warn("Could not resolve tab for host message:", msg?.type, notebookUrl);
+        if (tabTargetTypes.has(msg?.type)) {
+          try {
+            getPort().postMessage({
+              type: `${msg.type}_ERROR`,
+              tabId: null,
+              url: notebookUrl,
+              requestId: msg?.requestId,
+              tunnel: msg?.type,
+              result: { ok: false, error: "Could not resolve notebook tab for URL (open the notebook /edit page)" },
+            });
+          } catch (e) {
+            console.warn("Failed to post tab-resolution error to native host:", e);
+          }
+        }
+        return;
+      }
+
+      // If this is an actionable/tab-targeted message, forward it to frames
+      // (same strategy as tabId-scoped commands) and post the result back.
+      if (tabTargetTypes.has(msg?.type)) {
+        const payload = { ...msg, tabId: resolvedTabId };
+        dispatchToFrames(resolvedTabId, payload, (res) => {
+          try {
+            getPort().postMessage({
+              type: res?.ok ? `${msg.type}_RESULT` : `${msg.type}_ERROR`,
+              tabId: resolvedTabId,
+              url: notebookUrl,
+              requestId: msg?.requestId,
+              cellIndex: msg?.cellIndex,
+              selector: msg?.selector,
+              key: msg?.key,
+              keys: msg?.keys,
+              direction: msg?.direction,
+              tunnel: msg?.type,
+              diagnostics: res?.diagnostics || null,
+              result: res,
+            });
+          } catch (e) {
+            console.warn("Failed to post action result back to native host:", e);
+          }
+        });
+        return;
+      }
+
+      // Otherwise treat as passive data (history/graph/chat) and just forward
+      chrome.tabs.sendMessage(resolvedTabId, msg);
+    });
+    return;
   });
   port.onDisconnect.addListener(() => {
     console.warn("Native port disconnected:", chrome.runtime.lastError?.message);

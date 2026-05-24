@@ -15,7 +15,6 @@ import json
 import time
 import uuid
 from pathlib import Path
-import sys
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -23,20 +22,46 @@ DATA_META = ROOT / "data" / "meta"
 BOT_COMMANDS_PATH = DATA_META / "bot_commands.jsonl"
 BOT_RESULTS_PATH = DATA_META / "bot_results.jsonl"
 
-# Centralized JSONL helpers
-HOST_PKG = ROOT
-if str(HOST_PKG) not in sys.path:
-    sys.path.insert(0, str(HOST_PKG))
-from jsonl_queue import append_jsonl, tail_from, wait_for_request_result
+
+def _append_jsonl(path: Path, payload: dict):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+
+
+def _read_all_jsonl(path: Path):
+    if not path.exists():
+        return []
+    out = []
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                out.append(json.loads(line))
+            except Exception:
+                continue
+    return out
 
 
 def _wait_for_request_result(request_id: str, timeout_seconds: float):
-    before = BOT_RESULTS_PATH.stat().st_size if BOT_RESULTS_PATH.exists() else 0
-    return wait_for_request_result(request_id, BOT_RESULTS_PATH, timeout_seconds, before)
+    deadline = time.time() + max(0.5, timeout_seconds)
+    seen = set()
+    while time.time() < deadline:
+        for event in _read_all_jsonl(BOT_RESULTS_PATH):
+            eid = id(event)
+            if eid in seen:
+                continue
+            if event.get("requestId") == request_id:
+                seen.add(eid)
+                return event
+        time.sleep(0.5)
+    return None
 
 
 def _queue_command(cmd: dict):
-    append_jsonl(BOT_COMMANDS_PATH, cmd)
+    _append_jsonl(BOT_COMMANDS_PATH, cmd)
 
 
 def _build_click_command(request_id: str, tab_id: int | None, cell_index: int, url: str):
@@ -89,7 +114,7 @@ def main():
     parser = argparse.ArgumentParser(description="Insert a markdown cell above an index and convert it to markdown")
     parser.add_argument("index", type=int, help="Cell index to insert above (0-based)")
     parser.add_argument("--tab-id", type=int, default=None, help="Optional tab id")
-    parser.add_argument("--url", default="", help="Optional notebook URL")
+    parser.add_argument("--url", default="https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit", help="Optional notebook URL")
     parser.add_argument("--timeout", type=float, default=8.0, help="Timeout in seconds for each step")
     args = parser.parse_args()
 

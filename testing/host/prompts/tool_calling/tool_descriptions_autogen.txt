@@ -1,7 +1,7 @@
-click_cell: Click a notebook cell by index Args schema: {"type": "object", "properties": {"cell_index": {"type": "integer"}}}
-insert_cell: Insert a cell above/below a given index Args schema: {"type": "object", "properties": {"index": {"type": "integer"}}}
-edit_cell_by_index: Edit a notebook cell by index Args schema: {"type": "object", "properties": {"cell_index": {"type": "integer"}}}
-delete_by_index: Delete a notebook cell by index Args schema: {"type": "object", "properties": {"cell_index": {"type": "integer"}}}
-select_cell_by_index: Select a notebook cell by index Args schema: {"type": "object", "properties": {"cell_index": {"type": "integer"}}}
-creating_markdown_by_index: Insert a new cell above a given index and convert it to Markdown Args schema: {"type": "object", "properties": {"index": {"type": "integer"}}}
-notebook_graph_query: Query the persistent notebook snapshot and return a small graph summary Args schema: {"type": "object", "properties": {"url": {"type": "string"}}}
+click_cell: Click a notebook cell by index in the browser Args schema: {"type": "object", "properties": {"cell_index": {"type": "integer"}, "url": {"type": "string"}}, "required": ["cell_index", "url"]}
+select_cell_by_index: Select a notebook cell by index in the browser Args schema: {"type": "object", "properties": {"cell_index": {"type": "integer"}, "url": {"type": "string"}}, "required": ["cell_index", "url"]}
+insert_cell: Insert a cell above/below a given index in the browser Args schema: {"type": "object", "properties": {"index": {"type": "integer"}, "direction": {"type": "string"}, "url": {"type": "string"}}, "required": ["index", "url"]}
+edit_cell_by_index: Focus and edit a notebook cell by index Args schema: {"type": "object", "properties": {"cell_index": {"type": "integer"}, "content": {"type": "string"}, "url": {"type": "string"}}, "required": ["cell_index", "url"]}
+delete_by_index: Delete a notebook cell by index in the browser Args schema: {"type": "object", "properties": {"cell_index": {"type": "integer"}, "url": {"type": "string"}}, "required": ["cell_index", "url"]}
+creating_markdown_by_index: Insert a new cell above a given index and convert it to Markdown Args schema: {"type": "object", "properties": {"index": {"type": "integer"}, "url": {"type": "string"}}, "required": ["index", "url"]}
+notebook_graph_query: Query the persistent notebook snapshot and return a small graph summary Args schema: {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]}
