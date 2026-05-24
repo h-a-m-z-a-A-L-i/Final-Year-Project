@@ -1,18 +1,18 @@
 {
   "tabUrl": "https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit",
   "title": "__notebook_source__",
-  "lastUpdated": "2026-05-21T19:39:24.093213+00:00",
+  "lastUpdated": "2026-05-24T16:31:06.504865+00:00",
   "cells": [
     {
       "type": "markdown",
       "index": 0,
-      "input": "1st markdown\n\nwe we sdf sdf sdfg sfgv dfb dfgb grfh fhn hgj yujk yuik iuki uk",
-      "state": "open"
+      "input": "# 1st markdownwewesdfsdfsdfgsfgvdfbdfgbgrfhfhnhgjyujkyuikiukiuk1st markdown¶\nwe\nwe\nsdf\nsdf\nsdfg\nsfgv\ndfb\ndfgb\ngrfh\nfhn\nhgj\nyujk\nyuik\niuki\nuk",
+      "state": "collapsed"
     },
     {
       "type": "code",
       "index": 1,
-      "input": "while(True):\n    pass",
+      "input": "while(True):    pass",
       "output": "",
       "execution_order": null,
       "execution_title": ""
@@ -21,7 +21,7 @@
       "type": "markdown",
       "index": 2,
       "input": "",
-      "state": "collapsed"
+      "state": "open"
     },
     {
       "type": "code",
@@ -42,13 +42,13 @@
     {
       "type": "markdown",
       "index": 5,
-      "input": "hamza",
+      "input": "# hamzahamza¶",
       "state": "open"
     },
     {
       "type": "markdown",
       "index": 6,
-      "input": "ali",
+      "input": "# aliali¶",
       "state": "open"
     },
     {

@@ -5,17 +5,22 @@
     const style = document.createElement('style');
     style.id = 'copilot-styles';
     style.textContent = `:root {
-            --cp-bg: #1e1f23;
-            --cp-text: #f0f0f0;
-            --cp-accent: #47a1ff;
-            --cp-accent-hover: #6cb6ff;
-            --cp-bubble-user: #47a1ff;
+            --cp-bg: #16171b;
+            --cp-surface: #1e1f24;
+            --cp-surface-elevated: #25262d;
+            --cp-text: #ececf1;
+            --cp-text-muted: #9ca3af;
+            --cp-accent: #5b9cff;
+            --cp-accent-hover: #7eb1ff;
+            --cp-bubble-user: linear-gradient(135deg, #3d7dd8 0%, #5b9cff 100%);
             --cp-bubble-user-text: #ffffff;
-            --cp-bubble-bot: #2b2c31;
-            --cp-bubble-bot-border: #3f4046;
-            --cp-header-bg: #1e1f23;
-            --cp-border: #33343a;
-            --cp-shadow: rgba(0, 0, 0, 0.3);
+            --cp-bubble-bot: #23242a;
+            --cp-bubble-bot-border: #35363f;
+            --cp-header-bg: rgba(22, 23, 27, 0.92);
+            --cp-border: #2e3038;
+            --cp-shadow: rgba(0, 0, 0, 0.45);
+            --cp-code-bg: #12141a;
+            --cp-radius: 12px;
         }
 
         #injected-copilot-panel-wrapper {
@@ -128,10 +133,10 @@
         .chat-scroll-area {
             flex: 1;
             overflow-y: auto;
-            padding: 11px;
+            padding: 14px 12px;
             display: flex;
             flex-direction: column;
-            gap: 5px;
+            gap: 14px;
             scroll-behavior: smooth;
             overscroll-behavior: contain;
         }
@@ -141,45 +146,83 @@
         .message {
             display: flex;
             flex-direction: column;
-            max-width: 95%;
-            width: fit-content;
-            margin-bottom: 0px;
+            max-width: 100%;
+            width: 100%;
+            gap: 8px;
         }
-        .message.user { align-self: flex-end; align-items: flex-end; margin-left: auto; }
-        .message.assistant { align-self: flex-start; align-items: flex-start; margin-right: auto; }
-        
+        .message.user {
+            align-self: flex-end;
+            align-items: flex-end;
+            max-width: 92%;
+            width: fit-content;
+            margin-left: auto;
+        }
+        .message.assistant {
+            align-self: stretch;
+            align-items: stretch;
+            width: 100%;
+        }
+        .message.assistant.streaming .code-snippets-stack { display: none; }
+
         .bubble {
-            padding: 5px 9px;
-            border-radius: 16px;
+            padding: 10px 12px;
+            border-radius: var(--cp-radius);
             font-size: 13.5px;
-            line-height: 1.6;
+            line-height: 1.65;
             word-wrap: break-word;
-            white-space: pre-wrap;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.12);
             max-width: 100%;
         }
-        .user .bubble { background: var(--cp-bubble-user); color: var(--cp-bubble-user-text); border-bottom-right-radius: 4px; border: none; }
-        .assistant .bubble { background: var(--cp-bubble-bot); border: 1px solid var(--cp-bubble-bot-border); border-bottom-left-radius: 4px; }
+        .user .bubble {
+            background: var(--cp-bubble-user);
+            color: var(--cp-bubble-user-text);
+            border-bottom-right-radius: 4px;
+            border: none;
+            white-space: pre-wrap;
+        }
+        .assistant .bubble.prose-bubble {
+            background: var(--cp-bubble-bot);
+            border: 1px solid var(--cp-bubble-bot-border);
+            border-bottom-left-radius: 4px;
+            white-space: normal;
+        }
 
+        .code-snippets-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 100%;
+        }
+        .code-snippet-card {
+            width: 100%;
+            border-radius: var(--cp-radius);
+            overflow: hidden;
+            border: 1px solid var(--cp-border);
+            box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+        }
         .code-block-wrapper {
             position: relative;
-            margin: 12px 0;
-            border-radius: 8px;
+            margin: 0;
+            border-radius: 0;
             overflow: hidden;
-            background: #282c34;
-            border: 1px solid rgba(255,255,255,0.1);
+            background: var(--cp-code-bg);
+            border: none;
         }
         .code-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             padding: 8px 12px;
-            background: #20232a;
+            background: #1a1d24;
             font-size: 11px;
-            color: #abb2bf;
-            font-family: sans-serif;
+            color: var(--cp-text-muted);
+            font-family: inherit;
+            letter-spacing: 0.04em;
+        }
+        .code-lang-label {
+            font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            color: var(--cp-accent);
         }
         .copy-btn {
             background: rgba(255, 255, 255, 0.1);
@@ -213,44 +256,33 @@
             color: white;
         }
         .code-block {
-            background: #282c34;
-            color: #abb2bf;
-            padding: 16px;
-            font-family: "Fira Code", "Consolas", monospace;
-            font-size: 13px;
+            background: var(--cp-code-bg);
+            color: #c5d4e8;
+            padding: 14px 14px 16px;
+            font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
+            font-size: 12.5px;
             margin: 0;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            line-height: 1.5;
+            white-space: pre;
+            overflow-x: auto;
+            line-height: 1.55;
+            tab-size: 4;
+        }
+        .code-block code {
+            font-family: inherit;
+            background: transparent;
+            padding: 0;
+            color: inherit;
         }
 
-        /* Catch ALL pre/code produced by markdown-it inside bubbles */
-        .bubble pre {
-            background: #282c34 !important;
-            color: #abb2bf !important;
-            font-family: "Fira Code", "Consolas", "Courier New", monospace !important;
-            font-size: 13px !important;
-            padding: 16px !important;
-            margin: 0 !important;
-            white-space: pre-wrap !important;
-            word-wrap: break-word !important;
-            line-height: 1.5 !important;
-            overflow-x: auto;
-        }
-        .bubble code {
-            background: #282c34 !important;
-            color: #abb2bf !important;
-            font-family: "Fira Code", "Consolas", "Courier New", monospace !important;
-            font-size: 0.9em;
+        /* Prose-only: inline code stays subtle; fenced blocks are extracted to code-snippets-stack */
+        .prose-bubble pre { display: none; }
+        .prose-bubble p code, .prose-bubble li code {
+            background: rgba(91, 156, 255, 0.12);
+            color: #b8d4ff;
+            padding: 2px 6px;
             border-radius: 4px;
-            padding: 2px 5px;
-        }
-        /* Inline code (not inside pre) gets lighter bg */
-        .bubble p code, .bubble li code {
-            background: rgba(40,44,52,0.15) !important;
-            color: #d63384 !important;
-            padding: 1px 5px;
-            border-radius: 3px;
+            font-size: 0.88em;
+            font-family: "Cascadia Code", "Consolas", monospace;
         }
 
         /* Markdown-it rendered content: headings, lists, paragraphs */
@@ -287,23 +319,27 @@
         }
 
         .copilot-footer {
-            padding: 5px 11px;
+            padding: 10px 12px 12px;
             background: var(--cp-header-bg);
             border-top: 1px solid var(--cp-border);
             flex-shrink: 0;
+            backdrop-filter: blur(8px);
         }
         .input-wrapper {
-            background: var(--cp-bg);
+            background: var(--cp-surface-elevated);
             border: 1px solid var(--cp-border);
-            border-radius: 8px;
-            padding: 5px;
+            border-radius: 10px;
+            padding: 8px;
             display: flex;
             flex-direction: column;
-            gap: 5px;
-            transition: border-color 0.2s;
+            gap: 8px;
+            transition: border-color 0.2s, box-shadow 0.2s;
             max-height: 200px;
         }
-        .input-wrapper:focus-within { border-color: var(--cp-accent); }
+        .input-wrapper:focus-within {
+            border-color: var(--cp-accent);
+            box-shadow: 0 0 0 2px rgba(91, 156, 255, 0.15);
+        }
         
         #chat-input {
             border: none;
@@ -393,17 +429,24 @@
         #injected-copilot-toggle-btn:hover { transform: scale(1.1); box-shadow: 0 6px 16px var(--cp-shadow); }
 
 
-        /* Typing Cursor Effect */
+        /* Typing cursor (streaming prose only) */
         .typing-cursor::after {
-            content: "●";
+            content: "";
             display: inline-block;
-            margin-left: 4px;
-            color: var(--cp-accent);
-            animation: cpBlink 0.8s infinite;
-            font-size: 12px;
-            vertical-align: middle;
+            width: 2px;
+            height: 1em;
+            margin-left: 3px;
+            background: var(--cp-accent);
+            vertical-align: text-bottom;
+            animation: cpBlink 1s step-end infinite;
         }
         @keyframes cpBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+        .stream-plain {
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: var(--cp-text);
+        }
 
         /* ---- Debug Tab Styles ---- */
         .debug-toolbar {
@@ -571,6 +614,27 @@
             margin-top: 2px;
             font-size: 10px;
             opacity: 0.65;
+        }
+        .mode-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+            padding: 0 2px;
+        }
+        .mode-row label {
+            font-size: 11px;
+            opacity: 0.75;
+            white-space: nowrap;
+        }
+        .mode-select {
+            flex: 1;
+            font-size: 11px;
+            padding: 4px 6px;
+            border-radius: 6px;
+            border: 1px solid var(--cp-border);
+            background: var(--cp-surface);
+            color: inherit;
         }`;
     document.head.appendChild(style);
 
@@ -610,7 +674,7 @@
                 <div id="chat-history" class="chat-scroll-area">
                     <div class="message assistant">
                         <div class="bubble">
-                            Hello! I am your AI assistant. How can I help you today?
+                            Hello! I'm your notebook copilot. Use <strong>Ask</strong> for questions, errors, and explanations — <strong>Code</strong> to generate or edit cells.
                         </div>
                     </div>
                 </div>
@@ -622,15 +686,22 @@
                     <button id="debug-refresh" class="debug-refresh-btn" title="Refresh">↻ Refresh</button>
                 </div>
                 <div id="debug-content" class="debug-scroll-area">
-                    <p class="debug-placeholder">Click ↻ Refresh to load the dependency graph for this notebook.</p>
+                    <p class="debug-placeholder">Open this tab to load dependencies. Cell numbers match notebook indices (often starting at 0).</p>
                 </div>
             </div>
         </main>
 
         <!-- Footer / Input -->
         <footer class="copilot-footer">
+            <div class="mode-row">
+                <label for="chat-mode">Mode</label>
+                <select id="chat-mode" class="mode-select" title="Ask = explain/debug/placement; Code = generate cells">
+                    <option value="ask" selected>Ask</option>
+                    <option value="code">Code</option>
+                </select>
+            </div>
             <div class="input-wrapper">
-                <textarea id="chat-input" rows="1" placeholder="Ask me anything..." autocomplete="off"></textarea>
+                <textarea id="chat-input" rows="1" placeholder="Ask about a cell, error, or notebook change..." autocomplete="off"></textarea>
                 <div class="input-actions">
                     <button id="chat-send" class="send-btn" title="Send message">➔</button>
                     <button id="chat-stop" class="stop-btn" title="Stop generation" style="display:none;">⏹</button>
@@ -979,6 +1050,7 @@
     });
 
     const input = wrapper.querySelector('#chat-input');
+    const modeSelect = wrapper.querySelector('#chat-mode');
     const sendBtn = wrapper.querySelector('#chat-send');
     const stopBtn = wrapper.querySelector('#chat-stop');
     const chatHistory = wrapper.querySelector('#chat-history');
@@ -986,13 +1058,128 @@
     const md = (window.markdownit) ? window.markdownit({ html: true, linkify: true, typographer: true }) : null;
     let isStreaming = false;
     let streamBuffer = '';
-    let streamBubble = null;
+    let streamMessageEl = null;
+    let streamPlainEl = null;
     const cancelledSessions = new Set();
 
-    function renderAssistant(text) {
-        const raw = String(text || '');
-        if (md) return md.render(raw);
-        return raw.replace(/\n/g, '<br>');
+    function escapeHtml(str) {
+        return String(str || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    /** Split assistant text into prose vs fenced code (```lang ... ```). */
+    function parseFencedCodeBlocks(raw) {
+        const segments = [];
+        const s = String(raw || '');
+        const re = /```([\w.-]*)\r?\n?([\s\S]*?)```/g;
+        let last = 0;
+        let m;
+        while ((m = re.exec(s))) {
+            if (m.index > last) {
+                const chunk = s.slice(last, m.index);
+                if (chunk.trim()) segments.push({ type: 'text', content: chunk });
+            }
+            segments.push({
+                type: 'code',
+                lang: (m[1] || 'code').trim() || 'code',
+                content: m[2].replace(/\s+$/, ''),
+            });
+            last = m.index + m[0].length;
+        }
+        if (last < s.length) {
+            const tail = s.slice(last);
+            if (tail.trim()) segments.push({ type: 'text', content: tail });
+        }
+        if (!segments.length && s.trim()) segments.push({ type: 'text', content: s });
+        return segments;
+    }
+
+    function renderProseHtml(text) {
+        const t = String(text || '').trim();
+        if (!t) return '';
+        if (md) return md.render(t);
+        return escapeHtml(t).replace(/\n/g, '<br>');
+    }
+
+    function createCodeSnippetCard(lang, code) {
+        const card = document.createElement('div');
+        card.className = 'code-snippet-card';
+        const block = document.createElement('div');
+        block.className = 'code-block-wrapper';
+        const header = document.createElement('div');
+        header.className = 'code-header';
+        const label = document.createElement('span');
+        label.className = 'code-lang-label';
+        label.textContent = lang || 'code';
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'copy-btn';
+        copyBtn.textContent = 'Copy';
+        copyBtn.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(code);
+                copyBtn.textContent = 'Copied';
+                copyBtn.classList.add('copied');
+                setTimeout(() => {
+                    copyBtn.textContent = 'Copy';
+                    copyBtn.classList.remove('copied');
+                }, 2000);
+            } catch {
+                copyBtn.textContent = 'Failed';
+            }
+        });
+        header.appendChild(label);
+        header.appendChild(copyBtn);
+        const pre = document.createElement('pre');
+        pre.className = 'code-block';
+        const codeEl = document.createElement('code');
+        codeEl.textContent = code;
+        pre.appendChild(codeEl);
+        block.appendChild(header);
+        block.appendChild(pre);
+        card.appendChild(block);
+        return card;
+    }
+
+    /** Prose bubble + separate code cards (not blended into markdown body). */
+    function mountAssistantContent(container, raw) {
+        const segments = parseFencedCodeBlocks(raw);
+        container.innerHTML = '';
+        container.className = 'message assistant';
+
+        const textParts = [];
+        const codeParts = [];
+        for (const seg of segments) {
+            if (seg.type === 'code') codeParts.push(seg);
+            else textParts.push(seg.content);
+        }
+
+        const proseJoined = textParts.join('\n\n').trim();
+        if (proseJoined) {
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble prose-bubble';
+            bubble.innerHTML = renderProseHtml(proseJoined);
+            container.appendChild(bubble);
+        }
+
+        if (codeParts.length) {
+            const stack = document.createElement('div');
+            stack.className = 'code-snippets-stack';
+            for (const seg of codeParts) {
+                stack.appendChild(createCodeSnippetCard(seg.lang, seg.content));
+            }
+            container.appendChild(stack);
+        }
+
+        if (!proseJoined && !codeParts.length) {
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble prose-bubble';
+            bubble.innerHTML = '<em>No response.</em>';
+            container.appendChild(bubble);
+        }
     }
 
     function setStreamingState(active) {
@@ -1001,43 +1188,58 @@
         stopBtn.style.display = isStreaming ? '' : 'none';
     }
 
-    function ensureStreamBubble() {
-        if (streamBubble) return streamBubble;
+    function ensureStreamMessage() {
+        if (streamMessageEl) return streamMessageEl;
         const div = document.createElement('div');
-        div.className = 'message assistant';
-        div.innerHTML = '<div class="bubble typing-cursor"></div>';
+        div.className = 'message assistant streaming';
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble prose-bubble typing-cursor';
+        const plain = document.createElement('span');
+        plain.className = 'stream-plain';
+        bubble.appendChild(plain);
+        div.appendChild(bubble);
         chatHistory.appendChild(div);
-        streamBubble = div.querySelector('.bubble');
+        streamMessageEl = div;
+        streamPlainEl = plain;
         chatHistory.scrollTop = chatHistory.scrollHeight;
-        return streamBubble;
+        return streamMessageEl;
     }
 
     function appendStreamDelta(delta) {
         streamBuffer += String(delta || '');
-        const bubble = ensureStreamBubble();
-        bubble.textContent = streamBuffer;
+        ensureStreamMessage();
+        if (streamPlainEl) streamPlainEl.textContent = streamBuffer;
         chatHistory.scrollTop = chatHistory.scrollHeight;
     }
 
     function finalizeStream(opts = {}) {
-        if (streamBubble) {
-            streamBubble.classList.remove('typing-cursor');
+        if (streamMessageEl) {
             const finalText = (typeof opts.text === 'string' && opts.text.length > 0)
                 ? opts.text
                 : streamBuffer;
             if (finalText) {
-                streamBubble.innerHTML = renderAssistant(finalText);
+                mountAssistantContent(streamMessageEl, finalText);
             } else if (opts.stopped) {
-                streamBubble.innerHTML = '<em>Stopped.</em>';
+                streamMessageEl.innerHTML = '';
+                const bubble = document.createElement('div');
+                bubble.className = 'bubble prose-bubble';
+                bubble.innerHTML = '<em>Stopped.</em>';
+                streamMessageEl.appendChild(bubble);
             } else {
-                streamBubble.innerHTML = '<em>No response.</em>';
+                streamMessageEl.innerHTML = '';
+                const bubble = document.createElement('div');
+                bubble.className = 'bubble prose-bubble';
+                bubble.innerHTML = '<em>No response.</em>';
+                streamMessageEl.appendChild(bubble);
             }
+            streamMessageEl.classList.remove('streaming');
         } else if (opts.error) {
             appendMessage('assistant', `Error: ${opts.error}`);
         }
 
         setStreamingState(false);
-        streamBubble = null;
+        streamMessageEl = null;
+        streamPlainEl = null;
         streamBuffer = '';
     }
 
@@ -1099,16 +1301,16 @@
         const div = document.createElement('div');
         div.className = `message ${role}`;
         if (role === 'assistant') {
-            div.innerHTML = `<div class="bubble">${renderAssistant(text)}</div>`;
+            mountAssistantContent(div, text);
         } else {
-            div.innerHTML = `<div class="bubble">${String(text || '').replace(/\n/g, '<br>')}</div>`;
+            div.innerHTML = `<div class="bubble">${escapeHtml(String(text || '')).replace(/\n/g, '<br>')}</div>`;
         }
         chatHistory.appendChild(div);
         chatHistory.scrollTop = chatHistory.scrollHeight;
     }
 
     function resetChatToDefault() {
-        chatHistory.innerHTML = '<div class="message assistant"><div class="bubble">Hello! I am your AI assistant. How can I help you today?</div></div>';
+        chatHistory.innerHTML = '<div class="message assistant"><div class="bubble prose-bubble">Hello! I\'m your notebook copilot. Use <strong>Ask</strong> for questions and debugging, or <strong>Code</strong> to generate notebook cells.</div></div>';
     }
 
     function autosizeInput() {
@@ -1164,15 +1366,17 @@
         const sid = getCurrentSessionId();
         cancelledSessions.delete(sid);
         streamBuffer = '';
-        streamBubble = null;
+        streamMessageEl = null;
+        streamPlainEl = null;
         setStreamingState(true);
-        ensureStreamBubble();
+        ensureStreamMessage();
         
         chrome.runtime.sendMessage({
             type: 'CHAT_REQUEST',
             url: currentNotebookUrl(),
             sessionId: sid,
-            prompt: text
+            prompt: text,
+            mode: modeSelect ? String(modeSelect.value || 'ask') : 'ask',
         }, (response) => {
             if (response?.error) {
                 finalizeStream({ error: response.error });
@@ -1184,11 +1388,13 @@
         if (!isStreaming) return;
         const sid = getCurrentSessionId();
         cancelledSessions.add(sid);
+        const partial = streamBuffer;
         chrome.runtime.sendMessage({
             type: 'STOP_CHAT',
             url: currentNotebookUrl(),
             sessionId: sid
         });
+        finalizeStream({ text: partial, stopped: true });
     };
 
     input.addEventListener('keydown', (e) => {
@@ -1217,7 +1423,7 @@
             }
             if (!isStreaming) {
                 setStreamingState(true);
-                ensureStreamBubble();
+                ensureStreamMessage();
             }
             appendStreamDelta(msg.delta || '');
             return;
@@ -1292,7 +1498,7 @@
                 const card = document.createElement('div');
                 card.className = 'dep-card';
                 const rawCellNumber = Number(node?.cell_number ?? node?.index);
-                const cellNumber = Number.isFinite(rawCellNumber) && rawCellNumber > 0 ? rawCellNumber : (idx + 1);
+                const cellNumber = Number.isFinite(rawCellNumber) ? rawCellNumber : idx;
                 const deps = Array.isArray(node?.dependencies) ? node.dependencies : [];
                 const revs = Array.isArray(node?.reverse_dependencies) ? node.reverse_dependencies : [];
                 const depBadges = deps.map(d => `<span class="dep-badge">← Cell ${d}</span>`).join('');

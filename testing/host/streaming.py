@@ -47,6 +47,45 @@ except Exception:
         raise RuntimeError("streaming requires persistence_helpers._atomic_write_json: " + str(e))
 
 
+def inject_prefetched_tool_context(
+    messages: list,
+    *,
+    graph=None,
+    cell_slice: str | None = None,
+) -> None:
+    """
+    Attach eager tool results to the system prompt.
+
+    Cerebras requires tool-role messages to include tool_call_id and follow an
+    assistant message with tool_calls. Prefetch is not a real tool round-trip, so
+    we merge results into system content instead.
+    """
+    parts: list[str] = []
+    if graph is not None:
+        parts.append(
+            "### notebook_graph_query (prefetched)\n"
+            + json.dumps(graph, ensure_ascii=False)
+        )
+    if cell_slice:
+        parts.append(f"### cell_slice (prefetched)\n{cell_slice}")
+    if not parts:
+        return
+
+    block = (
+        "## Prefetched tool results\n"
+        "Use this evidence directly. Do not call the same prefetch tools again "
+        "unless the user asks for fresher data.\n\n"
+        + "\n\n".join(parts)
+    )
+
+    for msg in messages:
+        if msg.get("role") == "system":
+            msg["content"] = str(msg.get("content", "")).rstrip() + "\n\n" + block
+            return
+
+    messages.insert(0, {"role": "system", "content": block})
+
+
 def _load_rate_tracker() -> dict:
     if not RATE_LIMIT_TRACKER.exists():
         return {"events": []}
@@ -298,14 +337,72 @@ def _stop_active_stream(state: dict | None):
     _close_stream_handle(state.get("stream"))
 
 
+def begin_active_stream(active_key: str, session_id: str, url: str):
+    """Register an in-flight chat before slow prep work so STOP can cancel early."""
+    with _ACTIVE_STREAMS_LOCK:
+        prev = _ACTIVE_STREAMS.get(active_key)
+        if prev:
+            _stop_active_stream(prev)
+        _ACTIVE_STREAMS[active_key] = {
+            "thread": None,
+            "sessionId": session_id,
+            "stopped": False,
+            "url": url,
+            "stream": None,
+        }
+
+
+def is_stream_stopped(active_key: str, session_id: str | None = None) -> bool:
+    with _ACTIVE_STREAMS_LOCK:
+        state = _ACTIVE_STREAMS.get(active_key)
+        if not state:
+            return False
+        if session_id is not None and str(state.get("sessionId") or "") != str(session_id):
+            return False
+        return bool(state.get("stopped"))
+
+
+def clear_active_stream(active_key: str, session_id: str):
+    with _ACTIVE_STREAMS_LOCK:
+        current = _ACTIVE_STREAMS.get(active_key)
+        if current and str(current.get("sessionId") or "") == str(session_id):
+            _ACTIVE_STREAMS.pop(active_key, None)
+
+
+def send_stream_end(url, tab_id, session_id, *, response="", stopped=False, error=None):
+    payload = {
+        "type": "CHAT_STREAM_END",
+        "response": response,
+        "stopped": stopped,
+        "tabId": tab_id,
+        "url": url,
+        "sessionId": session_id,
+    }
+    if error:
+        payload["error"] = error
+    send_msg(payload)
+
+
 def _signal_remote_stop(session_id: str):
+    if not session_id:
+        return
     with _ACTIVE_STREAMS_LOCK:
         for k, state in list(_ACTIVE_STREAMS.items()):
             if state.get("sessionId") == session_id:
                 _stop_active_stream(state)
 
 
-def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode):
+def _interruptible_sleep(seconds: float, cancel_check) -> bool:
+    """Sleep in small slices; return True if cancelled."""
+    end = time.monotonic() + max(0.0, float(seconds))
+    while time.monotonic() < end:
+        if callable(cancel_check) and cancel_check():
+            return True
+        time.sleep(min(0.1, end - time.monotonic()))
+    return bool(callable(cancel_check) and cancel_check())
+
+
+def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode, explicit_mode=None, context_meta=None):
     full_text = ""
     active_key = str(tab_id)
     attempt_id = ""
@@ -325,45 +422,71 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode)
         return
 
     try:
-        log(f"AI Stream Request for {url} (session={session_id}, model={CEREBRAS_MODEL})")
-
-        messages = []
-        # Build system prompt including autogen tool descriptions when available
-        system_parts = [f"Mode: {mode}", ""]
-        if context:
-            system_parts.append("Context:")
-            system_parts.append(str(context))
-            system_parts.append("")
         try:
-            from pathlib import Path
-            pdir = Path(__file__).resolve().parent / "prompts" / "tool_calling"
-            prompt_file = pdir / "tool_descriptions_autogen.txt"
-            examples_file = pdir / "tool_examples_autogen.txt"
-            if prompt_file.exists():
-                try:
-                    autogen = prompt_file.read_text(encoding="utf-8")
-                    system_parts.append("Tools:\n" + autogen)
-                except Exception:
-                    pass
-            if examples_file.exists():
-                try:
-                    examples = examples_file.read_text(encoding="utf-8")
-                    system_parts.append("\nTool examples:\n" + examples)
-                except Exception:
-                    pass
+            from .prompt_engineering import detect_mode, build_chat_messages, normalize_mode
         except Exception:
-            pass
+            from prompt_engineering import detect_mode, build_chat_messages, normalize_mode
 
-        messages.append({
-            "role": "system",
-            "content": "\n".join(system_parts),
-        })
-        for h in history or []:
-            role = str(h.get("role", "")).strip().lower()
-            content = str(h.get("content", ""))
-            if role in {"user", "assistant", "system"} and content:
-                messages.append({"role": role, "content": content})
-        messages.append({"role": "user", "content": str(prompt or "")})
+        context_meta = context_meta if isinstance(context_meta, dict) else {}
+        resolved_mode = detect_mode(
+            prompt,
+            explicit_mode or mode,
+            has_cell_context=context_meta.get("cell_index") is not None,
+        )
+        resolved_mode = normalize_mode(resolved_mode)
+        log(f"AI Stream Request for {url} (session={session_id}, model={CEREBRAS_MODEL}, mode={resolved_mode})")
+
+        messages = build_chat_messages(
+            mode=resolved_mode,
+            user_prompt=prompt,
+            history=history,
+            context=context,
+            notebook_url=url,
+            include_tools=True,
+        )
+
+        pre_stream_tools_done = False
+        try:
+            from .notebook_context import TOOL_FIRST_MODES, cell_slice_from_snapshot
+        except Exception:
+            from notebook_context import TOOL_FIRST_MODES, cell_slice_from_snapshot
+
+        if _is_stopped():
+            send_stream_end(url, tab_id, session_id, stopped=True)
+            return
+
+        coverage = str(context_meta.get("coverage") or "none")
+        if resolved_mode in TOOL_FIRST_MODES and coverage in ("none", "partial"):
+            if _is_stopped():
+                send_stream_end(url, tab_id, session_id, stopped=True)
+                return
+            try:
+                from .tool_registry import registry as _registry_factory
+            except Exception:
+                from tool_registry import registry as _registry_factory
+            reg = _registry_factory()
+            graph = reg.call("notebook_graph_query", {"url": url})
+            slice_content = None
+            cell_idx = context_meta.get("cell_index")
+            if cell_idx is not None:
+                try:
+                    cell_idx = int(cell_idx)
+                    slice_content = cell_slice_from_snapshot(url, cell_idx)
+                except Exception as e:
+                    log(f"Pre-stream cell slice failed: {e}")
+            inject_prefetched_tool_context(
+                messages,
+                graph=graph,
+                cell_slice=slice_content,
+            )
+            pre_stream_tools_done = True
+
+        try:
+            from .context_budget import fit_messages_to_budget, estimate_messages_tokens
+        except Exception:
+            from context_budget import fit_messages_to_budget, estimate_messages_tokens
+        messages = fit_messages_to_budget(messages)
+        log(f"Prompt budget: ~{estimate_messages_tokens(messages)} est. tokens, {len(messages)} messages")
 
         while True:
             if _is_stopped():
@@ -395,9 +518,8 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode)
                     break
                 if "429" in err or "queue_exceeded" in err or "too_many_requests_error" in err:
                     log("Queue busy. Retrying in 2.5s...")
-                    if _is_stopped():
+                    if _interruptible_sleep(2.5, _is_stopped):
                         break
-                    time.sleep(2.5)
                     continue
                 raise
 
@@ -460,7 +582,20 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode)
             state = _ACTIVE_STREAMS.get(active_key) or state or {}
             was_stopped = bool(state.get("stopped"))
 
+        if was_stopped:
+            if attempt_id:
+                _finalize_request_attempt(attempt_id, 0)
+            send_stream_end(
+                url,
+                tab_id,
+                session_id,
+                response=full_text.strip(),
+                stopped=True,
+            )
+            return
+
         if not was_stopped and not full_text.strip():
+            messages = fit_messages_to_budget(messages)
             response = _CEREBRAS_CLIENT.chat.completions.create(
                 messages=messages,
                 model=CEREBRAS_MODEL,
@@ -478,12 +613,17 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode)
         if final_text and not was_stopped:
             memory_store.append(url, "assistant", final_text, session_id=session_id)
 
+        skip_post_stream_tools = (
+            resolved_mode in TOOL_FIRST_MODES
+            and (pre_stream_tools_done or coverage == "full")
+        )
+
         # Tool calling via Cerebras tools API (browser-backed registry).
         try:
             from .tool_registry import registry as _registry_factory, build_cerebras_tools
 
             tools = build_cerebras_tools()
-            if tools and not was_stopped:
+            if tools and not was_stopped and not skip_post_stream_tools:
                 tool_messages = list(messages)
                 if final_text:
                     tool_messages.append({"role": "assistant", "content": final_text})
@@ -492,6 +632,7 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode)
                     if _is_stopped():
                         break
                     try:
+                        tool_messages = fit_messages_to_budget(tool_messages)
                         tool_resp = _CEREBRAS_CLIENT.chat.completions.create(
                             messages=tool_messages,
                             model=CEREBRAS_MODEL,
@@ -552,6 +693,7 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode)
 
                 if not _is_stopped():
                     try:
+                        tool_messages = fit_messages_to_budget(tool_messages)
                         final_resp = _CEREBRAS_CLIENT.chat.completions.create(
                             messages=tool_messages,
                             model=CEREBRAS_MODEL,
@@ -567,14 +709,13 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode)
         except Exception as e:
             log(f"Orchestration error: {e}")
 
-        send_msg({
-            "type": "CHAT_STREAM_END",
-            "response": final_text,
-            "stopped": was_stopped,
-            "tabId": tab_id,
-            "url": url,
-            "sessionId": session_id,
-        })
+        send_stream_end(
+            url,
+            tab_id,
+            session_id,
+            response=final_text,
+            stopped=was_stopped,
+        )
 
     except Exception as e:
         err_text = f"Error: {e}"
@@ -586,7 +727,4 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode)
         send_msg({"type": "CHAT_RESPONSE", "error": str(e), "tabId": tab_id, "url": url, "sessionId": session_id})
         send_msg({"type": "CHAT_STREAM_END", "error": str(e), "stopped": False, "tabId": tab_id, "url": url, "sessionId": session_id})
     finally:
-        with _ACTIVE_STREAMS_LOCK:
-            current = _ACTIVE_STREAMS.get(active_key)
-            if current and current.get("sessionId") == session_id:
-                _ACTIVE_STREAMS.pop(active_key, None)
+        clear_active_stream(active_key, session_id)

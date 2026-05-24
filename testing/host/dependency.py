@@ -38,6 +38,21 @@ except Exception:
         from testing.host.extract_dependencies import DependencyTracker as FallbackDependencyTracker
 
 
+class LocalContextBuilder:
+    """In-repo context builder using notebook_context (no external packages)."""
+
+    def __init__(self, notebook_url: str, bot_state: dict | None = None):
+        self.notebook_url = notebook_url
+        self.bot_state = bot_state or {}
+
+    def get_cell_context(self, cell_num: int) -> str:
+        try:
+            from .notebook_context import get_cell_context_text
+        except Exception:
+            from notebook_context import get_cell_context_text
+        return get_cell_context_text(self.notebook_url, int(cell_num), self.bot_state)
+
+
 def _build_fallback_graph(notebook_url: str):
     """Build a minimal graph from saved notebook JSON when dependency modules are unavailable."""
     filename = get_safe_filename(notebook_url)
@@ -46,7 +61,10 @@ def _build_fallback_graph(notebook_url: str):
             f.write(f"[_build_fallback_graph] URL: {notebook_url} -> Filename: {filename}\n")
     except Exception:
         pass
-    candidates = [SCRAPED_DIR / 'persistent' / filename]
+    candidates = [
+        SCRAPED_DIR / "live" / filename,
+        SCRAPED_DIR / "persistent" / filename,
+    ]
     json_path = None
     for p in candidates:
         try:
@@ -63,16 +81,16 @@ def _build_fallback_graph(notebook_url: str):
         with json_path.open('r', encoding='utf-8') as f:
             data = json.load(f)
         cells = data.get('cells', [])
-        
+
         tracker = FallbackDependencyTracker()
         for cell in cells:
             if cell.get('type') == 'code':
                 idx = cell.get('index', 0)
                 code = cell.get('input', '')
                 tracker.add_cell(idx, code)
-        
+
         tracker.compute_graph()
-        
+
         reverse_deps = {idx: [] for idx in tracker.symbol_table.keys()}
         for idx, deps in tracker.dependencies.items():
             for d in deps:
@@ -111,45 +129,54 @@ class DependencyManager:
     def __init__(self, json_dir: Path):
         self.json_dir = json_dir
         self._cache = {}
+        self._bot_state: dict = {}
+
+    def set_bot_state(self, state: dict | None):
+        self._bot_state = state or {}
 
     def get_builder(self, notebook_url: str):
-        if not _DEP_AVAILABLE or not notebook_url:
-            return None
-        filename = get_safe_filename(notebook_url)
-        candidates = [self.json_dir / 'persistent' / filename]
-        json_path = None
-        for p in candidates:
-            if p.exists():
-                json_path = p
-                break
-        if not json_path:
+        if not notebook_url:
             return None
 
-        mtime = json_path.stat().st_mtime
-        if filename not in self._cache or self._cache[filename]['mtime'] != mtime:
-            try:
-                with open(json_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                cells = data.get('cells', [])
-                tracker = DependencyTracker()
-                cells_data = {}
-                for cell in cells:
-                    idx = cell.get('index', 0)
-                    code = cell.get('input', '')
-                    output = cell.get('output', '')
-                    cells_data[idx] = {'code': code, 'output': output}
-                    tracker.update_cell(idx, code)
-                tracker.update_all_reverse_dependencies()
-                self._cache[filename] = {
-                    'builder': ContextBuilder(tracker, cells_data),
-                    'mtime': mtime,
-                    'cell_count': len(cells_data)
-                }
-            except Exception as e:
-                try:
-                    with LOG_PATH.open('a', encoding='utf-8') as f:
-                        f.write(f"Failed to build graph: {e}\n")
-                except Exception:
-                    pass
+        if _DEP_AVAILABLE:
+            filename = get_safe_filename(notebook_url)
+            candidates = [self.json_dir / 'persistent' / filename]
+            json_path = None
+            for p in candidates:
+                if p.exists():
+                    json_path = p
+                    break
+            if not json_path:
                 return None
-        return self._cache[filename]['builder']
+
+            mtime = json_path.stat().st_mtime
+            if filename not in self._cache or self._cache[filename]['mtime'] != mtime:
+                try:
+                    with open(json_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                    cells = data.get('cells', [])
+                    tracker = DependencyTracker()
+                    cells_data = {}
+                    for cell in cells:
+                        idx = cell.get('index', 0)
+                        code = cell.get('input', '')
+                        output = cell.get('output', '')
+                        cells_data[idx] = {'code': code, 'output': output}
+                        tracker.update_cell(idx, code)
+                    tracker.update_all_reverse_dependencies()
+                    self._cache[filename] = {
+                        'builder': ContextBuilder(tracker, cells_data),
+                        'mtime': mtime,
+                        'cell_count': len(cells_data)
+                    }
+                except Exception as e:
+                    try:
+                        with LOG_PATH.open('a', encoding='utf-8') as f:
+                            f.write(f"Failed to build graph: {e}\n")
+                    except Exception:
+                        pass
+                    return None
+            return self._cache[filename]['builder']
+
+        # Graph/chat context uses notebook_context.build_graph_list / pack_context in-repo.
+        return None

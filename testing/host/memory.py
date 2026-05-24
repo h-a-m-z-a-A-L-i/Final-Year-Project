@@ -6,7 +6,15 @@ from .config import CHAT_MEMORY_DB, DB_TIMEOUT_SECONDS, MAX_HISTORY_MESSAGES, MA
 
 
 class LocalMemoryStore:
-    """Handles persistent SQLite chat history per notebook."""
+    """SQLite chat memory at CHAT_MEMORY_DB (see config).
+
+    messages: per-notebook, per-session turns (role user|assistant, content, timestamp).
+    profile_facts: durable key/value facts extracted from chat (e.g. user name).
+
+    UI/history loads up to MAX_HISTORY_MESSAGES per session (full text in DB).
+    API prompts use trim_history_for_api() in context_budget (fewer/shorter turns).
+    Stop/cancel does not append a partial assistant reply (host checks stopped flag).
+    """
     def __init__(self, db_path: Path = CHAT_MEMORY_DB):
         self.db_path = db_path
         self._lock = threading.Lock()

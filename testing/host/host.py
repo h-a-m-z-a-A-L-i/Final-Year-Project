@@ -22,7 +22,13 @@ try:
     from .notebook_data_handler import build_graph_payload, handle_get_graph, handle_notebook_data, _normalized_url
     from .persistence_helpers import _atomic_write_json, save_json, save_live_json, save_persistent_json, get_safe_filename, _load_hashes, _save_hashes, _load_execution_state, _save_execution_state
     from .memory import memory_store
-    from .streaming import _run_streaming_chat, _signal_remote_stop, _stop_active_stream
+    from .streaming import (
+        _run_streaming_chat,
+        _signal_remote_stop,
+        begin_active_stream,
+        is_stream_stopped,
+        send_stream_end,
+    )
 except Exception:
     # When executed as a script (no package context), import from the filesystem
     repo_root = Path(__file__).resolve().parents[2]
@@ -39,7 +45,13 @@ except Exception:
         from notebook_data_handler import build_graph_payload, handle_get_graph, handle_notebook_data, _normalized_url
         from persistence_helpers import _atomic_write_json, save_json, save_live_json, save_persistent_json, get_safe_filename, _load_hashes, _save_hashes, _load_execution_state, _save_execution_state
         from memory import memory_store
-        from streaming import _run_streaming_chat, _signal_remote_stop, _stop_active_stream
+        from streaming import (
+            _run_streaming_chat,
+            _signal_remote_stop,
+            begin_active_stream,
+            is_stream_stopped,
+            send_stream_end,
+        )
     except Exception:
         # As a final fallback try package-style import using repo folder name
         from testing.host.config import *
@@ -49,7 +61,13 @@ except Exception:
         from testing.host.notebook_data_handler import build_graph_payload, handle_get_graph, handle_notebook_data, _normalized_url
         from testing.host.persistence_helpers import _atomic_write_json, save_json, save_live_json, save_persistent_json, get_safe_filename, _load_hashes, _save_hashes, _load_execution_state, _save_execution_state
         from testing.host.memory import memory_store
-        from testing.host.streaming import _run_streaming_chat, _signal_remote_stop, _stop_active_stream
+        from testing.host.streaming import (
+            _run_streaming_chat,
+            _signal_remote_stop,
+            begin_active_stream,
+            is_stream_stopped,
+            send_stream_end,
+        )
 
 # configuration comes from testing/host/config.py
 
@@ -155,14 +173,41 @@ def main():
                 send_msg({"type": "CHAT_RESPONSE", "error": "Missing or invalid notebook URL.", "tabId": tab_id})
                 continue
 
-            context = ""
-            builder = dep_manager.get_builder(url)
-            mode = "simple"
-            if builder:
-                cell_num = _extract_cell_number(prompt)
-                if cell_num is not None:
-                    context = builder.get_cell_context(cell_num)
-                    mode = "dependency"
+            active_key = str(tab_id)
+            begin_active_stream(active_key, session_id, url)
+
+            try:
+                from .prompt_engineering import detect_mode, merge_context_with_profile
+                from .notebook_context import pack_context
+            except Exception:
+                from prompt_engineering import detect_mode, merge_context_with_profile
+                from notebook_context import pack_context
+
+            ui_mode = str(msg.get("mode") or "ask").strip().lower()
+            cell_num = _extract_cell_number(prompt)
+
+            with _BOT_STATE_LOCK:
+                bot_state = dict(host_ctx.get("bot_state") or {})
+            dep_manager.set_bot_state(bot_state)
+
+            mode = detect_mode(
+                prompt,
+                ui_mode,
+                has_cell_context=cell_num is not None,
+            )
+
+            ctx_pack = pack_context(
+                mode=mode,
+                url=url,
+                prompt=prompt,
+                cell_index=cell_num,
+                dep_manager=dep_manager,
+                bot_state=bot_state,
+            )
+            log(
+                f"Context pack mode={mode} coverage={ctx_pack.coverage} "
+                f"snapshot={ctx_pack.snapshot} cell={ctx_pack.cell_index}"
+            )
 
             extracted_facts = _extract_user_profile_facts(prompt)
             for fact_key, fact_value in extracted_facts.items():
@@ -180,39 +225,49 @@ def main():
                     send_msg({"type": "CHAT_RESPONSE", "response": response, "tabId": tab_id, "url": url, "sessionId": session_id})
                     continue
 
-            if profile_context:
-                context = f"{profile_context}\n\n{context}" if context else profile_context
-            if context and len(context) > MAX_CONTEXT_CHARS:
-                context = context[:MAX_CONTEXT_CHARS]
+            context = merge_context_with_profile(ctx_pack.text, profile_context)
+
+            if is_stream_stopped(active_key, session_id):
+                send_stream_end(url, tab_id, session_id, stopped=True)
+                continue
 
             history = memory_store.get_history(url, session_id=session_id)
             memory_store.append(url, "user", prompt, session_id=session_id)
 
-            active_key = str(tab_id)
-            with _ACTIVE_STREAMS_LOCK:
-                prev = _ACTIVE_STREAMS.get(active_key)
-                _stop_active_stream(prev)
-            if prev and prev.get("sessionId"):
-                _signal_remote_stop(prev.get("sessionId"))
+            if is_stream_stopped(active_key, session_id):
+                send_stream_end(url, tab_id, session_id, stopped=True)
+                continue
 
-            worker = threading.Thread(target=_run_streaming_chat, args=(url, prompt, tab_id, session_id, history, context, mode), daemon=True)
+            context_meta = {
+                "coverage": ctx_pack.coverage,
+                "cell_index": ctx_pack.cell_index,
+                "snapshot": ctx_pack.snapshot,
+            }
+
+            worker = threading.Thread(
+                target=_run_streaming_chat,
+                args=(url, prompt, tab_id, session_id, history, context, mode, ui_mode, context_meta),
+                daemon=True,
+            )
             with _ACTIVE_STREAMS_LOCK:
-                _ACTIVE_STREAMS[active_key] = {"thread": worker, "sessionId": session_id, "stopped": False, "url": url}
+                state = _ACTIVE_STREAMS.get(active_key)
+                if state is not None:
+                    state["thread"] = worker
             worker.start()
             continue
 
         if m_type == "STOP_CHAT":
             tab_id = msg.get("tabId")
-            active_key = str(tab_id)
             session_id = str(msg.get("sessionId") or "")
-            with _ACTIVE_STREAMS_LOCK:
-                state = _ACTIVE_STREAMS.get(active_key)
-                if state:
-                    _stop_active_stream(state)
-                    if not session_id:
-                        session_id = str(state.get("sessionId") or "")
+            url = _history_url_key(msg.get("url"))
             _signal_remote_stop(session_id)
-            send_msg({"type": "CHAT_STREAM_END", "stopped": True, "tabId": tab_id, "url": _history_url_key(msg.get("url")), "sessionId": session_id})
+            with _ACTIVE_STREAMS_LOCK:
+                state = _ACTIVE_STREAMS.get(str(tab_id))
+                if state and not session_id:
+                    session_id = str(state.get("sessionId") or "")
+                if state and not url:
+                    url = state.get("url") or url
+            send_stream_end(url or "", tab_id, session_id, stopped=True)
             continue
 
         if m_type == "PROMPT_SIGNAL":
@@ -281,7 +336,10 @@ def main():
             continue
 
         if m_type == "NOTEBOOK_DATA":
-            handle_notebook_data(host_ctx, msg)
+            try:
+                handle_notebook_data(host_ctx, msg)
+            except Exception as e:
+                log(f"NOTEBOOK_DATA error: {e}")
             continue
 
         send_msg({"ok": True})

@@ -188,6 +188,45 @@ function scrapeNotebook() {
       execution_signal: buttonText,
     };
   };
+  const extractCodeCellOutput = (cell) => {
+    const wrapperSelectors = [
+      ".jp-Cell-outputWrapper",
+      ".jp-Cell-outputArea",
+      ".jp-OutputArea",
+      ".output_area",
+      ".output_wrapper",
+    ];
+    for (const sel of wrapperSelectors) {
+      const el = cell.querySelector(sel);
+      if (el) {
+        const text = (el.innerText || "").trim();
+        if (text) return text;
+      }
+    }
+    const chunks = [];
+    const seen = new Set();
+    const pieceSelectors = [
+      ".jp-OutputArea-output",
+      ".output_subarea",
+      ".jp-RenderedText",
+      ".jp-RenderedHTMLCommon",
+      ".output_text",
+      ".stream.stdout",
+      ".stream.stderr",
+      "pre",
+    ];
+    for (const sel of pieceSelectors) {
+      cell.querySelectorAll(sel).forEach((node) => {
+        if (!(node instanceof HTMLElement)) return;
+        const text = (node.innerText || "").trim();
+        if (!text || seen.has(text)) return;
+        seen.add(text);
+        chunks.push(text);
+      });
+    }
+    return chunks.join("\n").trim();
+  };
+
   for (const cell of cellElements) {
     const cellData = {};
     
@@ -217,8 +256,7 @@ function scrapeNotebook() {
       Object.assign(cellData, extractExecutionMeta(cell));
       
       // Output extraction (for code cells only)
-      const outputEl = cell.querySelector(".output, .jp-OutputArea, .output_area, .jp-Cell-outputArea");
-      cellData.output = outputEl ? outputEl.innerText.trim() : "";
+      cellData.output = extractCodeCellOutput(cell);
     } else {
       cellData.type = "markdown";
       const markdownContent = cell.querySelector(".jp-Cell-outputArea, .jp-OutputArea, [class*='output'], .cell-content");

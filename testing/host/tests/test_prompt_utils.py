@@ -11,7 +11,12 @@ from prompt_utils import _build_profile_memory_context, _extract_cell_number, _e
 def test_extract_cell_number():
     assert _extract_cell_number("explain cell 1") == 1
     assert _extract_cell_number("cell#2") == 2
-    assert _extract_cell_number("cell 0") is None
+    assert _extract_cell_number("cell3") == 3
+    assert _extract_cell_number("cell 0") == 0
+    assert _extract_cell_number("dependencies for cell 5") == 5
+    assert _extract_cell_number("what does the first cell do") == 0
+    assert _extract_cell_number("3rd cell upstream") == 3
+    assert _extract_cell_number("index 4 error") == 4
 
 
 def test_profile_fact_extraction_and_context():

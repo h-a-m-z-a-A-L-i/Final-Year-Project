@@ -54,7 +54,7 @@ def test_full_orchestration_calls_tool_and_gets_final():
 
     # Call the streaming function (it will run synchronously)
     try:
-        streaming._run_streaming_chat(url="https://example.com", prompt="Summarize", tab_id=1, session_id="s", history=[], context="", mode="simple")
+        streaming._run_streaming_chat(url="https://example.com", prompt="Summarize", tab_id=1, session_id="s", history=[], context="", mode="ask")
     except Exception as e:
         raise
 

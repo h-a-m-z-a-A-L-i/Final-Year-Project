@@ -33,7 +33,7 @@ def handle_chat_request(ctx: dict, msg: dict):
         cell_num = extract_cell_number(prompt)
         if cell_num is not None:
             context = builder.get_cell_context(cell_num)
-            mode = 'dependency'
+            mode = 'ask'
 
     extracted_facts = extract_user_profile_facts(prompt)
     for k, v in extracted_facts.items():

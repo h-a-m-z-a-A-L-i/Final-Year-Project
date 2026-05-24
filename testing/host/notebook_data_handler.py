@@ -109,7 +109,7 @@ def build_graph_payload(ctx: dict, url: str) -> dict:
 
     _promote_live_snapshot_if_needed(url)
     builder = dep_manager.get_builder(url)
-    if builder:
+    if builder is not None and hasattr(builder, "tracker") and hasattr(builder, "cells"):
         tracker = builder.tracker
         graph = []
         for num, data in builder.cells.items():
@@ -119,6 +119,15 @@ def build_graph_payload(ctx: dict, url: str) -> dict:
                 "dependencies": tracker.get_dependencies(num, transitive=False),
                 "reverse_dependencies": tracker.get_reverse_dependencies(num),
             })
+        return {"type": "GRAPH_DATA", "graph": graph, "error": None, "url": url}
+
+    try:
+        from .notebook_context import build_graph_list
+    except Exception:
+        from notebook_context import build_graph_list
+
+    graph = build_graph_list(url)
+    if graph:
         return {"type": "GRAPH_DATA", "graph": graph, "error": None, "url": url}
 
     fallback_graph = _build_fallback_graph(url)
@@ -141,14 +150,16 @@ def handle_notebook_data(ctx: dict, msg: dict):
 
     tab_url = _normalized_url(msg.get("tabUrl") or "unknown")
     tab_id = msg.get("tabId")
+    kernel_status = msg.get("kernelStatus")
+    kernel_scenario = msg.get("kernelScenario", "unknown")
+    kernel_state = msg.get("kernelState", {})
     if isinstance(tab_id, int):
         with bot_state_lock:
             bot_state["tabId"] = tab_id
             bot_state["url"] = tab_url
-
-    kernel_status = msg.get("kernelStatus")
-    kernel_scenario = msg.get("kernelScenario", "unknown")
-    kernel_state = msg.get("kernelState", {})
+            bot_state["kernelScenario"] = kernel_scenario
+            bot_state["kernelStatus"] = kernel_status
+            bot_state["kernelState"] = kernel_state if isinstance(kernel_state, dict) else {}
     kernel_active = _kernel_is_active(kernel_status)
     kernel_scenario_norm = _normalize_kernel_scenario(kernel_scenario)
 

@@ -40,10 +40,19 @@ RATE_LIMIT_TRACKER = DATA_ROOT / "meta" / "rate_limit_tracker.json"
 BOT_COMMANDS_PATH = DATA_ROOT / "meta" / "bot_commands.jsonl"
 BOT_RESULTS_PATH = DATA_ROOT / "meta" / "bot_results.jsonl"
 DB_TIMEOUT_SECONDS = 10
-MAX_HISTORY_MESSAGES = 24
+MAX_HISTORY_MESSAGES = 24  # SQLite + UI display
+MAX_HISTORY_MESSAGES_API = int(os.environ.get("MAX_HISTORY_MESSAGES_API", "10"))
+MAX_HISTORY_CHARS_PER_MSG = int(os.environ.get("MAX_HISTORY_CHARS_PER_MSG", "1000"))
+MAX_INPUT_TOKENS = int(os.environ.get("MAX_INPUT_TOKENS", "7000"))
+CHARS_PER_TOKEN_ESTIMATE = int(os.environ.get("CHARS_PER_TOKEN_ESTIMATE", "4"))
 MAX_CONTEXT_CHARS = 1800
+MAX_NOTEBOOK_CONTEXT_CHARS = int(os.environ.get("MAX_NOTEBOOK_CONTEXT_CHARS", "6000"))
 MAX_PROFILE_FACTS = 12
-ALLOWED_MODES = {"simple", "explain_error", "dependency", "code_review", "explain_code"}
+SYMBOL_CONTEXT_ENABLED = os.environ.get("SYMBOL_CONTEXT_ENABLED", "1").strip().lower() in ("1", "true", "yes")
+MAX_SYMBOL_SNIPPET_CHARS = int(os.environ.get("MAX_SYMBOL_SNIPPET_CHARS", "400"))
+MAX_SYMBOL_DEPTH = int(os.environ.get("MAX_SYMBOL_DEPTH", "2"))
+MAX_CELL_OUTPUT_CHARS = int(os.environ.get("MAX_CELL_OUTPUT_CHARS", "2500"))
+ALLOWED_MODES = {"ask", "code"}
 
 # Free-tier limits.
 TPM_LIMIT = int(os.environ.get("CEREBRAS_TPM_LIMIT", "60000"))
