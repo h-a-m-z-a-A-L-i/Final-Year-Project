@@ -598,6 +598,25 @@ function getPort() {
   port.onMessage.addListener((msg) => {
     console.log("Python says:", msg);
 
+    if (msg?.type === "INSERT_CODE_CELL_RESULT") {
+      const requestId = msg.requestId;
+      if (requestId && __pendingInsertCode.has(requestId)) {
+        const pending = __pendingInsertCode.get(requestId);
+        __pendingInsertCode.delete(requestId);
+        try {
+          pending.sendResponse({
+            ok: Boolean(msg.ok),
+            result: msg.result,
+            error: msg.error,
+          });
+        } catch (_) {}
+      }
+      if (typeof msg.tabId === "number") {
+        chrome.tabs.sendMessage(msg.tabId, msg).catch(() => {});
+      }
+      return;
+    }
+
     const dispatchToFrames = (tabId, payload, onResult) => {
       chrome.webNavigation.getAllFrames({ tabId }, async (frames) => {
         if (chrome.runtime.lastError) {
@@ -688,6 +707,7 @@ function getPort() {
       const payload = {
         type: "INSERT_CELL",
         direction: msg.direction,
+        cellIndex: msg.cellIndex,
         toMarkdown: msg.toMarkdown === true,
         markdownDelayMs: msg.markdownDelayMs,
         requestId: msg.requestId,
@@ -801,6 +821,30 @@ function getPort() {
       return;
     }
 
+    if (msg?.type === "SET_CELL_CONTENT" && typeof msg?.tabId === "number") {
+      const payload = {
+        type: "SET_CELL_CONTENT",
+        cellIndex: msg.cellIndex,
+        content: msg.content,
+        requestId: msg.requestId,
+        url: msg.url,
+      };
+
+      dispatchToFrames(msg.tabId, payload, (result) => {
+        getPort().postMessage({
+          type: result.ok ? "SET_CELL_CONTENT_RESULT" : "SET_CELL_CONTENT_ERROR",
+          tabId: msg.tabId,
+          url: msg.url,
+          requestId: msg.requestId,
+          cellIndex: msg.cellIndex,
+          tunnel: payload.type,
+          diagnostics: result?.diagnostics || null,
+          result,
+        });
+      });
+      return;
+    }
+
     if (msg?.type === "SEND_KEYS" && typeof msg?.tabId === "number") {
       const payload = {
         type: "SEND_KEYS",
@@ -849,6 +893,7 @@ function getPort() {
       "DELETE_CELL",
       "SEND_KEY",
       "SEND_KEYS",
+      "SET_CELL_CONTENT",
     ]);
 
     resolveTabIdForUrl(notebookUrl, null, (resolvedTabId) => {
@@ -930,7 +975,38 @@ function injectUI(tabId) {
 }
 
 // ── Bridge UI messages to the Native Host ────────────────────────────────────
+const __pendingInsertCode = new Map();
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg?.type === "INSERT_CODE_CELL") {
+    const requestId = msg.requestId || `insert_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    const tabId = sender.tab?.id;
+    __pendingInsertCode.set(requestId, { sendResponse, tabId });
+    const p = getPort();
+    if (!p) {
+      __pendingInsertCode.delete(requestId);
+      sendResponse({ ok: false, error: "Native host not connected." });
+      return true;
+    }
+    p.postMessage({
+      type: "INSERT_CODE_CELL",
+      url: msg.url,
+      index: msg.index,
+      content: msg.content,
+      tabId,
+      requestId,
+    });
+    setTimeout(() => {
+      const pending = __pendingInsertCode.get(requestId);
+      if (!pending) return;
+      __pendingInsertCode.delete(requestId);
+      try {
+        pending.sendResponse({ ok: false, error: "Timed out waiting for notebook insert (30s)." });
+      } catch (_) {}
+    }, 45000);
+    return true;
+  }
+
   // Handle prompt observer signals locally to trigger an immediate re-scan (throttled)
   if (msg?.type === 'PROMPT_SIGNAL') {
     console.log(`[BG-SIGNAL] Received: "${msg.text}" from cell ${msg.cellIndex || '?'}`);

@@ -24,6 +24,23 @@ There is **no Auto mode**; the user picks Ask or Code explicitly.
 
 `simple.txt`, `dependency.txt`, etc. are kept for reference; routing uses `ask.txt` / `code.txt` only.
 
+## Local read tools (LLM)
+
+Implemented in `local_notebook_tools.py` (not in `tools/` — browser tools stay there for later).
+
+| Tool | Purpose |
+|------|---------|
+| `notebook_snapshot_status` | Check live/persistent JSON exists |
+| `notebook_list_cells` | Compact index of all cells |
+| `notebook_graph_query` | Dependency graph with upstream/downstream |
+| `notebook_get_cell` | Full source/output for one cell |
+| `notebook_get_cells` | Batch up to 10 cells |
+| `notebook_find_symbol` | Where a variable is defined |
+| `notebook_search` | Text/regex search in inputs/outputs |
+| `notebook_cell_neighbors` | Run-order hints for one cell |
+
+`build_cerebras_tools(local_only=True)` exposes **only** these to the model (default).
+
 ## API alignment
 
 - Static sections first (Role → Examples) for prompt caching; dynamic notebook context in **Context**.

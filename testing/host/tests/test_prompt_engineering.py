@@ -32,6 +32,12 @@ def test_classify_ask_intent():
     assert pe.classify_ask_intent("what does cell 1 do") == "explain"
 
 
+def test_build_system_includes_jupyter_model():
+    content = pe.build_system_content("ask", notebook_url="https://example.com/x/edit", context="cell 1")
+    assert "Jupyter notebook model" in content
+    assert "Insert" in content or "insert" in content
+
+
 def test_build_system_follows_schema_order():
     content = pe.build_system_content("ask", notebook_url="https://example.com/x/edit", context="cell 1")
     role_pos = content.find("## Role")

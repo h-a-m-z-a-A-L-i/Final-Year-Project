@@ -285,6 +285,109 @@ def notebook_cell_neighbors(args: dict) -> dict:
     )
 
 
+def extract_symbols_from_text(text: str) -> list[str]:
+    """Pull likely Python identifiers from user prompt (e.g. model_df)."""
+    symbols: set[str] = set()
+    for m in re.finditer(r"`([^`]+)`", str(text or "")):
+        candidate = m.group(1).strip()
+        if re.match(r"^[A-Za-z_]\w*$", candidate):
+            symbols.add(candidate)
+    for m in re.finditer(r"\b([A-Za-z_][\w]*(?:_df|_data|DataFrame)?|df|model_df)\b", str(text or ""), re.I):
+        name = m.group(1)
+        if name.lower() not in {"for", "if", "in", "and", "the", "check"}:
+            symbols.add(name)
+    return sorted(symbols, key=len, reverse=True)[:6]
+
+
+def notebook_recommend_placement(args: dict) -> dict:
+    """
+    Recommend inserting a NEW code cell below the cell that defines required symbol(s).
+    """
+    url = _notebook_url(args)
+    if not url:
+        return _err("url is required")
+
+    raw_symbols = args.get("symbols") or args.get("symbol")
+    if isinstance(raw_symbols, str):
+        symbols = [raw_symbols.strip()] if raw_symbols.strip() else []
+    elif isinstance(raw_symbols, list):
+        symbols = [str(s).strip() for s in raw_symbols if str(s).strip()]
+    else:
+        symbols = []
+
+    if not symbols:
+        return _err("symbol or symbols list is required (e.g. model_df)")
+
+    _, source, cells = _load(url)
+    if not cells:
+        return _err("No notebook snapshot found", url=url, snapshot=source)
+
+    try:
+        from .notebook_context import _transitive_deps, build_dependency_graph
+    except Exception:
+        from notebook_context import _transitive_deps, build_dependency_graph
+
+    tracker, deps, _reverse = build_dependency_graph(cells)
+    index = build_symbol_index(cells)
+
+    symbol_plans = []
+    anchor_cell: int | None = None
+
+    for sym in symbols:
+        sites = index.defs.get(sym, [])
+        if not sites:
+            symbol_plans.append({"symbol": sym, "found": False})
+            continue
+        latest = max(sites, key=lambda s: s.cell_index)
+        def_cell = int(latest.cell_index)
+        if anchor_cell is None or def_cell > anchor_cell:
+            anchor_cell = def_cell
+        up = _transitive_deps(tracker, def_cell) if def_cell is not None else []
+        symbol_plans.append({
+            "symbol": sym,
+            "found": True,
+            "defined_in_cell": def_cell,
+            "definition_kind": latest.kind,
+            "definition_snippet": latest.snippet,
+            "upstream_cells": up,
+        })
+
+    if anchor_cell is None:
+        return _ok(
+            url=url,
+            snapshot=source,
+            symbols=symbol_plans,
+            recommendation=None,
+            message="No definitions found. Ask user which cell creates the data, or refresh snapshot.",
+        )
+
+    upstream_union: set[int] = set()
+    for plan in symbol_plans:
+        if plan.get("found"):
+            upstream_union.update(plan.get("upstream_cells") or [])
+    run_order = sorted(upstream_union | {anchor_cell})
+
+    return _ok(
+        url=url,
+        snapshot=source,
+        symbols=symbol_plans,
+        recommendation={
+            "action": "insert_new_code_cell",
+            "insert_below_cell_index": anchor_cell,
+            "instruction": (
+                f"In the notebook UI: click Cell [{anchor_cell}], then **Insert Code Cell Below** "
+                f"(add a new cell — do not hunt for unrelated empty cells elsewhere)."
+            ),
+            "run_order": run_order + ["<new cell below {0}>".format(anchor_cell)],
+            "avoid": [
+                "Do not recommend reusing a distant 'empty' cell far below the definition unless it is immediately after the defining cell.",
+                "Do not overwrite markdown/comment-only cells unless the user asked to edit that specific cell.",
+                "Do not suggest Cell [1] unless the user will re-run the entire notebook from the top.",
+            ],
+        },
+    )
+
+
 def notebook_snapshot_status(args: dict) -> dict:
     """Report whether live/persistent JSON exists and basic stats."""
     url = _notebook_url(args)
@@ -316,6 +419,7 @@ LOCAL_TOOL_HANDLERS: dict[str, Callable[[dict], dict]] = {
     "notebook_find_symbol": notebook_find_symbol,
     "notebook_search": notebook_search,
     "notebook_cell_neighbors": notebook_cell_neighbors,
+    "notebook_recommend_placement": notebook_recommend_placement,
     "notebook_snapshot_status": notebook_snapshot_status,
 }
 
@@ -407,6 +511,22 @@ LOCAL_TOOL_SPECS: list[dict[str, Any]] = [
             "required": ["url", "cell_index"],
         },
         "description": "Get direct upstream/downstream cells and suggested run order for one cell.",
+    },
+    {
+        "name": "notebook_recommend_placement",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "url": _URL_SCHEMA,
+                "symbol": {"type": "string"},
+                "symbols": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["url"],
+        },
+        "description": (
+            "Recommend inserting a NEW code cell below the cell where symbol(s) are defined; "
+            "includes run order and what to avoid (distant empty cells)."
+        ),
     },
 ]
 

@@ -17,7 +17,7 @@ except Exception:
 try:
     from .config import *
     from .config import _HASHES_LOCK, _EXECUTION_STATE_LOCK, _SEND_LOCK, _ACTIVE_STREAMS, _ACTIVE_STREAMS_LOCK, _RATE_LOCK, _BOT_STATE_LOCK, _CEREBRAS_CLIENT
-    from .dispatcher import read_msg, send_msg, _append_jsonl, _start_bot_command_watcher
+    from .dispatcher import get_next_message, send_msg, _append_jsonl, start_host_io
     from .prompt_utils import _extract_cell_number, _extract_user_profile_facts, _build_profile_memory_context
     from .notebook_data_handler import build_graph_payload, handle_get_graph, handle_notebook_data, _normalized_url
     from .persistence_helpers import _atomic_write_json, save_json, save_live_json, save_persistent_json, get_safe_filename, _load_hashes, _save_hashes, _load_execution_state, _save_execution_state
@@ -40,7 +40,7 @@ except Exception:
     try:
         from config import *
         from config import _HASHES_LOCK, _EXECUTION_STATE_LOCK, _SEND_LOCK, _ACTIVE_STREAMS, _ACTIVE_STREAMS_LOCK, _RATE_LOCK, _BOT_STATE_LOCK, _CEREBRAS_CLIENT
-        from dispatcher import read_msg, send_msg, _append_jsonl, _start_bot_command_watcher
+        from dispatcher import get_next_message, send_msg, _append_jsonl, start_host_io
         from prompt_utils import _extract_cell_number, _extract_user_profile_facts, _build_profile_memory_context
         from notebook_data_handler import build_graph_payload, handle_get_graph, handle_notebook_data, _normalized_url
         from persistence_helpers import _atomic_write_json, save_json, save_live_json, save_persistent_json, get_safe_filename, _load_hashes, _save_hashes, _load_execution_state, _save_execution_state
@@ -56,7 +56,7 @@ except Exception:
         # As a final fallback try package-style import using repo folder name
         from testing.host.config import *
         from testing.host.config import _HASHES_LOCK, _EXECUTION_STATE_LOCK, _SEND_LOCK, _ACTIVE_STREAMS, _ACTIVE_STREAMS_LOCK, _RATE_LOCK, _BOT_STATE_LOCK, _CEREBRAS_CLIENT
-        from testing.host.dispatcher import read_msg, send_msg, _append_jsonl, _start_bot_command_watcher
+        from testing.host.dispatcher import get_next_message, send_msg, _append_jsonl, start_host_io
         from testing.host.prompt_utils import _extract_cell_number, _extract_user_profile_facts, _build_profile_memory_context
         from testing.host.notebook_data_handler import build_graph_payload, handle_get_graph, handle_notebook_data, _normalized_url
         from testing.host.persistence_helpers import _atomic_write_json, save_json, save_live_json, save_persistent_json, get_safe_filename, _load_hashes, _save_hashes, _load_execution_state, _save_execution_state
@@ -156,7 +156,7 @@ def main():
     }
 
     while True:
-        msg = read_msg()
+        msg = get_next_message()
         if msg is None:
             log("Chrome disconnected.")
             break
@@ -319,20 +319,69 @@ def main():
             send_msg({"type": "HISTORY_CLEARED", "url": url, "tabId": tab_id, "sessionId": session_id})
             continue
 
-        if m_type in {"CLICK_CELL_RESULT", "CLICK_CELL_ERROR", "CLICK_SELECTOR_RESULT", "CLICK_SELECTOR_ERROR", "SELECT_CELL_RESULT", "SELECT_CELL_ERROR", "INSERT_CELL_RESULT", "INSERT_CELL_ERROR", "SEND_KEY_RESULT", "SEND_KEY_ERROR", "DELETE_CELL_RESULT", "DELETE_CELL_ERROR", "SEND_KEYS_RESULT", "SEND_KEYS_ERROR"}:
+        if m_type == "INSERT_CODE_CELL":
+            url = _history_url_key(msg.get("url"))
+            tab_id = msg.get("tabId")
+            request_id = msg.get("requestId")
             try:
-                from .bot_command import complete_bot_result
+                anchor_index = int(msg.get("index"))
             except Exception:
-                from bot_command import complete_bot_result
-            record = complete_bot_result(msg)
-            record["diagnostics"] = msg.get("diagnostics")
-            if msg.get("tunnel"):
-                record["tunnel"] = msg.get("tunnel")
-            _append_jsonl(BOT_RESULTS_PATH, record)
-            log(
-                f"Bot result {m_type} ok={record.get('ok')} tabId={msg.get('tabId')} "
-                f"cellIndex={msg.get('cellIndex')} requestId={msg.get('requestId')}"
-            )
+                send_msg({
+                    "type": "INSERT_CODE_CELL_RESULT",
+                    "ok": False,
+                    "error": "index must be an integer (insert new cell below this index)",
+                    "tabId": tab_id,
+                    "url": url,
+                    "requestId": request_id,
+                })
+                continue
+            content = str(msg.get("content") or "")
+            if not url:
+                send_msg({
+                    "type": "INSERT_CODE_CELL_RESULT",
+                    "ok": False,
+                    "error": "Missing notebook URL",
+                    "tabId": tab_id,
+                })
+                continue
+            try:
+                from .tool_adapters import insert_and_edit_cell
+            except Exception:
+                from tool_adapters import insert_and_edit_cell
+            log(f"INSERT_CODE_CELL below={anchor_index} url={url} chars={len(content)}")
+
+            def _run_insert_code_cell():
+                try:
+                    result = insert_and_edit_cell({
+                        "url": url,
+                        "index": anchor_index,
+                        "direction": "below",
+                        "content": content,
+                        "tab_id": tab_id,
+                        "tabId": tab_id,
+                        "timeout": 30,
+                    })
+                    send_msg({
+                        "type": "INSERT_CODE_CELL_RESULT",
+                        "ok": bool(result.get("ok")),
+                        "tabId": tab_id,
+                        "url": url,
+                        "requestId": request_id,
+                        "result": result,
+                        "error": None if result.get("ok") else (result.get("error") or "insert failed"),
+                    })
+                except Exception as exc:
+                    log(f"INSERT_CODE_CELL error: {exc}")
+                    send_msg({
+                        "type": "INSERT_CODE_CELL_RESULT",
+                        "ok": False,
+                        "tabId": tab_id,
+                        "url": url,
+                        "requestId": request_id,
+                        "error": str(exc),
+                    })
+
+            threading.Thread(target=_run_insert_code_cell, daemon=True).start()
             continue
 
         if m_type == "NOTEBOOK_DATA":
@@ -355,7 +404,7 @@ def initialize():
     BOT_RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
     BOT_COMMANDS_PATH.touch(exist_ok=True)
     BOT_RESULTS_PATH.touch(exist_ok=True)
-    _start_bot_command_watcher()
+    start_host_io()
     _start_http_server()
     if _DEP_FALLBACK:
         log("Dependency modules not found; using built-in fallback dependency engine.")

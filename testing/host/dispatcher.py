@@ -1,4 +1,5 @@
 import json
+import queue
 import struct
 import sys
 import threading
@@ -12,6 +13,20 @@ except Exception:
 
 from .config import BOT_COMMANDS_PATH, BOT_RESULTS_PATH, _SEND_LOCK
 from .bot_command import execute_bot_command_sync, complete_bot_result
+
+_INCOMING_QUEUE: queue.Queue = queue.Queue()
+_READER_STARTED = False
+
+_BOT_RESULT_TYPES = frozenset({
+    "CLICK_CELL_RESULT", "CLICK_CELL_ERROR",
+    "CLICK_SELECTOR_RESULT", "CLICK_SELECTOR_ERROR",
+    "SELECT_CELL_RESULT", "SELECT_CELL_ERROR",
+    "INSERT_CELL_RESULT", "INSERT_CELL_ERROR",
+    "SET_CELL_CONTENT_RESULT", "SET_CELL_CONTENT_ERROR",
+    "SEND_KEY_RESULT", "SEND_KEY_ERROR",
+    "DELETE_CELL_RESULT", "DELETE_CELL_ERROR",
+    "SEND_KEYS_RESULT", "SEND_KEYS_ERROR",
+})
 
 
 def _handle_bot_command(cmd: dict) -> dict:
@@ -40,6 +55,54 @@ def send_msg(obj):
     with _SEND_LOCK:
         sys.stdout.buffer.write(struct.pack("<I", len(data)) + data)
         sys.stdout.buffer.flush()
+
+
+def _handle_bot_result_immediate(msg: dict) -> None:
+    """Wake pending execute_bot_command_sync waiters while the main loop is busy."""
+    try:
+        record = complete_bot_result(msg)
+        record["diagnostics"] = msg.get("diagnostics")
+        if msg.get("tunnel"):
+            record["tunnel"] = msg.get("tunnel")
+        _append_jsonl(BOT_RESULTS_PATH, record)
+        print(
+            f"Bot result {msg.get('type')} ok={record.get('ok')} tabId={msg.get('tabId')} "
+            f"cellIndex={msg.get('cellIndex')} requestId={msg.get('requestId')}",
+            file=sys.stderr,
+        )
+    except Exception as exc:
+        print(f"Bot result dispatch failed: {exc}", file=sys.stderr)
+
+
+def _start_stdin_reader() -> None:
+    """Read native messages on a background thread so bot results are not starved."""
+    global _READER_STARTED
+    if _READER_STARTED:
+        return
+    _READER_STARTED = True
+
+    def _reader() -> None:
+        while True:
+            try:
+                msg = read_msg()
+                if msg is None:
+                    _INCOMING_QUEUE.put(None)
+                    break
+                m_type = msg.get("type")
+                if m_type in _BOT_RESULT_TYPES:
+                    _handle_bot_result_immediate(msg)
+                    continue
+                _INCOMING_QUEUE.put(msg)
+            except Exception as exc:
+                print(f"stdin reader error: {exc}", file=sys.stderr)
+                time.sleep(0.1)
+
+    threading.Thread(target=_reader, daemon=True).start()
+
+
+def get_next_message():
+    """Next extension message for the main loop (bot results are handled in the reader)."""
+    return _INCOMING_QUEUE.get()
 
 
 def _append_jsonl(path: Path, payload: dict):
@@ -133,3 +196,9 @@ def _start_bot_command_watcher():
                 time.sleep(0.25)
 
     threading.Thread(target=_worker, daemon=True).start()
+
+
+def start_host_io() -> None:
+    """Start stdin reader and bot command watcher (call once during host init)."""
+    _start_stdin_reader()
+    _start_bot_command_watcher()

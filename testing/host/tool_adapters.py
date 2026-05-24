@@ -37,27 +37,63 @@ def notebook_graph_query(args: Dict[str, Any]) -> Dict[str, Any]:
     return _registry().call("notebook_graph_query", args)
 
 
+def notebook_snapshot_status(args: Dict[str, Any]) -> Dict[str, Any]:
+    return _registry().call("notebook_snapshot_status", args)
+
+
+def notebook_list_cells(args: Dict[str, Any]) -> Dict[str, Any]:
+    return _registry().call("notebook_list_cells", args)
+
+
+def notebook_get_cell(args: Dict[str, Any]) -> Dict[str, Any]:
+    return _registry().call("notebook_get_cell", args)
+
+
+def notebook_get_cells(args: Dict[str, Any]) -> Dict[str, Any]:
+    return _registry().call("notebook_get_cells", args)
+
+
+def notebook_find_symbol(args: Dict[str, Any]) -> Dict[str, Any]:
+    return _registry().call("notebook_find_symbol", args)
+
+
+def notebook_search(args: Dict[str, Any]) -> Dict[str, Any]:
+    return _registry().call("notebook_search", args)
+
+
+def notebook_cell_neighbors(args: Dict[str, Any]) -> Dict[str, Any]:
+    return _registry().call("notebook_cell_neighbors", args)
+
+
 def creating_markdown_by_index(args: Dict[str, Any]) -> Dict[str, Any]:
     return _registry().call("creating_markdown_by_index", args)
 
 
 def insert_and_edit_cell(args: Dict[str, Any]) -> Dict[str, Any]:
-    """Insert a cell and then edit it. Expects args: url, index, direction, content"""
-    # First insert
-    insert_args = {k: args.get(k) for k in ("url", "index", "direction") if args.get(k) is not None}
-    insert_res = _registry().call("insert_cell", insert_args)
-    if not insert_res.get("ok"):
-        return {"ok": False, "phase": "insert_failed", "details": insert_res}
+    """Insert a new code cell below `index`, then paste `content` into it."""
+    try:
+        from .bot_command import run_insert_code_below_flow
+    except Exception:
+        from bot_command import run_insert_code_below_flow
 
-    # Determine new cell index from result if provided, else assume index+1 for 'below'
-    new_idx = insert_res.get("cellIndex") or (int(args.get("index", 0)) + (1 if args.get("direction", "below") == "below" else 0))
-
-    edit_args = {"url": args.get("url"), "cell_index": new_idx, "content": args.get("content", "")}
-    edit_res = _registry().call("edit_cell_by_index", edit_args)
-    if not edit_res.get("ok"):
-        return {"ok": False, "phase": "edit_failed", "insert_result": insert_res, "edit_result": edit_res}
-
-    return {"ok": True, "phase": "insert_and_edit_complete", "insert": insert_res, "edit": edit_res}
+    idx = args.get("index")
+    if idx is None:
+        idx = args.get("cell_index") or args.get("cellIndex")
+    cmd = {
+        "action": "insert_code_below",
+        "url": args.get("url"),
+        "index": idx,
+        "cell_index": idx,
+        "cellIndex": idx,
+        "content": args.get("content", ""),
+        "tabId": args.get("tab_id") or args.get("tabId"),
+        "tab_id": args.get("tab_id") or args.get("tabId"),
+    }
+    event = run_insert_code_below_flow(cmd, timeout=float(args.get("timeout", 25)))
+    if not event.get("ok"):
+        return {"ok": False, "phase": "insert_code_below_failed", "details": event}
+    inner = event.get("result") if isinstance(event.get("result"), dict) else {}
+    return {"ok": True, **inner, "phase": inner.get("phase", "insert_code_below_complete")}
 
 
 def convert_cell_to_markdown_by_index(args: Dict[str, Any]) -> Dict[str, Any]:

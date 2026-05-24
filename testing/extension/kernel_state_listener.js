@@ -164,6 +164,74 @@
     }
   }
 
+  async function setCellEditorContent(cellIndex, text) {
+    const idx = Number(cellIndex);
+    const payload = String(text ?? '');
+    if (!Number.isInteger(idx) || idx < 0) {
+      return { ok: false, error: 'Invalid cell index.' };
+    }
+
+    const click = clickCellByIndex(idx, { scrollIntoView: true, runCell: false });
+    if (!click?.ok) {
+      return { ok: false, error: click?.error || 'Failed to select cell.', cellIndex: idx };
+    }
+
+    await new Promise((r) => setTimeout(r, 120));
+    sendKey('Enter');
+    await new Promise((r) => setTimeout(r, 120));
+
+    const wrapper =
+      document.querySelector(`[data-windowed-list-index="${idx}"]`) ||
+      document.querySelector(`[data-cell-index="${idx}"]`);
+    if (!wrapper) {
+      return { ok: false, error: `Cell wrapper not found for index ${idx}.`, cellIndex: idx };
+    }
+
+    const editor =
+      wrapper.querySelector('.jp-InputArea-editor .cm-content') ||
+      wrapper.querySelector('.cm-editor .cm-content') ||
+      wrapper.querySelector('.cm-content');
+    if (!editor) {
+      return { ok: false, error: 'Code editor surface not found.', cellIndex: idx };
+    }
+
+    try {
+      editor.focus({ preventScroll: true });
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(editor);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+
+      let inserted = false;
+      try {
+        inserted = document.execCommand('insertText', false, payload);
+      } catch (_) {
+        inserted = false;
+      }
+
+      if (!inserted && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(payload);
+        inserted = document.execCommand('paste');
+      }
+
+      if (!inserted) {
+        editor.textContent = payload;
+        editor.dispatchEvent(new InputEvent('input', { bubbles: true, data: payload }));
+        inserted = true;
+      }
+
+      return {
+        ok: true,
+        cellIndex: idx,
+        chars: payload.length,
+        strategy: inserted ? 'editor-insert' : 'textContent-fallback',
+      };
+    } catch (error) {
+      return { ok: false, error: error?.message || String(error), cellIndex: idx };
+    }
+  }
+
   async function sendKeysSequence(keysStr) {
     const keys = String(keysStr || '').split(/\s+/).filter(Boolean);
     const results = [];
@@ -198,6 +266,13 @@
       if (msg.type === 'SEND_KEYS') {
         sendKeysSequence(msg.keys)
           .then((result) => sendResponse({ ok: true, result }))
+          .catch((error) => sendResponse({ ok: false, error: error?.message || String(error) }));
+        return true;
+      }
+
+      if (msg.type === 'SET_CELL_CONTENT') {
+        setCellEditorContent(msg.cellIndex, msg.content)
+          .then((result) => sendResponse({ ok: Boolean(result?.ok), result }))
           .catch((error) => sendResponse({ ok: false, error: error?.message || String(error) }));
         return true;
       }

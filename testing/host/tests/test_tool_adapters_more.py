@@ -33,17 +33,24 @@ def test_insert_and_edit_inproc(tmp_path, monkeypatch):
     initial = {"cells": [{"index": 1, "input": "a"}]}
     ph._atomic_write_json(ppath, initial)
 
-    def _fake_execute(cmd, timeout=12.0):
-        action = str(cmd.get("action") or "").lower()
-        if action == "insert_cell":
-            tr.sync_persistence_for_action("insert_cell", cmd, {"ok": True})
-            return {"ok": True, "result": {"ok": True, "cellIndex": 2}}
-        if action in {"edit_cell_by_index", "edit_cell"}:
-            tr.sync_persistence_for_action("edit_cell_by_index", cmd, {"ok": True})
-            return {"ok": True, "result": {"ok": True, "cellIndex": cmd.get("cellIndex")}}
-        return {"ok": True, "result": {"ok": True}}
+    def _fake_insert_flow(cmd, timeout=25):
+        tr.sync_persistence_for_action("insert_cell", cmd, {"ok": True})
+        tr.sync_persistence_for_action(
+            "edit_cell_by_index",
+            {"url": url, "cell_index": 2, "content": "inserted content"},
+            {"ok": True},
+        )
+        return {
+            "ok": True,
+            "result": {
+                "ok": True,
+                "phase": "insert_code_below_complete",
+                "insertedBelow": 1,
+                "newCellIndex": 2,
+            },
+        }
 
-    with patch.object(bc, "execute_bot_command_sync", side_effect=_fake_execute):
+    with patch.object(bc, "run_insert_code_below_flow", side_effect=_fake_insert_flow):
         res = ta.insert_and_edit_cell({'url': url, 'index': 1, 'direction': 'below', 'content': 'inserted content'})
     assert res.get('ok') is True
 

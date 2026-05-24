@@ -1,6 +1,7 @@
+import json
+import re
 import time
 import uuid
-import json
 from datetime import datetime, timezone, timedelta
 from .config import *
 from .memory import memory_store
@@ -52,6 +53,7 @@ def inject_prefetched_tool_context(
     *,
     graph=None,
     cell_slice: str | None = None,
+    placement: dict | None = None,
 ) -> None:
     """
     Attach eager tool results to the system prompt.
@@ -67,14 +69,19 @@ def inject_prefetched_tool_context(
             + json.dumps(graph, ensure_ascii=False)
         )
     if cell_slice:
-        parts.append(f"### cell_slice (prefetched)\n{cell_slice}")
+        parts.append(f"### notebook_get_cell (prefetched)\n{cell_slice}")
+    if placement is not None:
+        parts.append(
+            "### notebook_recommend_placement (prefetched — follow this for Placement section)\n"
+            + json.dumps(placement, ensure_ascii=False)
+        )
     if not parts:
         return
 
     block = (
         "## Prefetched tool results\n"
-        "Use this evidence directly. Do not call the same prefetch tools again "
-        "unless the user asks for fresher data.\n\n"
+        "Use this evidence for your answer. For placement, follow `notebook_recommend_placement` "
+        "(insert NEW code cell below the defining cell — not a distant empty cell).\n\n"
         + "\n\n".join(parts)
     )
 
@@ -465,19 +472,42 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
             except Exception:
                 from tool_registry import registry as _registry_factory
             reg = _registry_factory()
+            try:
+                from .local_notebook_tools import extract_symbols_from_text
+            except Exception:
+                from local_notebook_tools import extract_symbols_from_text
+
+            status = reg.call("notebook_snapshot_status", {"url": url})
             graph = reg.call("notebook_graph_query", {"url": url})
-            slice_content = None
+            cell_payload = None
             cell_idx = context_meta.get("cell_index")
             if cell_idx is not None:
                 try:
                     cell_idx = int(cell_idx)
-                    slice_content = cell_slice_from_snapshot(url, cell_idx)
+                    cell_payload = reg.call(
+                        "notebook_get_cell",
+                        {"url": url, "cell_index": cell_idx, "include_output": True},
+                    )
                 except Exception as e:
-                    log(f"Pre-stream cell slice failed: {e}")
+                    log(f"Pre-stream get_cell failed: {e}")
+
+            placement_payload = None
+            symbols = extract_symbols_from_text(prompt)
+            wants_placement = bool(symbols)
+            if wants_placement:
+                try:
+                    placement_payload = reg.call(
+                        "notebook_recommend_placement",
+                        {"url": url, "symbols": symbols},
+                    )
+                except Exception as e:
+                    log(f"Pre-stream placement recommend failed: {e}")
+
             inject_prefetched_tool_context(
                 messages,
-                graph=graph,
-                cell_slice=slice_content,
+                graph={"status": status, "graph": graph},
+                cell_slice=json.dumps(cell_payload, ensure_ascii=False) if cell_payload else None,
+                placement=placement_payload,
             )
             pre_stream_tools_done = True
 
@@ -618,7 +648,7 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
             and (pre_stream_tools_done or coverage == "full")
         )
 
-        # Tool calling via Cerebras tools API (browser-backed registry).
+        # Tool calling via Cerebras tools API (local JSON read tools by default).
         try:
             from .tool_registry import registry as _registry_factory, build_cerebras_tools
 

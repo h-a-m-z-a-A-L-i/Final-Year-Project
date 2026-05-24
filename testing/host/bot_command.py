@@ -161,6 +161,18 @@ def map_command_to_native(cmd: dict) -> dict | None:
         mapped["keys"] = cmd.get("keys")
         return mapped
 
+    if action in {"set_cell_content", "set_cell_content_by_index"}:
+        mapped["type"] = "SET_CELL_CONTENT"
+        mapped["tunnel"] = "set_cell_content"
+        cell_index = cmd.get("cellIndex")
+        if cell_index is None:
+            cell_index = cmd.get("cell_index")
+        if cell_index is None:
+            cell_index = cmd.get("index")
+        mapped["cellIndex"] = cell_index
+        mapped["content"] = cmd.get("content") or cmd.get("input") or ""
+        return mapped
+
     if action == "delete_by_index":
         mapped["type"] = "DELETE_CELL"
         mapped["tunnel"] = "delete_by_index"
@@ -207,6 +219,12 @@ def execute_bot_command_sync(cmd: dict, timeout: float = 12.0) -> dict:
 
     if action in {"edit_cell_by_index", "edit_cell"}:
         return run_edit_cell_flow(cmd, timeout=timeout)
+
+    if action in {"insert_code_below", "insert_and_edit_cell"}:
+        return run_insert_code_below_flow(cmd, timeout=timeout)
+
+    if action in {"set_cell_content", "set_cell_content_by_index"}:
+        return run_set_cell_content_flow(cmd, timeout=timeout)
 
     if action == "delete_by_index":
         return run_delete_cell_flow(cmd, timeout=timeout)
@@ -332,9 +350,150 @@ def run_insert_cell_flow(cmd: dict, timeout: float = 12.0) -> dict:
     with _PENDING_LOCK:
         slot = _PENDING.pop(request_id, None)
     event = (slot or {}).get("event")
+    inner = (event.get("result") or {}) if isinstance(event, dict) else {}
     if isinstance(event, dict) and event.get("ok"):
-        _sync_persistence("insert_cell", {**cmd, "index": idx, "direction": direction}, event.get("result") or {})
+        _sync_persistence("insert_cell", {**cmd, "index": idx, "direction": direction}, inner)
+        if idx is not None and direction == "below":
+            try:
+                inner = dict(inner)
+                inner.setdefault("cellIndex", int(idx) + 1)
+                inner.setdefault("insertedBelow", int(idx))
+                event = build_result_event(cmd, True, inner)
+            except Exception:
+                pass
     return event if isinstance(event, dict) else build_result_event(cmd, False, {"ok": False, "error": "no response"}, "no response")
+
+
+def run_set_cell_content_flow(cmd: dict, timeout: float = 12.0) -> dict:
+    idx = cmd.get("cellIndex") if cmd.get("cellIndex") is not None else cmd.get("cell_index") or cmd.get("index")
+    content = str(cmd.get("content") or cmd.get("input") or "")
+    if idx is None:
+        return build_result_event(cmd, False, {"ok": False, "error": "cell_index is required"}, "cell_index is required")
+
+    url = _pick_url(cmd)
+    tab_id = _pick_tab_id(cmd)
+
+    click_cmd = {
+        "action": "click",
+        "requestId": str(uuid.uuid4()),
+        "cellIndex": idx,
+        "url": url,
+        "runCell": False,
+    }
+    if tab_id is not None:
+        click_cmd["tabId"] = tab_id
+    click_event = execute_bot_command_sync(click_cmd, timeout=timeout)
+    if not _result_ok(click_event):
+        return click_event
+
+    tab_id = tab_id or (click_event.get("result") or {}).get("tabId") or click_event.get("tabId")
+
+    enter_cmd = {
+        "action": "send_key",
+        "requestId": str(uuid.uuid4()),
+        "key": "Enter",
+        "url": url,
+    }
+    if isinstance(tab_id, int):
+        enter_cmd["tabId"] = tab_id
+    enter_event = execute_bot_command_sync(enter_cmd, timeout=timeout)
+    if not _result_ok(enter_event):
+        return enter_event
+
+    time.sleep(0.15)
+
+    set_cmd = {
+        "action": "set_cell_content",
+        "requestId": str(uuid.uuid4()),
+        "cellIndex": idx,
+        "content": content,
+        "url": url,
+    }
+    if isinstance(tab_id, int):
+        set_cmd["tabId"] = tab_id
+    set_event = execute_bot_command_sync(set_cmd, timeout=max(timeout, 15.0))
+    if not _result_ok(set_event):
+        return set_event
+
+    try:
+        from .tool_registry import sync_persistence_for_action
+
+        sync_persistence_for_action(
+            "edit_cell_by_index",
+            {"url": url, "cell_index": idx, "content": content},
+            {"ok": True},
+        )
+    except Exception:
+        pass
+
+    return build_result_event(
+        cmd,
+        True,
+        {"ok": True, "phase": "content_set", "cellIndex": idx, "chars": len(content)},
+    )
+
+
+def run_insert_code_below_flow(cmd: dict, timeout: float = 12.0) -> dict:
+    """Insert a new code cell below `index`, then paste content into it."""
+    idx = cmd.get("cellIndex") if cmd.get("cellIndex") is not None else cmd.get("cell_index") or cmd.get("index")
+    if idx is None:
+        return build_result_event(cmd, False, {"ok": False, "error": "index is required"}, "index is required")
+
+    insert_cmd = dict(cmd)
+    insert_cmd["action"] = "insert_cell"
+    insert_cmd["direction"] = "below"
+    insert_cmd["cellIndex"] = idx
+    insert_cmd["index"] = idx
+    insert_event = run_insert_cell_flow(insert_cmd, timeout=timeout)
+    if not _result_ok(insert_event):
+        return insert_event
+
+    inner = insert_event.get("result") or {}
+    new_idx = inner.get("cellIndex")
+    if new_idx is None:
+        try:
+            new_idx = int(idx) + 1
+        except Exception:
+            return build_result_event(
+                cmd,
+                False,
+                {"ok": False, "error": "Could not determine new cell index after insert"},
+                "missing new cell index",
+            )
+
+    content = str(cmd.get("content") or cmd.get("input") or "")
+    edit_cmd = dict(cmd)
+    edit_cmd["action"] = "set_cell_content"
+    edit_cmd["cellIndex"] = new_idx
+    edit_cmd["cell_index"] = new_idx
+    edit_cmd["content"] = content
+    set_event = run_set_cell_content_flow(edit_cmd, timeout=max(timeout, 20.0))
+    if not _result_ok(set_event):
+        return build_result_event(
+            cmd,
+            False,
+            {
+                "ok": False,
+                "phase": "insert_ok_edit_failed",
+                "insertedBelow": idx,
+                "newCellIndex": new_idx,
+                "insert": insert_event,
+                "edit": set_event,
+            },
+            "insert succeeded but setting cell content failed",
+        )
+
+    return build_result_event(
+        cmd,
+        True,
+        {
+            "ok": True,
+            "phase": "insert_code_below_complete",
+            "insertedBelow": int(idx),
+            "newCellIndex": int(new_idx),
+            "chars": len(content),
+        },
+    )
 
 
 def run_delete_cell_flow(cmd: dict, timeout: float = 12.0) -> dict:
@@ -481,17 +640,15 @@ def run_edit_cell_flow(cmd: dict, timeout: float = 12.0) -> dict:
         if not _result_ok(sel_event):
             return sel_event
 
-    if content:
-        from .tool_registry import sync_persistence_for_action
-
-        sync_persistence_for_action(
-            "edit_cell_by_index",
-            {"url": url, "cell_index": idx, "content": content},
-            {"ok": True},
+    if not str(content or "").strip():
+        return build_result_event(
+            cmd,
+            True,
+            {"ok": True, "phase": "edit_mode_only", "cellIndex": idx},
         )
 
-    return build_result_event(
-        cmd,
-        True,
-        {"ok": True, "phase": "edited", "cellIndex": idx, "content": content},
-    )
+    set_cmd = dict(cmd)
+    set_cmd["action"] = "set_cell_content"
+    set_cmd["cellIndex"] = idx
+    set_cmd["content"] = content
+    return run_set_cell_content_flow(set_cmd, timeout=max(timeout, 15.0))

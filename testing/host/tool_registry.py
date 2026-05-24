@@ -247,56 +247,44 @@ def _register_default_tools():
 _register_default_tools()
 
 
-def _notebook_graph_wrapper(args: dict) -> dict:
+def _register_local_notebook_tools():
     try:
-        from .persistence_helpers import read_json_file, get_safe_filename
-        from .config import SCRAPED_DIR
+        from .local_notebook_tools import register_local_tools
     except Exception:
-        try:
-            from persistence_helpers import read_json_file, get_safe_filename
-            from testing.host.config import SCRAPED_DIR
-        except Exception:
-            return {"type": "GRAPH_DATA", "graph": [], "error": "persistence helpers unavailable"}
+        from local_notebook_tools import register_local_tools
+    register_local_tools(_REGISTRY)
 
-    url = args.get("url") or args.get("tabUrl") or args.get("tab_url") or ""
-    if not url:
-        return {"type": "GRAPH_DATA", "graph": [], "error": "No url provided"}
 
-    filename = get_safe_filename(url)
-    persistent_path = SCRAPED_DIR / "persistent" / filename
-    if not persistent_path.exists():
-        return {"type": "GRAPH_DATA", "graph": [], "error": "No persistent notebook snapshot found", "url": url}
+_register_local_notebook_tools()
 
-    data = read_json_file(persistent_path)
-    if not data or not isinstance(data.get("cells"), list):
-        return {"type": "GRAPH_DATA", "graph": [], "error": "No notebook data", "url": url}
 
-    graph = []
-    for cell in data.get("cells", []):
-        try:
-            idx = int(cell.get("index", 0))
-        except Exception:
+def build_local_tool_descriptions() -> str:
+    lines = []
+    try:
+        from .local_notebook_tools import LOCAL_TOOL_NAMES
+    except Exception:
+        from local_notebook_tools import LOCAL_TOOL_NAMES
+    for name in sorted(LOCAL_TOOL_NAMES):
+        entry = _REGISTRY.get(name)
+        if not entry:
             continue
-        preview = str(cell.get("input") or "")[:120]
-        graph.append({"cell_number": idx, "input_preview": preview, "dependencies": []})
-
-    return {"type": "GRAPH_DATA", "graph": graph, "error": None, "url": url}
-
-
-try:
-    _REGISTRY.register(
-        "notebook_graph_query",
-        {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]},
-        "Query the persistent notebook snapshot and return a small graph summary",
-        _notebook_graph_wrapper,
-    )
-except Exception:
-    pass
+        schema = entry.get("schema") or {}
+        desc = entry.get("description") or ""
+        lines.append(f"{name}: {desc} Args schema: {json.dumps(schema)}")
+    return "\n".join(lines)
 
 
-def build_cerebras_tools():
+def build_cerebras_tools(*, local_only: bool = True):
+    """Expose tools to the LLM. Default: local JSON read tools only (no browser)."""
+    try:
+        from .local_notebook_tools import LOCAL_TOOL_NAMES
+    except Exception:
+        from local_notebook_tools import LOCAL_TOOL_NAMES
+
     tools = []
     for name, entry in _REGISTRY._tools.items():
+        if local_only and name not in LOCAL_TOOL_NAMES:
+            continue
         schema = entry.get("schema")
         if not isinstance(schema, dict):
             continue
@@ -322,16 +310,23 @@ def generate_prompt_autogen():
             desc = v.get("description") or ""
             lines.append(f"{k}: {desc} Args schema: {json.dumps(schema)}")
         out_path.write_text("\n".join(lines), encoding="utf-8")
+        local_path = prompt_dir / "local_tool_descriptions_autogen.txt"
+        local_path.write_text(build_local_tool_descriptions(), encoding="utf-8")
 
         examples_path = prompt_dir / "tool_examples_autogen.txt"
         ex_lines = []
         curated = {
-            "click_cell": {"cell_index": 3, "url": "https://www.kaggle.com/code/alice/sample-notebook"},
-            "select_cell_by_index": {"cell_index": 2, "url": "https://www.kaggle.com/code/alice/sample-notebook"},
-            "insert_cell": {"index": 2, "direction": "below", "url": "https://www.kaggle.com/code/alice/sample-notebook"},
-            "edit_cell_by_index": {"cell_index": 4, "content": "# updated code\nprint(\"hello from agent\")", "url": "https://www.kaggle.com/code/alice/sample-notebook"},
-            "delete_by_index": {"cell_index": 5, "url": "https://www.kaggle.com/code/alice/sample-notebook"},
-            "notebook_graph_query": {"url": "https://www.kaggle.com/code/codekey/qwen2_5_coder_7b_instruct_edit"},
+            "notebook_snapshot_status": {"url": "https://www.kaggle.com/code/alice/sample-notebook"},
+            "notebook_list_cells": {"url": "https://www.kaggle.com/code/alice/sample-notebook"},
+            "notebook_graph_query": {"url": "https://www.kaggle.com/code/alice/sample-notebook"},
+            "notebook_get_cell": {"url": "https://www.kaggle.com/code/alice/sample-notebook", "cell_index": 3},
+            "notebook_find_symbol": {"url": "https://www.kaggle.com/code/alice/sample-notebook", "symbol": "model_df"},
+            "notebook_search": {"url": "https://www.kaggle.com/code/alice/sample-notebook", "query": "read_csv"},
+            "notebook_cell_neighbors": {"url": "https://www.kaggle.com/code/alice/sample-notebook", "cell_index": 4},
+            "notebook_recommend_placement": {
+                "url": "https://www.kaggle.com/code/alice/sample-notebook",
+                "symbols": ["model_df"],
+            },
         }
 
         for k, v in _REGISTRY._tools.items():

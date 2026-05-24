@@ -14,6 +14,7 @@ except Exception:
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 TOOL_PROMPTS_DIR = PROMPTS_DIR / "tool_calling"
 BASE_PROMPT_FILE = PROMPTS_DIR / "base_notebook_assistant.txt"
+JUPYTER_STRUCTURE_FILE = PROMPTS_DIR / "jupyter_structure.txt"
 
 _MODE_FILE_MAP = {
     "ask": PROMPTS_DIR / "ask.txt",
@@ -73,9 +74,10 @@ _PLACEMENT_HINT_PATTERN = re.compile(
 # Appended last in every system prompt (lost-in-the-middle mitigation).
 _SYSTEM_NOTES_TAIL = """\
 - Read CONTEXT_MANIFEST before citing any cell.
-- Only cite cells in `listed_cells` or `### Cell [n]` blocks in notebook evidence.
-- If `coverage` is none or partial and you lack required cells, start with **INSUFFICIENT_CONTEXT**.
-- Never invent tracebacks, variables, or code not shown in evidence.
+- Only cite cells in `listed_cells` or tool results — never invent cell contents.
+- For new scripts: recommend **Insert Code Cell Below** the defining cell (from `notebook_recommend_placement`), not a random empty cell far away.
+- User-facing reply: Placement bullets + one `python` code block. No raw graph JSON, no duplicate code blocks, no "bold evidence" filler.
+- If `coverage` is none or partial and tools lack data, start with **INSUFFICIENT_CONTEXT**.
 - When calling tools, pass the exact session notebook URL from Context."""
 
 
@@ -128,13 +130,32 @@ def load_base_sections() -> dict[str, str]:
 
 
 def load_tool_prompt_sections(*, include_examples: bool = True) -> tuple[str, str, str]:
-    system_tool = _read_text(TOOL_PROMPTS_DIR / "system_prompt.txt")
-    descriptions = _read_text(TOOL_PROMPTS_DIR / "tool_descriptions_autogen.txt")
+    system_tool = _read_text(TOOL_PROMPTS_DIR / "local_read_tools.txt")
+    if not system_tool:
+        system_tool = _read_text(TOOL_PROMPTS_DIR / "system_prompt.txt")
+
+    descriptions = _read_text(TOOL_PROMPTS_DIR / "local_tool_descriptions_autogen.txt")
     if not descriptions:
-        descriptions = _read_text(TOOL_PROMPTS_DIR / "tool_descriptions.txt")
+        try:
+            from .tool_registry import build_local_tool_descriptions
+        except Exception:
+            from tool_registry import build_local_tool_descriptions
+        descriptions = build_local_tool_descriptions()
+
     examples = ""
     if include_examples:
         examples = _read_text(TOOL_PROMPTS_DIR / "tool_examples_autogen.txt")
+        if examples:
+            try:
+                from .local_notebook_tools import LOCAL_TOOL_NAMES
+            except Exception:
+                from local_notebook_tools import LOCAL_TOOL_NAMES
+            ex_lines = []
+            for line in examples.splitlines():
+                name = line.split(" example args:", 1)[0].strip()
+                if name in LOCAL_TOOL_NAMES:
+                    ex_lines.append(line)
+            examples = "\n".join(ex_lines)
         if not examples:
             examples = _read_text(TOOL_PROMPTS_DIR / "examples.txt")
     return system_tool, descriptions, examples
@@ -231,7 +252,20 @@ def build_system_content(
             include_examples=include_tool_examples
         )
 
+    jupyter_model = _read_text(JUPYTER_STRUCTURE_FILE)
+    if jupyter_model:
+        jupyter_model = parse_prompt_sections(jupyter_model)
+        jupyter_body = "\n\n".join(
+            jupyter_model.get(k, "")
+            for k in ("role", "context", "notes")
+            if jupyter_model.get(k)
+        )
+    else:
+        jupyter_body = ""
+
     context_parts: list[str] = []
+    if jupyter_body:
+        context_parts.append(f"### Jupyter notebook model\n{jupyter_body}")
     if base.get("context"):
         context_parts.append(base["context"])
     if notebook_url:
