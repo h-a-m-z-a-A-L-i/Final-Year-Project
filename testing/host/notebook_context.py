@@ -51,7 +51,14 @@ def _cells_from_data(data: dict | None) -> list[dict]:
     if not isinstance(data, dict):
         return []
     cells = data.get("cells")
-    return list(cells) if isinstance(cells, list) else []
+    if not isinstance(cells, list):
+        return []
+    try:
+        from .cell_index import normalize_notebook_cells
+    except Exception:
+        from cell_index import normalize_notebook_cells
+    normalize_notebook_cells(cells)
+    return cells
 
 
 def load_notebook_snapshot(url: str) -> tuple[dict | None, str]:
@@ -238,7 +245,7 @@ def _manifest_block(
             f"coverage: {coverage}",
             f"snapshot: {snapshot}",
             f"kernel_scenario: {kernel_scenario}",
-            "cell_indexing: matches notebook indices (often 0-based on Kaggle)",
+            "cell_indexing: 1-based cell numbers (first cell is 1)",
             f"target_cell: {cell_index if cell_index is not None else 'none'}",
             f"listed_cells: {cells_str}",
             "rules: Only cite cells listed in listed_cells or in sections below. "

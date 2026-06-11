@@ -199,8 +199,8 @@ def main():
 
     # Process any cells provided via command line
     for idx in initial_cells:
-        if idx < 0:
-            print(json.dumps({"ok": False, "error": "cell_index must be >= 0"}, ensure_ascii=False))
+        if idx < 1:
+            print(json.dumps({"ok": False, "error": "cell_index must be >= 1"}, ensure_ascii=False))
             continue
         new_tab_id = _process_single_cell(idx, current_tab_id)
         if new_tab_id is not None:
@@ -218,8 +218,8 @@ def main():
             for part in parts:
                 try:
                     idx = int(part)
-                    if idx < 0:
-                        print(f"Skipping {idx}: index must be >= 0")
+                    if idx < 1:
+                        print(f"Skipping {idx}: index must be >= 1")
                         continue
                     new_tab_id = _process_single_cell(idx, current_tab_id)
                     if new_tab_id is not None:

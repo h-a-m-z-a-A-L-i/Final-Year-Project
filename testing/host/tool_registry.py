@@ -90,7 +90,7 @@ def sync_persistence_for_action(action: str, cmd: dict, browser_result: dict) ->
             idx = 0
         data = read_json_file(ppath) or {"cells": []}
         cells = list(data.get("cells") or [])
-        insert_pos = max(0, idx if direction == "above" else idx + 1)
+        insert_pos = max(0, (idx - 1) if direction == "above" else idx)
         new_cell = {"type": "code", "index": 0, "input": "", "output": "", "execution_order": None, "execution_title": ""}
         if insert_pos >= len(cells):
             cells.append(new_cell)

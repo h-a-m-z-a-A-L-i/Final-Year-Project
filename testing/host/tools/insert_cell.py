@@ -89,14 +89,14 @@ def _build_insert_command(request_id: str, tab_id: int | None, direction: str, u
 
 def main():
     parser = argparse.ArgumentParser(description="Insert a cell above or below a target cell")
-    parser.add_argument("index", type=int, help="Cell index to insert next to (0-based)")
+    parser.add_argument("index", type=int, help="Cell index to insert next to (1-based)")
     parser.add_argument("--tab-id", type=int, default=None, help="Optional tab id")
     parser.add_argument("--url", default="https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit", help="Optional notebook URL (for metadata polling)")
     parser.add_argument("--timeout", type=float, default=8.0, help="Timeout in seconds")
     args = parser.parse_args()
 
-    if args.index < 0:
-        print(json.dumps({"ok": False, "error": "index must be >= 0"}, ensure_ascii=False))
+    if args.index < 1:
+        print(json.dumps({"ok": False, "error": "index must be >= 1"}, ensure_ascii=False))
         return
 
     print(json.dumps({"ok": True, "phase": "selecting_cell", "cellIndex": args.index}, ensure_ascii=False))

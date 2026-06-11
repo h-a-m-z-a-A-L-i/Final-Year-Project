@@ -1215,7 +1215,7 @@
 
         insertBtn.addEventListener('click', () => {
             const anchor = Number.parseInt(indexInput.value, 10);
-            if (!Number.isInteger(anchor) || anchor < 0) {
+            if (!Number.isInteger(anchor) || anchor < 1) {
                 statusEl.textContent = 'Enter a valid cell index.';
                 return;
             }

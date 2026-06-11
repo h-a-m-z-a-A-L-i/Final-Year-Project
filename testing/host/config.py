@@ -27,7 +27,7 @@ def _load_dotenv(env_path: Path):
 _load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 CEREBRAS_API_KEY = os.environ.get("CEREBRAS_API_KEY", "").strip()
-CEREBRAS_MODEL = os.environ.get("CEREBRAS_MODEL", "llama3.1-8b")
+CEREBRAS_MODEL = os.environ.get("CEREBRAS_MODEL", "gpt-oss-120b")
 TEMPERATURE = float(os.environ.get("CEREBRAS_TEMPERATURE", "0.5"))
 TOP_P = float(os.environ.get("CEREBRAS_TOP_P", "1.0"))
 DATA_ROOT = Path(__file__).parent / "data"

@@ -171,13 +171,23 @@ def handle_notebook_data(ctx: dict, msg: dict):
     if not isinstance(raw_cells, list):
         raw_cells = []
 
+    try:
+        from .cell_index import normalize_notebook_cells
+    except Exception:
+        from cell_index import normalize_notebook_cells
+
     code_cells = []
     all_cells = []
     live_cells = []
     for i, cell in enumerate(raw_cells):
         cell_type = cell.get("type", "code")
         try:
-            cell_index = int(cell.get("index")) if cell.get("index") is not None else i + 1
+            if cell.get("index") is not None:
+                cell_index = int(cell.get("index"))
+                if cell_index < 1:
+                    cell_index = i + 1
+            else:
+                cell_index = i + 1
         except Exception:
             cell_index = i + 1
 
@@ -218,6 +228,7 @@ def handle_notebook_data(ctx: dict, msg: dict):
             live_cells.append(live_cell)
 
     now_iso = datetime.now(timezone.utc).isoformat()
+    normalize_notebook_cells(live_cells)
     live_cells.sort(key=lambda cell: int(cell.get("index", 0)))
     live_data = {
         "tabUrl": tab_url,

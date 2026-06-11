@@ -94,8 +94,8 @@ def _build_selector_command(request_id: str, tab_id: int | None, selector: str, 
     return cmd
 
 def select_cell_by_index(index: int, tab_id: int | None = DEFAULT_TAB_ID, url: str = "", timeout: float = 8.0):
-    if index < 0:
-        print(json.dumps({"ok": False, "error": "index must be >= 0"}, ensure_ascii=False))
+    if index < 1:
+        print(json.dumps({"ok": False, "error": "index must be >= 1"}, ensure_ascii=False))
         return None
 
     request_id = str(uuid.uuid4())
@@ -211,8 +211,8 @@ def main():
         initial_cells.append(args.first)
 
     for idx in initial_cells:
-        if idx < 0:
-            print(json.dumps({"ok": False, "error": "cell_index must be >= 0"}, ensure_ascii=False))
+        if idx < 1:
+            print(json.dumps({"ok": False, "error": "cell_index must be >= 1"}, ensure_ascii=False))
             continue
             new_tab_id = select_cell_by_index(idx, current_tab_id, args.url, args.timeout)
         if new_tab_id is not None:
@@ -228,8 +228,8 @@ def main():
             for part in parts:
                 try:
                     idx = int(part)
-                    if idx < 0:
-                        print(f"Skipping {idx}: index must be >= 0")
+                    if idx < 1:
+                        print(f"Skipping {idx}: index must be >= 1")
                         continue
                     new_tab_id = _process_single_cell(idx, current_tab_id)
                     if new_tab_id is not None:

@@ -21,7 +21,7 @@
         "*://*.jupyter-proxy.kaggle.net/*"
       ],
       "all_frames": true,
-      "js": ["kernel_state_listener.js"],
+      "js": ["cell_index_utils.js", "kernel_state_listener.js", "cell_index_badges.js"],
       "run_at": "document_start"
     }
   ],

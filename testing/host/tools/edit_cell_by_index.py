@@ -105,14 +105,14 @@ def _build_send_key_command(request_id: str, tab_id: int | None, key: str, url: 
 
 def main():
     parser = argparse.ArgumentParser(description="Click and edit a cell by index")
-    parser.add_argument("index", type=int, help="Cell index to edit (0-based)")
+    parser.add_argument("index", type=int, help="Cell index to edit (1-based)")
     parser.add_argument("--tab-id", type=int, default=None, help="Optional tab id")
     parser.add_argument("--url", default="https://www.kaggle.com/code/codekey/qwen2-5-coder-7b-instruct/edit", help="Optional notebook URL")
     parser.add_argument("--timeout", type=float, default=8.0, help="Timeout in seconds for each step")
     args = parser.parse_args()
 
-    if args.index < 0:
-        print(json.dumps({"ok": False, "error": "index must be >= 0"}, ensure_ascii=False))
+    if args.index < 1:
+        print(json.dumps({"ok": False, "error": "index must be >= 1"}, ensure_ascii=False))
         return
 
     # 1) Click the cell wrapper

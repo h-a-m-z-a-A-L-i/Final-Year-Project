@@ -88,7 +88,22 @@ function setBadgeForScenario(tabId, scenario) {
 }
 
 
+function domToAppIndex(domIndex) {
+  const n = Number(domIndex);
+  return Number.isFinite(n) ? n + 1 : null;
+}
+
+function appToDomIndex(appIndex) {
+  const n = Number(appIndex);
+  return Number.isFinite(n) ? n - 1 : null;
+}
+
 function scrapeNotebook() {
+  const domToAppIndex = (domIndex) => {
+    const n = Number(domIndex);
+    return Number.isFinite(n) ? n + 1 : null;
+  };
+
   const cells = [];
   const seen = new Set();
   const cellElements = [];
@@ -227,13 +242,15 @@ function scrapeNotebook() {
     return chunks.join("\n").trim();
   };
 
-  for (const cell of cellElements) {
+  for (const [i, cell] of cellElements.entries()) {
     const cellData = {};
     
-    // Extract index from data-windowed-list-index for fault-tolerant identification
+    // 1-based index for JSON/tools; DOM windowed-list index is 0-based.
     const cellIndex = cell.getAttribute("data-windowed-list-index");
     if (cellIndex !== null) {
-      cellData.index = parseInt(cellIndex, 10);
+      cellData.index = domToAppIndex(parseInt(cellIndex, 10));
+    } else {
+      cellData.index = i + 1;
     }
     
     // Cell type detection: check for jp-MarkdownCell first, then code indicators
@@ -272,14 +289,15 @@ function scrapeNotebook() {
 }
 
 function clickNotebookCellByIndex(cellIndex, options = {}) {
-  const targetIndex = Number(cellIndex);
-  if (!Number.isInteger(targetIndex) || targetIndex < 0) {
+  const appIndex = Number(cellIndex);
+  if (!Number.isInteger(appIndex) || appIndex < 1) {
     return { ok: false, error: "Invalid cell index." };
   }
+  const targetIndex = appIndex - 1;
 
   const shouldScroll = options.scrollIntoView !== false;
 
-  // Find the cell wrapper by data-windowed-list-index
+  // Find the cell wrapper by data-windowed-list-index (0-based DOM index)
   // First try main document, then search inside iframes
   let cell = document.querySelector(`[data-windowed-list-index="${targetIndex}"]`);
   
@@ -302,7 +320,7 @@ function clickNotebookCellByIndex(cellIndex, options = {}) {
   }
   
   if (!cell) {
-    return { ok: false, error: `Cell index ${targetIndex} not found in main document or iframes.` };
+    return { ok: false, error: `Cell index ${appIndex} not found in main document or iframes.` };
   }
 
   console.log("[clickNotebookCellByIndex] Found cell wrapper", cell);
@@ -375,7 +393,7 @@ function clickNotebookCellByIndex(cellIndex, options = {}) {
 
     return {
       ok: true,
-      cellIndex: targetIndex,
+      cellIndex: appIndex,
       clickedElement: clickTarget?.tagName?.toLowerCase(),
       strategy: "React-aware multi-strategy",
     };
@@ -967,10 +985,15 @@ function injectUI(tabId) {
     files: ["prompt_observer.js"]
   }).catch(e => console.warn("Prompt observer injection failed:", e));
 
+  chrome.scripting.executeScript({
+    target: { tabId: tabId, allFrames: true },
+    files: ["cell_index_utils.js", "cell_index_badges.js"]
+  }).catch(e => console.warn("Cell index badge injection failed:", e));
+
   // Ensure kernel_state_listener is present for already-open tabs
   chrome.scripting.executeScript({
     target: { tabId: tabId, allFrames: true },
-    files: ["kernel_state_listener.js"]
+    files: ["cell_index_utils.js", "kernel_state_listener.js"]
   }).catch(e => console.warn("kernel_state_listener injection failed:", e));
 }
 
