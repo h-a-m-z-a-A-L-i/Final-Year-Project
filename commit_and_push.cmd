@@ -4,6 +4,8 @@ setlocal EnableExtensions
 REM Always run from this script's folder
 cd /d "%~dp0"
 
+set "AUTO_STASHED=0"
+
 where git >nul 2>&1
 if errorlevel 1 (
   echo Git is not installed or not available in PATH.
@@ -34,8 +36,7 @@ call :unstage_sensitive
 git diff --cached --quiet
 if %errorlevel%==0 (
   echo No changes to commit.
-  pause
-  exit /b 0
+  goto :sync_and_push
 )
 
 call :block_if_sensitive_staged
@@ -52,16 +53,58 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo Pushing to remote...
-git push
+:sync_and_push
+call :stash_if_dirty
+
+echo Syncing with remote...
+git fetch origin
 if errorlevel 1 (
-  echo Push failed.
+  echo Fetch failed.
+  call :restore_stash
   pause
   exit /b 1
 )
 
+git pull --rebase origin main
+if errorlevel 1 (
+  echo Pull failed. Another machine may have pushed first, or you have conflicts.
+  echo Fix conflicts, then run: git rebase --continue
+  echo Or abort with: git rebase --abort
+  call :restore_stash
+  pause
+  exit /b 1
+)
+
+echo Pushing to remote...
+git push origin main
+if errorlevel 1 (
+  echo Push failed.
+  call :restore_stash
+  pause
+  exit /b 1
+)
+
+call :restore_stash
+
 echo Done. Commit and push completed successfully.
 pause
+exit /b 0
+
+:stash_if_dirty
+git status --porcelain | findstr . >nul
+if errorlevel 1 exit /b 0
+goto :do_stash
+
+:do_stash
+echo Stashing uncommitted local changes before sync...
+git stash push -u -m "commit_and_push auto-stash"
+if not errorlevel 1 set "AUTO_STASHED=1"
+exit /b 0
+
+:restore_stash
+if not "%AUTO_STASHED%"=="1" exit /b 0
+echo Restoring stashed local changes...
+git stash pop
 exit /b 0
 
 :unstage_path
