@@ -16,7 +16,7 @@ except Exception:
 # Import centralized config and dispatcher helpers (support running as script)
 try:
     from .config import *
-    from .config import _HASHES_LOCK, _EXECUTION_STATE_LOCK, _SEND_LOCK, _ACTIVE_STREAMS, _ACTIVE_STREAMS_LOCK, _RATE_LOCK, _BOT_STATE_LOCK, _CEREBRAS_CLIENT
+    from .config import _HASHES_LOCK, _EXECUTION_STATE_LOCK, _SEND_LOCK, _ACTIVE_STREAMS, _ACTIVE_STREAMS_LOCK, _RATE_LOCK, _BOT_STATE_LOCK
     from .dispatcher import get_next_message, send_msg, _append_jsonl, start_host_io
     from .prompt_utils import _extract_cell_number, _extract_user_profile_facts, _build_profile_memory_context
     from .notebook_data_handler import build_graph_payload, handle_get_graph, handle_notebook_data, _normalized_url
@@ -40,7 +40,7 @@ except Exception:
         sys.path.insert(0, str(repo_root))
     try:
         from config import *
-        from config import _HASHES_LOCK, _EXECUTION_STATE_LOCK, _SEND_LOCK, _ACTIVE_STREAMS, _ACTIVE_STREAMS_LOCK, _RATE_LOCK, _BOT_STATE_LOCK, _CEREBRAS_CLIENT
+        from config import _HASHES_LOCK, _EXECUTION_STATE_LOCK, _SEND_LOCK, _ACTIVE_STREAMS, _ACTIVE_STREAMS_LOCK, _RATE_LOCK, _BOT_STATE_LOCK
         from dispatcher import get_next_message, send_msg, _append_jsonl, start_host_io
         from prompt_utils import _extract_cell_number, _extract_user_profile_facts, _build_profile_memory_context
         from notebook_data_handler import build_graph_payload, handle_get_graph, handle_notebook_data, _normalized_url
@@ -57,7 +57,7 @@ except Exception:
     except Exception:
         # As a final fallback try package-style import using repo folder name
         from testing.host.config import *
-        from testing.host.config import _HASHES_LOCK, _EXECUTION_STATE_LOCK, _SEND_LOCK, _ACTIVE_STREAMS, _ACTIVE_STREAMS_LOCK, _RATE_LOCK, _BOT_STATE_LOCK, _CEREBRAS_CLIENT
+        from testing.host.config import _HASHES_LOCK, _EXECUTION_STATE_LOCK, _SEND_LOCK, _ACTIVE_STREAMS, _ACTIVE_STREAMS_LOCK, _RATE_LOCK, _BOT_STATE_LOCK
         from testing.host.dispatcher import get_next_message, send_msg, _append_jsonl, start_host_io
         from testing.host.prompt_utils import _extract_cell_number, _extract_user_profile_facts, _build_profile_memory_context
         from testing.host.notebook_data_handler import build_graph_payload, handle_get_graph, handle_notebook_data, _normalized_url

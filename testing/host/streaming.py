@@ -18,8 +18,9 @@ try:
         _EXECUTION_STATE_LOCK,
         _SEND_LOCK,
         _BOT_STATE_LOCK,
-        CEREBRAS_API_KEY,
-        _CEREBRAS_CLIENT,
+        AIML_API_KEY,
+        _LLM_CLIENT,
+        LLM_MODEL,
     )
 except Exception:
     try:
@@ -32,8 +33,9 @@ except Exception:
             _EXECUTION_STATE_LOCK,
             _SEND_LOCK,
             _BOT_STATE_LOCK,
-            CEREBRAS_API_KEY,
-            _CEREBRAS_CLIENT,
+            AIML_API_KEY,
+            _LLM_CLIENT,
+            LLM_MODEL,
         )
     except Exception as e:
         raise RuntimeError("streaming requires proper initialization of config locks and client: " + str(e))
@@ -281,9 +283,10 @@ def _chunk_text_from_event(event) -> str:
 def _completion_extra_kwargs() -> dict:
     """Model-specific API options (reasoning models, etc.)."""
     extra: dict = {}
-    model = str(CEREBRAS_MODEL or "").lower()
-    if "gpt-oss" in model or "glm" in model or "qwen" in model:
-        extra["reasoning_format"] = "hidden"
+    # Cerebras-only: reasoning_format for gpt-oss / glm / qwen
+    # model = str(CEREBRAS_MODEL or "").lower()
+    # if "gpt-oss" in model or "glm" in model or "qwen" in model:
+    #     extra["reasoning_format"] = "hidden"
     return extra
 
 
@@ -456,8 +459,8 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
             current = _ACTIVE_STREAMS.get(active_key)
             return bool(current and current.get("stopped"))
 
-    if _CEREBRAS_CLIENT is None:
-        err = "Missing CEREBRAS_API_KEY environment variable."
+    if _LLM_CLIENT is None:
+        err = "Missing AIML_API_KEY environment variable."
         log(err)
         send_msg({"type": "CHAT_RESPONSE", "error": err, "tabId": tab_id, "url": url, "sessionId": session_id})
         send_msg({"type": "CHAT_STREAM_END", "error": err, "stopped": False, "tabId": tab_id, "url": url, "sessionId": session_id})
@@ -475,7 +478,7 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
             has_cell_context=context_meta.get("cell_index") is not None,
         )
         resolved_mode = normalize_mode(resolved_mode)
-        log(f"AI Stream Request for {url} (session={session_id}, model={CEREBRAS_MODEL}, mode={resolved_mode})")
+        log(f"AI Stream Request for {url} (session={session_id}, model={LLM_MODEL}, mode={resolved_mode})")
 
         include_tools = str(CONTEXT_PACK_MODE or "").lower() != "full"
         messages = build_chat_messages(
@@ -575,17 +578,17 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
             if not allowed:
                 raise Exception(f"Local rate limit hit: {details}")
             try:
-                log("Calling Cerebras API (streaming)...")
+                log("Calling AIML API (streaming)...")
                 t_api = time.monotonic()
-                stream = _CEREBRAS_CLIENT.chat.completions.create(
+                stream = _LLM_CLIENT.chat.completions.create(
                     messages=messages,
-                    model=CEREBRAS_MODEL,
+                    model=LLM_MODEL,
                     stream=True,
                     temperature=TEMPERATURE,
                     top_p=TOP_P,
                     **completion_extra,
                 )
-                log(f"Cerebras stream opened in {time.monotonic() - t_api:.2f}s")
+                log(f"AIML stream opened in {time.monotonic() - t_api:.2f}s")
                 break
             except Exception as stream_error:
                 err = str(stream_error)
@@ -593,7 +596,7 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                     break
                 if "too_many_tokens" in err or "token_quota_exceeded" in err:
                     raise Exception(
-                        "Cerebras token-per-minute limit exceeded. The full notebook prompt is too large. "
+                        "API token-per-minute limit exceeded. The full notebook prompt is too large. "
                         "Wait ~60 seconds, then retry. Or set CONTEXT_PACK_MODE=intent in .env."
                     ) from stream_error
                 if "429" in err or "queue_exceeded" in err or "too_many_requests_error" in err:
@@ -681,9 +684,9 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
 
         if not was_stopped and not full_text.strip():
             messages = fit_messages_to_budget(messages)
-            response = _CEREBRAS_CLIENT.chat.completions.create(
+            response = _LLM_CLIENT.chat.completions.create(
                 messages=messages,
-                model=CEREBRAS_MODEL,
+                model=LLM_MODEL,
                 temperature=TEMPERATURE,
                 top_p=TOP_P,
                 **completion_extra,
@@ -704,7 +707,7 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
             and (pre_stream_tools_done or coverage == "full")
         )
 
-        # Tool calling via Cerebras tools API (local JSON read tools by default).
+        # Tool calling via OpenAI-compatible tools API (local JSON read tools by default).
         try:
             from .tool_registry import registry as _registry_factory, build_cerebras_tools
 
@@ -719,9 +722,9 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                         break
                     try:
                         tool_messages = fit_messages_to_budget(tool_messages)
-                        tool_resp = _CEREBRAS_CLIENT.chat.completions.create(
+                        tool_resp = _LLM_CLIENT.chat.completions.create(
                             messages=tool_messages,
-                            model=CEREBRAS_MODEL,
+                            model=LLM_MODEL,
                             tools=tools,
                             parallel_tool_calls=False,
                             temperature=TEMPERATURE,
@@ -781,9 +784,9 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                 if not _is_stopped():
                     try:
                         tool_messages = fit_messages_to_budget(tool_messages)
-                        final_resp = _CEREBRAS_CLIENT.chat.completions.create(
+                        final_resp = _LLM_CLIENT.chat.completions.create(
                             messages=tool_messages,
-                            model=CEREBRAS_MODEL,
+                            model=LLM_MODEL,
                             temperature=TEMPERATURE,
                             top_p=TOP_P,
                             **completion_extra,

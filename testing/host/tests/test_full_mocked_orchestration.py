@@ -50,7 +50,7 @@ def test_full_orchestration_calls_tool_and_gets_final():
 
     fake = FakeClient([structured, final])
     # Patch streaming client
-    streaming._CEREBRAS_CLIENT = fake
+    streaming._LLM_CLIENT = fake
 
     # Call the streaming function (it will run synchronously)
     try:

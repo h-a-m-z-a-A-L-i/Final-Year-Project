@@ -3,7 +3,8 @@ import sys
 import threading
 from pathlib import Path
 from datetime import timedelta
-from cerebras.cloud.sdk import Cerebras
+
+# from cerebras.cloud.sdk import Cerebras  # disabled — using AIML API (OpenAI-compatible)
 
 
 def _load_dotenv(env_path: Path):
@@ -26,10 +27,16 @@ def _load_dotenv(env_path: Path):
 # Load .env from workspace root
 _load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
-CEREBRAS_API_KEY = os.environ.get("CEREBRAS_API_KEY", "").strip()
-CEREBRAS_MODEL = os.environ.get("CEREBRAS_MODEL", "gpt-oss-120b")
-TEMPERATURE = float(os.environ.get("CEREBRAS_TEMPERATURE", "0.5"))
-TOP_P = float(os.environ.get("CEREBRAS_TOP_P", "1.0"))
+# CEREBRAS_API_KEY = os.environ.get("CEREBRAS_API_KEY", "").strip()
+# CEREBRAS_MODEL = os.environ.get("CEREBRAS_MODEL", "gpt-oss-120b")
+
+AIML_API_KEY = os.environ.get("AIML_API_KEY", "").strip()
+AIML_API_BASE_URL = os.environ.get("AIML_API_BASE_URL", "https://api.aimlapi.com/v1").strip()
+AIML_MODEL = os.environ.get("AIML_MODEL", "x-ai/grok-4-1-fast-reasoning").strip()
+LLM_MODEL = AIML_MODEL
+
+TEMPERATURE = float(os.environ.get("LLM_TEMPERATURE", os.environ.get("CEREBRAS_TEMPERATURE", "0.5")))
+TOP_P = float(os.environ.get("LLM_TOP_P", os.environ.get("CEREBRAS_TOP_P", "1.0")))
 DATA_ROOT = Path(__file__).parent / "data"
 CHAT_MEMORY_DB = DATA_ROOT / "sessions" / "chat_history.sqlite3"
 SCRAPED_DIR = DATA_ROOT / "notebooks"
@@ -104,8 +111,14 @@ _ACTIVE_STREAMS_LOCK = threading.Lock()
 _RATE_LOCK = threading.Lock()
 _BOT_STATE_LOCK = threading.Lock()
 
-# Cerebras client instance (None when no key provided)
-_CEREBRAS_CLIENT = Cerebras(api_key=CEREBRAS_API_KEY) if CEREBRAS_API_KEY else None
+# _CEREBRAS_CLIENT = Cerebras(api_key=CEREBRAS_API_KEY) if CEREBRAS_API_KEY else None
+
+try:
+    from .aimlapi import create_aiml_client
+except Exception:
+    from aimlapi import create_aiml_client
+
+_LLM_CLIENT = create_aiml_client()
 
 
 def ensure_dirs():
