@@ -498,6 +498,7 @@ def main():
         send_msg({"ok": True})
 
 def initialize():
+    os.environ["NOTEBOOK_COPILOT_NATIVE_HOST"] = "1"
     """Prepare all subdirectories in the data folder."""
     SCRAPED_DIR.mkdir(parents=True, exist_ok=True)
     CHAT_MEMORY_DB.parent.mkdir(parents=True, exist_ok=True)

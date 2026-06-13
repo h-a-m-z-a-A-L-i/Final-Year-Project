@@ -1,0 +1,15 @@
+{
+  "tabUrl": "https://www.kaggle.com/code/test/persistent-guard/edit",
+  "title": "Guard Notebook",
+  "lastUpdated": "2026-06-13T01:38:00.626475+00:00",
+  "cells": [
+    {
+      "type": "code",
+      "index": 1,
+      "input": "print(\"hello\")",
+      "output": "hello",
+      "execution_order": 1,
+      "execution_title": "Execution #1"
+    }
+  ]
+}

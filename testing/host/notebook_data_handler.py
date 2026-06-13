@@ -30,6 +30,14 @@ except Exception:
     except Exception:
         from testing.host.persistence_helpers import _atomic_write_json, _load_execution_state, _load_hashes, _save_execution_state, _save_hashes, get_safe_filename, save_live_json, save_persistent_json, read_json_file
 
+try:
+    from .snapshot_verification import apply_execution_metadata_clear, evaluate_persistent_update
+except Exception:
+    try:
+        from snapshot_verification import apply_execution_metadata_clear, evaluate_persistent_update
+    except Exception:
+        from testing.host.snapshot_verification import apply_execution_metadata_clear, evaluate_persistent_update
+
 
 def _load_json_file(path):
     data = read_json_file(path)
@@ -48,9 +56,30 @@ def _promote_live_snapshot_if_needed(url: str):
 
     live_path = SCRAPED_DIR / "live" / filename
     live_data = _load_json_file(live_path)
-    if _snapshot_has_cells(live_data):
+    if not _snapshot_has_cells(live_data):
+        return persistent_path
+
+    existing_data = _load_json_file(persistent_path)
+    decision = evaluate_persistent_update(existing_data, live_data)
+    if decision.allow_write:
         save_persistent_json(live_data, url)
     return persistent_path
+
+
+def _maybe_save_persistent_snapshot(tab_url: str, final_data: dict, *, log=None) -> bool:
+    """Write persistent JSON only when verification detects real notebook changes."""
+    persistent_path = SCRAPED_DIR / "persistent" / get_safe_filename(tab_url)
+    existing_data = _load_json_file(persistent_path) if persistent_path.is_file() else None
+    decision = evaluate_persistent_update(existing_data, final_data)
+    if not decision.allow_write:
+        if log:
+            log(f"[persistent] Skipped write for {tab_url}: {decision.reason}")
+        return False
+
+    save_persistent_json(final_data, tab_url)
+    if log:
+        log(f"[persistent] Updated {tab_url}: {decision.reason}")
+    return True
 
 
 def _normalized_url(url: str) -> str:
@@ -308,19 +337,14 @@ def handle_notebook_data(ctx: dict, msg: dict):
                     ppath = SCRAPED_DIR / "persistent" / get_safe_filename(tab_url)
                     if ppath.exists():
                         pdata = read_json_file(ppath) or {}
-                        pcells = pdata.get("cells", []) if isinstance(pdata, dict) else []
-                        for pc in pcells:
-                            if isinstance(pc, dict):
-                                pc["execution_order"] = None
-                                pc["execution_title"] = ""
-                                if "execution_timestamp" in pc:
-                                    try:
-                                        del pc["execution_timestamp"]
-                                    except Exception:
-                                        pass
-                        pdata["lastUpdated"] = now_iso
-                        _atomic_write_json(ppath, pdata)
-                        log(f"[Fresh] Cleared persistent execution metadata for {tab_url}")
+                        cleared = apply_execution_metadata_clear(pdata)
+                        cleared["lastUpdated"] = now_iso
+                        decision = evaluate_persistent_update(pdata, cleared)
+                        if decision.allow_write:
+                            _atomic_write_json(ppath, cleared)
+                            log(f"[Fresh] Cleared persistent execution metadata for {tab_url}")
+                        else:
+                            log(f"[Fresh] Skipped execution metadata clear for {tab_url}: {decision.reason}")
                 except Exception as e:
                     log(f"[Fresh] Failed clearing persistent metadata: {e}")
             elif _scenario_is_off(kernel_scenario_norm) and scenario_entered:
@@ -531,37 +555,7 @@ def handle_notebook_data(ctx: dict, msg: dict):
                 "cells": save_cells,
             }
 
-            rev_state = revisions.get(data_hash, {})
-            seen_count = int(rev_state.get("seen_count") or 0)
-            should_write_persistent = False
-            if not persistent_path.exists() or seen_count >= 1:
-                should_write_persistent = True
-
-            if not should_write_persistent and persistent_path.exists():
-                try:
-                    existing = read_json_file(persistent_path)
-                    existing_by_idx = {int(c.get("index", 0)): c for c in existing.get("cells", []) if isinstance(c, dict)}
-                    incoming_cells = final_data.get("cells", [])
-                    if incoming_cells and len(incoming_cells) > 0:
-                        if len(existing_by_idx) != len(incoming_cells):
-                            should_write_persistent = True
-                        else:
-                            for c in incoming_cells:
-                                idx = int(c.get("index", 0))
-                                prev = existing_by_idx.get(idx, {})
-                                if (
-                                    prev.get("type") != c.get("type")
-                                    or prev.get("input") != c.get("input")
-                                    or prev.get("output") != c.get("output")
-                                    or str(prev.get("execution_order")) != str(c.get("execution_order"))
-                                ):
-                                    should_write_persistent = True
-                                    break
-                except Exception:
-                    pass
-
-            if should_write_persistent:
-                save_persistent_json(final_data, tab_url)
+            if _maybe_save_persistent_snapshot(tab_url, final_data, log=log):
                 with _HASHES_LOCK:
                     stored_hashes = _load_hashes()
                     stored_hashes[tab_url] = data_hash

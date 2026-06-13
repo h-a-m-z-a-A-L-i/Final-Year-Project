@@ -1,9 +1,12 @@
-click_cell example args: {"cell_index": 1, "url": "https://www.kaggle.com/code/alice/sample-notebook"}
-select_cell_by_index example args: {"cell_index": 1, "url": "https://www.kaggle.com/code/alice/sample-notebook"}
-insert_cell example args: {"index": 1, "direction": "https://www.kaggle.com/code/alice/sample-notebook", "url": "https://www.kaggle.com/code/alice/sample-notebook"}
-edit_cell_by_index example args: {"cell_index": 1, "content": "https://www.kaggle.com/code/alice/sample-notebook", "url": "https://www.kaggle.com/code/alice/sample-notebook"}
-delete_by_index example args: {"cell_index": 1, "url": "https://www.kaggle.com/code/alice/sample-notebook"}
-creating_markdown_by_index example args: {"index": 1, "url": "https://www.kaggle.com/code/alice/sample-notebook"}
+click_cell example args: {"cell_index": 1, "dom_index": 1, "url": "https://www.kaggle.com/code/alice/sample-notebook", "tab_id": 1, "index_basis": "https://www.kaggle.com/code/alice/sample-notebook", "run_cell": true, "scroll_into_view": true}
+select_cell_by_index example args: {"cell_index": 1, "url": "https://www.kaggle.com/code/alice/sample-notebook", "tab_id": 1}
+insert_cell example args: {"index": 1, "direction": "https://www.kaggle.com/code/alice/sample-notebook", "url": "https://www.kaggle.com/code/alice/sample-notebook", "tab_id": 1}
+edit_cell_by_index example args: {"cell_index": 1, "content": "https://www.kaggle.com/code/alice/sample-notebook", "url": "https://www.kaggle.com/code/alice/sample-notebook", "tab_id": 1}
+insert_and_edit_cell example args: {"cell_index": 1, "content": "https://www.kaggle.com/code/alice/sample-notebook", "url": "https://www.kaggle.com/code/alice/sample-notebook", "tab_id": 1, "direction": "https://www.kaggle.com/code/alice/sample-notebook"}
+run_cell example args: {"cell_index": 1, "url": "https://www.kaggle.com/code/alice/sample-notebook", "tab_id": 1, "scroll_into_view": true}
+edit_and_run_cell example args: {"cell_index": 1, "content": "https://www.kaggle.com/code/alice/sample-notebook", "url": "https://www.kaggle.com/code/alice/sample-notebook", "tab_id": 1}
+delete_by_index example args: {"cell_index": 1, "url": "https://www.kaggle.com/code/alice/sample-notebook", "tab_id": 1}
+creating_markdown_by_index example args: {"index": 1, "url": "https://www.kaggle.com/code/alice/sample-notebook", "tab_id": 1}
 notebook_snapshot_status example args: {"url": "https://www.kaggle.com/code/alice/sample-notebook"}
 notebook_list_cells example args: {"url": "https://www.kaggle.com/code/alice/sample-notebook"}
 notebook_graph_query example args: {"url": "https://www.kaggle.com/code/alice/sample-notebook"}

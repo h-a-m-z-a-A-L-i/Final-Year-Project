@@ -1,6 +1,6 @@
 // Content script to relay kernel state updates from background to page scripts
 (function initKernelStateListener() {
-  const LISTENER_VERSION = '2026-06-11-cell-index-1-based';
+  const LISTENER_VERSION = '2026-06-13-bot-result-type-fix';
   if (window.__kernelStateListenerVersion === LISTENER_VERSION) {
     return;
   }
@@ -24,12 +24,57 @@
   const messageHandler = (msg, sender, sendResponse) => {
     try {
       if (msg.type === 'SELECT_CELL_BY_INDEX') {
-        const result = clickCellByIndex(msg.cellIndex, {
+        const domIdx = Number(msg.cellIndex);
+        const maxWaitMs = Number(msg.maxWaitMs) || 160;
+
+        if (frameOwnsNotebookCells()) {
+          const immediate = findCellByDomIndex(document, domIdx);
+          if (immediate) {
+            const clickResult = dispatchCellClick(immediate, {
+              scrollIntoView: msg.scrollIntoView,
+              runCell: false,
+            });
+            if (clickResult?.ok) {
+              const attr = immediate.getAttribute('data-windowed-list-index');
+              const resolvedDom = attr !== null && attr !== '' ? Number(attr) : domIdx;
+              sendResponse({
+                ok: true,
+                result: {
+                  ok: true,
+                  domIndex: resolvedDom,
+                  appIndex: resolvedDom + 1,
+                  cellIndex: resolvedDom + 1,
+                  dataWindowedListIndex: String(resolvedDom),
+                  ...clickResult,
+                },
+              });
+              return;
+            }
+          }
+          if (selectCellViaNotebookApi(domIdx)) {
+            sendResponse({
+              ok: true,
+              result: {
+                ok: true,
+                domIndex: domIdx,
+                appIndex: domIdx + 1,
+                cellIndex: domIdx + 1,
+                dataWindowedListIndex: String(domIdx),
+                strategy: 'notebook-api-active-index',
+              },
+            });
+            return;
+          }
+        }
+
+        clickCellByIndexAsync(msg.cellIndex, {
           scrollIntoView: msg.scrollIntoView,
           runCell: false,
-        });
-        sendResponse({ ok: Boolean(result?.ok), result });
-        return;
+          maxWaitMs,
+        })
+          .then((result) => sendResponse({ ok: Boolean(result?.ok), result }))
+          .catch((error) => sendResponse({ ok: false, error: error?.message || String(error) }));
+        return true;
       }
 
       if (msg.type === 'INSERT_CELL') {
@@ -60,12 +105,26 @@
       }
 
       if (msg.type === 'CLICK_CELL_BY_INDEX') {
-        const result = clickCellByIndex(msg.cellIndex, {
+        const domIdx = Number(msg.cellIndex);
+        const runCell = msg.runCell === true;
+        const maxWaitMs = Number(msg.maxWaitMs) || (runCell ? 240 : 160);
+
+        if (runCell && frameOwnsNotebookCells()) {
+          const viaCmd = runCellViaNotebookCommands(domIdx);
+          if (viaCmd?.ok) {
+            sendResponse({ ok: true, result: viaCmd });
+            return;
+          }
+        }
+
+        clickCellByIndexAsync(msg.cellIndex, {
           scrollIntoView: msg.scrollIntoView,
-          runCell: msg.runCell !== false,
-        });
-        sendResponse({ ok: Boolean(result?.ok), result });
-        return;
+          runCell,
+          maxWaitMs,
+        })
+          .then((result) => sendResponse({ ok: Boolean(result?.ok), result }))
+          .catch((error) => sendResponse({ ok: false, error: error?.message || String(error) }));
+        return true;
       }
 
   function sendKey(key) {
@@ -164,72 +223,273 @@
     }
   }
 
-  async function setCellEditorContent(cellIndex, text) {
-    const appIndex = Number(cellIndex);
+  async function setCellEditorContent(domIndex, text, options = {}) {
+    const maxWaitMs = Number.isFinite(Number(options.maxWaitMs)) ? Number(options.maxWaitMs) : 160;
+    const work = setCellEditorContentImpl(domIndex, text, options);
+    const watchdog = sleep(maxWaitMs + 80).then(() => ({
+      ok: false,
+      error: 'set_cell_content timed out in content script.',
+      domIndex: Number(domIndex),
+      timedOut: true,
+    }));
+    return Promise.race([work, watchdog]);
+  }
+
+  function buildContentSetSuccess(domIdx, payload, strategy) {
+    return {
+      ok: true,
+      domIndex: domIdx,
+      appIndex: domIdx + 1,
+      cellIndex: domIdx + 1,
+      dataWindowedListIndex: String(domIdx),
+      chars: payload.length,
+      phase: 'content_set',
+      strategy,
+    };
+  }
+
+  function trySyncFillAtDomIndex(domIdx, payload) {
+    const wrapper = findCellByDomIndex(document, domIdx);
+    if (!wrapper) return null;
+    const editor = findCellEditorSurface(wrapper);
+    if (!editor) return null;
+    const inserted = fillEditorContent(editor, payload);
+    if (!inserted.ok) return null;
+    return buildContentSetSuccess(domIdx, payload, inserted.strategy);
+  }
+
+  async function setCellEditorContentImpl(domIndex, text, options = {}) {
+    if (!frameOwnsNotebookCells()) {
+      return {
+        ok: false,
+        frameSkip: true,
+        error: 'No notebook cells in this frame, skipping.',
+        domIndex: Number(domIndex),
+      };
+    }
+
+    const domIdx = Number(domIndex);
     const payload = String(text ?? '');
-    if (!Number.isInteger(appIndex) || appIndex < 1) {
-      return { ok: false, error: 'Invalid cell index (must be >= 1).' };
+    if (!Number.isInteger(domIdx) || domIdx < 0) {
+      return { ok: false, error: 'Invalid DOM cell index (must be >= 0, matches data-windowed-list-index).' };
     }
-    const domIndex = appIndex - 1;
 
-    const click = clickCellByIndex(appIndex, { scrollIntoView: true, runCell: false });
+    selectCellViaNotebookApi(domIdx);
+
+    let filled = trySyncFillAtDomIndex(domIdx, payload);
+    if (filled) return filled;
+
+    const wrapper = findCellByDomIndex(document, domIdx);
+    if (wrapper) {
+      const host =
+        wrapper.querySelector('.jp-InputArea-editor, .cm-editor, .jp-Cell-editor, .jp-InputArea') || wrapper;
+      if (typeof host.click === 'function') {
+        host.click();
+      }
+      filled = trySyncFillAtDomIndex(domIdx, payload);
+      if (filled) return filled;
+    }
+
+    const pollMs = Math.min(40, Math.max(10, Number(options.maxWaitMs) || 120));
+    const deadline = Date.now() + pollMs;
+    while (Date.now() < deadline) {
+      await sleep(8);
+      filled = trySyncFillAtDomIndex(domIdx, payload);
+      if (filled) return filled;
+    }
+
+    const viaCmd = setContentViaNotebookCommands(domIdx, payload);
+    if (viaCmd?.ok) {
+      return viaCmd;
+    }
+
+    const click = await clickCellByIndexAsync(domIdx, {
+      scrollIntoView: true,
+      runCell: false,
+      maxWaitMs: Math.min(160, Number(options.maxWaitMs) || 160),
+    });
     if (!click?.ok) {
-      return { ok: false, error: click?.error || 'Failed to select cell.', cellIndex: appIndex };
+      return { ok: false, error: click?.error || 'Failed to select cell.', domIndex: domIdx };
     }
 
-    await new Promise((r) => setTimeout(r, 120));
-    sendKey('Enter');
-    await new Promise((r) => setTimeout(r, 120));
+    filled = trySyncFillAtDomIndex(domIdx, payload);
+    if (filled) return filled;
 
-    const wrapper =
-      document.querySelector(`[data-windowed-list-index="${domIndex}"]`) ||
-      document.querySelector(`[data-cell-index="${appIndex}"]`);
-    if (!wrapper) {
-      return { ok: false, error: `Cell wrapper not found for index ${appIndex}.`, cellIndex: appIndex };
+    const retryWrapper = findCellByDomIndex(document, domIdx);
+    if (!retryWrapper) {
+      return { ok: false, error: `Cell wrapper not found for DOM index ${domIdx}.`, domIndex: domIdx, appIndex: domIdx + 1 };
     }
 
-    const editor =
+    await enterCellEditMode(retryWrapper);
+    const editor = findCellEditorSurface(retryWrapper);
+    if (!editor) {
+      return { ok: false, error: 'Code editor surface not found.', domIndex: domIdx, appIndex: domIdx + 1 };
+    }
+
+    const inserted = fillEditorContent(editor, payload);
+    if (!inserted.ok) {
+      return { ok: false, error: inserted.error || 'Failed to write editor content.', domIndex: domIdx, appIndex: domIdx + 1 };
+    }
+
+    return buildContentSetSuccess(domIdx, payload, inserted.strategy);
+  }
+
+  function findCellEditorSurface(wrapper) {
+    if (!wrapper) return null;
+    return (
       wrapper.querySelector('.jp-InputArea-editor .cm-content') ||
       wrapper.querySelector('.cm-editor .cm-content') ||
-      wrapper.querySelector('.cm-content');
-    if (!editor) {
-      return { ok: false, error: 'Code editor surface not found.', cellIndex: appIndex };
+      wrapper.querySelector('.cm-content') ||
+      wrapper.querySelector('[contenteditable="true"]')
+    );
+  }
+
+  async function enterCellEditMode(wrapper) {
+    if (!wrapper) return;
+    const isMarkdown = wrapper.classList.contains('jp-MarkdownCell');
+    if (isMarkdown) {
+      wrapper.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, detail: 2 }));
+      await sleep(15);
+      return;
+    }
+    const editorHost =
+      wrapper.querySelector('.jp-InputArea-editor, .cm-editor, .jp-Cell-editor, .jp-InputArea') || wrapper;
+    if (typeof editorHost.click === 'function') {
+      editorHost.click();
+    }
+  }
+
+  function resolveCodeMirrorView(node) {
+    let el = node;
+    while (el) {
+      if (el.cmView?.view) return el.cmView.view;
+      if (el.__cm_view) return el.__cm_view;
+      el = el.parentElement;
+    }
+    return null;
+  }
+
+  function fillEditorContent(editor, payload) {
+    editor.focus({ preventScroll: true });
+
+    const cmView = resolveCodeMirrorView(editor);
+    if (cmView && typeof cmView.dispatch === 'function') {
+      try {
+        const len = cmView.state.doc.length;
+        cmView.dispatch({
+          changes: { from: 0, to: len, insert: payload },
+        });
+        return { ok: true, strategy: 'codemirror6-dispatch' };
+      } catch (error) {
+        console.warn('[fillEditorContent] CM6 dispatch failed:', error?.message || error);
+      }
     }
 
     try {
-      editor.focus({ preventScroll: true });
       const selection = window.getSelection();
       const range = document.createRange();
       range.selectNodeContents(editor);
       selection?.removeAllRanges();
       selection?.addRange(range);
+      document.execCommand('selectAll', false, null);
+      if (document.execCommand('insertText', false, payload)) {
+        return { ok: true, strategy: 'execCommand-insertText' };
+      }
+    } catch (error) {
+      console.warn('[fillEditorContent] execCommand failed:', error?.message || error);
+    }
 
-      let inserted = false;
+    try {
+      editor.textContent = payload;
+      editor.dispatchEvent(new InputEvent('input', { bubbles: true, data: payload, inputType: 'insertText' }));
+      return { ok: true, strategy: 'textContent-fallback' };
+    } catch (error) {
+      return { ok: false, error: error?.message || String(error) };
+    }
+  }
+
+  function runCellViaNotebookCommands(domIndex) {
+    const { commands } = getNotebookApp();
+    if (!commands || typeof commands.execute !== 'function') {
+      return { ok: false };
+    }
+
+    const domIdx = Number(domIndex);
+    if (!Number.isInteger(domIdx) || domIdx < 0) {
+      return { ok: false, error: 'Invalid DOM cell index.' };
+    }
+
+    try {
+      selectCellViaNotebookApi(domIdx);
+      const commandIds = [
+        'notebook:run-cell',
+        'notebook:run-in-place',
+        'cell:run-cell',
+        'runmenu:run',
+        'notebook:execute',
+      ];
+      for (const commandId of commandIds) {
+        try {
+          if (typeof commands.hasCommand === 'function' && !commands.hasCommand(commandId)) {
+            continue;
+          }
+          if (typeof commands.isEnabled === 'function' && !commands.isEnabled(commandId)) {
+            continue;
+          }
+          const pending = commands.execute(commandId);
+          if (pending && typeof pending.catch === 'function') {
+            pending.catch(() => null);
+          }
+          return {
+            ok: true,
+            domIndex: domIdx,
+            appIndex: domIdx + 1,
+            cellIndex: domIdx + 1,
+            dataWindowedListIndex: String(domIdx),
+            phase: 'run_triggered',
+            strategy: 'jupyterlab-run-command-async',
+            commandId,
+          };
+        } catch (executeError) {
+          console.warn('[runCellViaNotebookCommands] execute failed:', commandId, executeError?.message || executeError);
+        }
+      }
+    } catch (error) {
+      console.warn('[runCellViaNotebookCommands] failed:', error?.message || error);
+      return { ok: false };
+    }
+
+    return { ok: false };
+  }
+
+  function setContentViaNotebookCommands(domIndex, payload) {
+    const { commands } = getNotebookApp();
+    if (!commands || typeof commands.execute !== 'function') {
+      return { ok: false };
+    }
+    try {
+      selectCellViaNotebookApi(domIndex);
       try {
-        inserted = document.execCommand('insertText', false, payload);
-      } catch (_) {
-        inserted = false;
+        const pending = commands.execute('notebook:replace-selection', { text: payload });
+        if (pending && typeof pending.catch === 'function') {
+          pending.catch(() => null);
+        }
+      } catch (executeError) {
+        console.warn('[setContentViaNotebookCommands] execute failed:', executeError?.message || executeError);
+        return { ok: false };
       }
-
-      if (!inserted && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(payload);
-        inserted = document.execCommand('paste');
-      }
-
-      if (!inserted) {
-        editor.textContent = payload;
-        editor.dispatchEvent(new InputEvent('input', { bubbles: true, data: payload }));
-        inserted = true;
-      }
-
       return {
         ok: true,
-        cellIndex: appIndex,
+        domIndex,
+        appIndex: domIndex + 1,
+        cellIndex: domIndex + 1,
         chars: payload.length,
-        strategy: inserted ? 'editor-insert' : 'textContent-fallback',
+        phase: 'content_set',
+        strategy: 'jupyter-replace-selection-async',
       };
     } catch (error) {
-      return { ok: false, error: error?.message || String(error), cellIndex: appIndex };
+      console.warn('[setContentViaNotebookCommands] failed:', error?.message || error);
+      return { ok: false };
     }
   }
 
@@ -272,7 +532,38 @@
       }
 
       if (msg.type === 'SET_CELL_CONTENT') {
-        setCellEditorContent(msg.cellIndex, msg.content)
+        const domIdx = Number(msg.cellIndex);
+        const payload = String(msg.content ?? '');
+        const maxWaitMs = Number(msg.maxWaitMs) || 160;
+
+        if (frameOwnsNotebookCells()) {
+          selectCellViaNotebookApi(domIdx);
+          let filled = trySyncFillAtDomIndex(domIdx, payload);
+          if (!filled) {
+            const wrapper = findCellByDomIndex(document, domIdx);
+            if (wrapper) {
+              const host =
+                wrapper.querySelector('.jp-InputArea-editor, .cm-editor, .jp-Cell-editor, .jp-InputArea')
+                || wrapper;
+              if (typeof host.click === 'function') {
+                host.click();
+              }
+              filled = trySyncFillAtDomIndex(domIdx, payload);
+            }
+          }
+          if (filled) {
+            sendResponse({ ok: true, result: filled });
+            return;
+          }
+
+          const viaCmd = setContentViaNotebookCommands(domIdx, payload);
+          if (viaCmd?.ok) {
+            sendResponse({ ok: true, result: viaCmd });
+            return;
+          }
+        }
+
+        setCellEditorContent(msg.cellIndex, msg.content, { maxWaitMs })
           .then((result) => sendResponse({ ok: Boolean(result?.ok), result }))
           .catch((error) => sendResponse({ ok: false, error: error?.message || String(error) }));
         return true;
@@ -305,76 +596,207 @@
     }
   };
 
-  function clickCellByIndex(index, options = {}) {
-    const appIndex = Number(index);
-    if (!Number.isInteger(appIndex) || appIndex < 1) {
-      console.error('[clickCellByIndex] Invalid cell index:', index);
-      return { ok: false, error: 'Invalid cell index (must be >= 1).' };
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function forceVisibleSelection(cellEl) {
+    if (!cellEl) return;
+    try {
+      cellEl.classList.add('jp-mod-selected', 'jp-mod-active');
+      cellEl.setAttribute('aria-selected', 'true');
+    } catch (error) {
+      console.warn('[forceVisibleSelection] failed:', error?.message || error);
     }
-    let domIndex = appIndex - 1;
+  }
 
-    // Search the current frame first, then recurse into same-origin iframes.
-    const findCellByDomIndex = (rootDocument, domIdx, seen = new Set()) => {
-      if (!rootDocument || seen.has(rootDocument)) {
-        return null;
+  function collectVisibleDomIndices(rootDocument = document, seen = new Set()) {
+    if (!rootDocument || seen.has(rootDocument)) {
+      return [];
+    }
+    seen.add(rootDocument);
+
+    const indices = [];
+    rootDocument.querySelectorAll('[data-windowed-list-index]').forEach((el) => {
+      const raw = el.getAttribute('data-windowed-list-index');
+      const n = Number(raw);
+      if (Number.isInteger(n) && n >= 0) {
+        indices.push(n);
       }
-      seen.add(rootDocument);
+    });
 
-      const direct = rootDocument.querySelector('[data-windowed-list-index="' + domIdx + '"]');
-      if (direct) {
-        return direct;
-      }
-
-      const frames = rootDocument.querySelectorAll('iframe');
-      for (const frame of frames) {
-        try {
-          if (frame.contentDocument) {
-            const nested = findCellByDomIndex(frame.contentDocument, domIdx, seen);
-            if (nested) {
-              return nested;
-            }
-          }
-        } catch (error) {
-          console.warn('[clickCellByIndex] Unable to inspect iframe:', error?.message || error);
+    const frames = rootDocument.querySelectorAll('iframe');
+    for (const frame of frames) {
+      try {
+        if (frame.contentDocument) {
+          indices.push(...collectVisibleDomIndices(frame.contentDocument, seen));
         }
+      } catch (_) {
+        /* cross-origin */
       }
+    }
 
+    return Array.from(new Set(indices)).sort((a, b) => a - b);
+  }
+
+  function findCellByDomIndex(rootDocument, domIdx, seen = new Set()) {
+    if (!rootDocument || seen.has(rootDocument)) {
       return null;
-    };
+    }
+    seen.add(rootDocument);
 
-    let cell = findCellByDomIndex(document, domIndex);
-    if (!cell) {
-      const altDomCandidates = [domIndex + 1, domIndex - 1];
-      let found = null;
-      for (const cand of altDomCandidates) {
-        if (!Number.isInteger(cand) || cand < 0) continue;
-        const alt = findCellByDomIndex(document, cand);
-        if (alt) {
-          found = { el: alt, domIndex: cand };
-          break;
+    const direct = rootDocument.querySelector('[data-windowed-list-index="' + domIdx + '"]');
+    if (direct) {
+      return direct;
+    }
+
+    const frames = rootDocument.querySelectorAll('iframe');
+    for (const frame of frames) {
+      try {
+        if (frame.contentDocument) {
+          const nested = findCellByDomIndex(frame.contentDocument, domIdx, seen);
+          if (nested) {
+            return nested;
+          }
+        }
+      } catch (error) {
+        console.warn('[findCellByDomIndex] Unable to inspect iframe:', error?.message || error);
+      }
+    }
+
+    return null;
+  }
+
+  function scrollTowardDomIndex(targetDomIdx) {
+    const visible = collectVisibleDomIndices(document);
+    if (!visible.length) {
+      return false;
+    }
+    const closest = visible.reduce((best, cur) => (
+      Math.abs(cur - targetDomIdx) < Math.abs(best - targetDomIdx) ? cur : best
+    ), visible[0]);
+    const el = findCellByDomIndex(document, closest);
+    if (!el) {
+      return false;
+    }
+    el.scrollIntoView({ block: 'center', inline: 'nearest' });
+    return true;
+  }
+
+  function frameOwnsNotebookCells() {
+    return Boolean(document.querySelector('[data-windowed-list-index]'));
+  }
+
+  function frameHasNotebookCells() {
+    return frameOwnsNotebookCells();
+  }
+
+  function selectCellViaNotebookApi(domIndex) {
+    const { notebook } = getNotebookApp();
+    if (!notebook) {
+      return false;
+    }
+    try {
+      if (typeof notebook.activeCellIndex === 'number' || notebook.activeCellIndex === undefined) {
+        notebook.activeCellIndex = domIndex;
+      }
+      if (typeof notebook.scrollToCell === 'function') {
+        const maybe = notebook.scrollToCell({ index: domIndex });
+        if (maybe && typeof maybe.catch === 'function') {
+          maybe.catch(() => null);
         }
       }
-      if (!found) {
-        console.error('[clickCellByIndex] Cell not found in this frame tree:', appIndex);
-        return { ok: false, error: 'Cell not found in this frame tree.' };
+      return Number(notebook.activeCellIndex) === domIndex;
+    } catch (error) {
+      console.warn('[selectCellViaNotebookApi] failed:', error?.message || error);
+      return false;
+    }
+  }
+
+  function isElementMostlyVisible(el) {
+    if (!el) return false;
+    const rect = el.getBoundingClientRect();
+    const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+    return rect.top >= -8 && rect.bottom <= vh + 8;
+  }
+
+  function finishClickResult(domIdx, idx, cell, clickResult) {
+    const attr = cell.getAttribute('data-windowed-list-index');
+    const resolvedDom = attr !== null && attr !== '' ? Number(attr) : domIdx;
+    if (!clickResult.ok) {
+      return { ...clickResult, domIndex: resolvedDom };
+    }
+    return {
+      ok: true,
+      domIndex: resolvedDom,
+      appIndex: resolvedDom + 1,
+      cellIndex: resolvedDom + 1,
+      dataWindowedListIndex: String(resolvedDom),
+      ...clickResult,
+    };
+  }
+
+  async function activateCellViaNotebookApi(domIndex) {
+    return selectCellViaNotebookApi(domIndex);
+  }
+
+  async function resolveCellElement(domIndex, options = {}) {
+    const quick = findCellByDomIndex(document, domIndex);
+    if (quick) {
+      return { cell: quick, domIndex };
+    }
+
+    const maxWaitMs = Number.isFinite(Number(options.maxWaitMs)) ? Number(options.maxWaitMs) : 400;
+    const deadline = Date.now() + Math.max(200, maxWaitMs);
+
+    await activateCellViaNotebookApi(domIndex);
+
+    while (Date.now() < deadline) {
+      const cell = findCellByDomIndex(document, domIndex);
+      if (cell) {
+        return { cell, domIndex };
       }
-      console.warn('[clickCellByIndex] Using adjacent DOM index', found.domIndex, 'for requested app index', appIndex);
-      domIndex = found.domIndex;
-      cell = found.el;
+      scrollTowardDomIndex(domIndex);
+      await sleep(80);
     }
 
+    const visible = collectVisibleDomIndices(document);
+    return {
+      cell: null,
+      domIndex,
+      visibleDomIndices: visible,
+    };
+  }
 
-    // Keep the cell near the viewport so JupyterLab can attach focus and selection state.
-    if (options.scrollIntoView !== false) {
-      cell.scrollIntoView({ block: 'nearest' });
+  function dispatchCellClick(cell, options = {}) {
+    const runCell = options.runCell === true;
+    if (!runCell) {
+      if (options.scrollIntoView !== false && !isElementMostlyVisible(cell)) {
+        cell.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      }
+      const clickTarget =
+        cell.querySelector('.jp-InputArea-prompt, .jp-Cell-prompt, .jp-Cell-inputWrapper') || cell;
+      if (typeof clickTarget.click === 'function') {
+        clickTarget.click();
+      } else if (typeof cell.click === 'function') {
+        cell.click();
+      }
+      forceVisibleSelection(cell);
+      return {
+        ok: true,
+        clicked: clickTarget.className || clickTarget.tagName,
+        strategy: 'dom-fast-click',
+      };
     }
 
-    // Click the cell wrapper first so JupyterLab can visibly mark the cell active.
-    // If that does not trigger the expected state change, fall back to the editor and prompt.
+    if (options.scrollIntoView !== false && !isElementMostlyVisible(cell)) {
+      cell.scrollIntoView({ block: 'center', inline: 'nearest' });
+    }
     const targets = [
       cell,
-      options.runCell !== false ? cell.querySelector('.jp-InputArea-editor, .jp-Cell-editor') : null,
+      runCell ? cell.querySelector('.jp-InputArea-editor, .jp-Cell-editor') : null,
       cell.querySelector('.jp-InputArea-prompt, .jp-Cell-prompt'),
+      cell.querySelector('.cm-editor, .cm-content, [contenteditable="true"]'),
     ].filter(Boolean);
 
     const rect = cell.getBoundingClientRect();
@@ -396,7 +818,6 @@
           target.focus({ preventScroll: true });
         }
 
-        // JupyterLab/React often depends on a full pointer + mouse sequence instead of a bare click.
         target.dispatchEvent(new PointerEvent('pointerdown', eventInit));
         target.dispatchEvent(new MouseEvent('mousedown', eventInit));
         target.dispatchEvent(new PointerEvent('pointerup', eventInit));
@@ -406,78 +827,175 @@
           target.click();
         }
 
-        if (options.runCell !== false) {
-          // First attempt: click any run button inside the cell (more reliable)
-          try {
-            const runSelectors = ['button[aria-label*="Run"]', '.cell-execute-button', 'button[title*="Run"]', 'button[data-test-id="run-cell"]'];
-            for (const rs of runSelectors) {
-              const btn = target.querySelector(rs) || target.querySelectorAll(rs)?.[0];
-              if (btn) {
-                try {
-                  if (typeof btn.scrollIntoView === 'function') btn.scrollIntoView({ block: 'nearest' });
-                  if (typeof btn.focus === 'function') btn.focus({ preventScroll: true });
-                  btn.click();
-                  console.log('[clickCellByIndex] Clicked run button inside cell using selector:', rs);
-                  return { ok: true, cellIndex: domIndex + 1, clicked: target.className || target.tagName, strategy: 'run-button-click', selector: rs };
-                } catch (e) {
-                  console.warn('[clickCellByIndex] run-button click failed for selector', rs, e?.message || e);
-                }
-              }
-            }
-          } catch (e) {
-            console.warn('[clickCellByIndex] Error while attempting run-button click:', e?.message || e);
-          }
-
-          // Fallback to keyboard sequence if no run button was found
-          const kbInit = {
-            key: 'Enter',
-            code: 'Enter',
-            keyCode: 13,
-            which: 13,
-            shiftKey: true,
-            bubbles: true,
-            cancelable: true,
-            composed: true
-          };
-          target.dispatchEvent(new KeyboardEvent('keydown', kbInit));
-          target.dispatchEvent(new KeyboardEvent('keypress', kbInit));
-          target.dispatchEvent(new KeyboardEvent('keyup', kbInit));
-
-          console.log('[clickCellByIndex] Click & Shift+Enter sequence dispatched on:', target.className || target.tagName);
-          return { ok: true, cellIndex: domIndex + 1, clicked: target.className || target.tagName, strategy: 'dom-click-plus-shift-enter' };
-        }
-
-        console.log('[clickCellByIndex] Click-only selection dispatched on:', target.className || target.tagName);
-        return { ok: true, cellIndex: domIndex + 1, clicked: target.className || target.tagName, strategy: 'dom-click-only' };
-      } catch (error) {
-        console.warn('[clickCellByIndex] Target failed, trying next fallback:', error?.message || error);
-      }
-    }
-
-    // JupyterLab API fallback: if the app object is exposed, use notebook APIs directly.
-    const app = window.__JUPYTERLAB_APP__ || window.jupyterlab || window.jupyterLab;
-    const notebook = app?.shell?.currentWidget?.content || app?.shell?.currentWidget?.model || null;
-    if (notebook) {
-      try {
-        if (typeof notebook.activeCellIndex === 'number') {
-          notebook.activeCellIndex = domIndex;
-        }
-        if (typeof notebook.scrollToCell === 'function') {
-          notebook.scrollToCell({ index: domIndex });
-        }
         forceVisibleSelection(cell);
-        console.log('[clickCellByIndex] Used JupyterLab API fallback for cell:', appIndex);
-        return { ok: true, cellIndex: domIndex + 1, strategy: 'jupyterlab-api-fallback' };
+
+        if (!runCell) {
+          return {
+            ok: true,
+            clicked: target.className || target.tagName,
+            strategy: 'dom-click-only',
+          };
+        }
+
+        const runSelectors = [
+          'button[aria-label*="Run"]',
+          '.cell-execute-button',
+          'button[title*="Run"]',
+          'button[data-test-id="run-cell"]',
+        ];
+        for (const rs of runSelectors) {
+          const btn = cell.querySelector(rs);
+          if (btn) {
+            btn.scrollIntoView?.({ block: 'nearest' });
+            btn.focus?.({ preventScroll: true });
+            btn.click();
+            return {
+              ok: true,
+              clicked: target.className || target.tagName,
+              strategy: 'run-button-click',
+              selector: rs,
+            };
+          }
+        }
+
+        const kbInit = {
+          key: 'Enter',
+          code: 'Enter',
+          keyCode: 13,
+          which: 13,
+          shiftKey: true,
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+        };
+        target.dispatchEvent(new KeyboardEvent('keydown', kbInit));
+        target.dispatchEvent(new KeyboardEvent('keypress', kbInit));
+        target.dispatchEvent(new KeyboardEvent('keyup', kbInit));
+        return {
+          ok: true,
+          clicked: target.className || target.tagName,
+          strategy: 'dom-click-plus-shift-enter',
+        };
       } catch (error) {
-        console.error('[clickCellByIndex] JupyterLab API fallback failed:', error?.message || error);
+        console.warn('[dispatchCellClick] target failed:', error?.message || error);
       }
     }
 
     return { ok: false, error: 'No clickable target succeeded.' };
   }
 
-  function selectCellByIndex(index, options = {}) {
-    return clickCellByIndex(index, {
+  async function clickCellByIndexAsync(domIndex, options = {}) {
+    const idx = Number(domIndex);
+    if (!Number.isInteger(idx) || idx < 0) {
+      return {
+        ok: false,
+        error: 'Invalid DOM cell index (must be >= 0, matches data-windowed-list-index).',
+      };
+    }
+
+    const maxWaitMs = Number.isFinite(Number(options.maxWaitMs)) ? Number(options.maxWaitMs) : 160;
+    const work = clickCellByIndexAsyncImpl(idx, { ...options, maxWaitMs });
+    const watchdog = sleep(maxWaitMs + 40).then(() => ({
+      ok: false,
+      error: 'click_cell timed out in content script.',
+      domIndex: idx,
+      timedOut: true,
+    }));
+    return Promise.race([work, watchdog]);
+  }
+
+  async function clickCellByIndexAsyncImpl(domIndex, options = {}) {
+    const idx = Number(domIndex);
+    if (!Number.isInteger(idx) || idx < 0) {
+      return {
+        ok: false,
+        error: 'Invalid DOM cell index (must be >= 0, matches data-windowed-list-index).',
+      };
+    }
+
+    if (!frameOwnsNotebookCells()) {
+      return {
+        ok: false,
+        frameSkip: true,
+        error: 'No notebook cells in this frame, skipping.',
+        domIndex: idx,
+      };
+    }
+
+    const immediate = findCellByDomIndex(document, idx);
+    if (immediate) {
+      return finishClickResult(idx, idx, immediate, dispatchCellClick(immediate, options));
+    }
+
+    if (selectCellViaNotebookApi(idx)) {
+      const cellAfterApi = findCellByDomIndex(document, idx);
+      if (cellAfterApi) {
+        return finishClickResult(idx, idx, cellAfterApi, dispatchCellClick(cellAfterApi, options));
+      }
+      return {
+        ok: true,
+        domIndex: idx,
+        appIndex: idx + 1,
+        cellIndex: idx + 1,
+        dataWindowedListIndex: String(idx),
+        strategy: 'notebook-api-active-index',
+      };
+    }
+
+    const pollMs = Math.min(160, Math.max(40, Number(options.maxWaitMs) || 160));
+    const deadline = Date.now() + pollMs;
+    while (Date.now() < deadline) {
+      const cell = findCellByDomIndex(document, idx);
+      if (cell) {
+        return finishClickResult(idx, idx, cell, dispatchCellClick(cell, options));
+      }
+      await sleep(10);
+    }
+
+    const visible = collectVisibleDomIndices(document);
+    return {
+      ok: false,
+      error: 'Cell not found in this frame tree (scroll/wait exhausted).',
+      domIndex: idx,
+      dataWindowedListIndex: String(idx),
+      visibleDomIndices: visible,
+      hint: visible.length
+        ? `Visible data-windowed-list-index values: ${visible.join(', ')}`
+        : 'No notebook cells visible in this frame — wait for editor load.',
+    };
+  }
+
+  function clickCellByIndex(domIndex, options = {}) {
+    const idx = Number(domIndex);
+    if (!Number.isInteger(idx) || idx < 0) {
+      return { ok: false, error: 'Invalid DOM cell index (must be >= 0).' };
+    }
+    const cell = findCellByDomIndex(document, idx);
+    if (!cell) {
+      return {
+        ok: false,
+        error: 'Cell not found in this frame tree.',
+        domIndex: idx,
+        visibleDomIndices: collectVisibleDomIndices(document),
+      };
+    }
+    const clickResult = dispatchCellClick(cell, options);
+    const attr = cell.getAttribute('data-windowed-list-index');
+    const resolvedDom = attr !== null && attr !== '' ? Number(attr) : idx;
+    return clickResult.ok
+      ? {
+          ok: true,
+          domIndex: resolvedDom,
+          appIndex: resolvedDom + 1,
+          cellIndex: resolvedDom,
+          dataWindowedListIndex: String(resolvedDom),
+          ...clickResult,
+        }
+      : { ...clickResult, domIndex: resolvedDom };
+  }
+
+  function selectCellByIndex(domIndex, options = {}) {
+    return clickCellByIndex(domIndex, {
       scrollIntoView: options.scrollIntoView,
       runCell: false,
     });
@@ -544,6 +1062,17 @@
   }
 
   async function insertCellByDirection(direction) {
+    const work = insertCellByDirectionImpl(direction);
+    const watchdog = sleep(500).then(() => ({
+      ok: false,
+      error: 'insert_cell timed out in content script.',
+      direction: String(direction || '').trim().toLowerCase(),
+      timedOut: true,
+    }));
+    return Promise.race([work, watchdog]);
+  }
+
+  async function insertCellByDirectionImpl(direction) {
     const normalizedDirection = String(direction || '').trim().toLowerCase();
     if (!['above', 'below'].includes(normalizedDirection)) {
       return { ok: false, error: 'Invalid insert direction.' };
@@ -568,8 +1097,11 @@
           if (typeof commands.isEnabled === 'function' && !commands.isEnabled(commandId)) {
             continue;
           }
-          await commands.execute(commandId);
-          return { ok: true, direction: normalizedDirection, strategy: 'jupyterlab-command', commandId };
+          const pending = commands.execute(commandId);
+          if (pending && typeof pending.catch === 'function') {
+            pending.catch(() => null);
+          }
+          return { ok: true, direction: normalizedDirection, strategy: 'jupyterlab-command-async', commandId };
         } catch (error) {
           lastError = error;
         }
@@ -584,9 +1116,9 @@
           }
           const maybeResult = notebook[methodName]();
           if (maybeResult && typeof maybeResult.then === 'function') {
-            await maybeResult;
+            maybeResult.catch(() => null);
           }
-          return { ok: true, direction: normalizedDirection, strategy: 'notebook-method', methodName };
+          return { ok: true, direction: normalizedDirection, strategy: 'notebook-method-async', methodName };
         } catch (error) {
           lastError = error;
         }

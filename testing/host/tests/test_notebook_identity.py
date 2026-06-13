@@ -70,3 +70,27 @@ def test_url_change_without_id_reuses_mapped_key(tmp_path):
     assert info["notebookKey"] == "kaggle:kernel:77"
     history = store.get_history("kaggle:kernel:77", session_id="default")
     assert len(history) == 1
+
+
+def test_resolve_history_key_ignores_stale_notebook_id(tmp_path, monkeypatch):
+    ni.NOTEBOOK_REGISTRY_PATH = tmp_path / "notebook_registry.json"
+    store = LocalMemoryStore(tmp_path / "chat.sqlite3")
+
+    def fake_resolve(url, **kwargs):
+        if "notebook-b" in url:
+            return 222
+        if "notebook-a" in url:
+            return 111
+        return None
+
+    monkeypatch.setattr(
+        "testing.host.kaggle_kernel_client.resolve_kernel_id_for_url",
+        fake_resolve,
+    )
+
+    url_b = "https://www.kaggle.com/code/alice/notebook-b/edit"
+    store.append("kaggle:kernel:111", "user", "chat-a", session_id="default")
+    store.append("kaggle:kernel:222", "user", "chat-b", session_id="default")
+
+    key = ni.resolve_history_key(url_b, 111, memory_store=store)
+    assert key == "kaggle:kernel:222"

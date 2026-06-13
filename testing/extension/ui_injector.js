@@ -1313,23 +1313,46 @@
 
     let notebookKey = '';
     let notebookId = null;
+    let lastObservedNotebookUrl = '';
 
     function currentNotebookKey() {
         return notebookKey || currentNotebookUrl();
     }
 
+    function applyNotebookIdentity(identity, options = {}) {
+        const url = normalizeNotebookUrl(identity?.url || window.location.href);
+        const nextKey = String(identity?.notebookKey || url).trim() || url;
+        const nextId = identity?.notebookId ?? null;
+        const keyChanged = nextKey !== currentNotebookKey();
+        const urlChanged = url !== lastObservedNotebookUrl;
+
+        notebookKey = nextKey;
+        notebookId = nextId;
+        lastObservedNotebookUrl = url;
+
+        if (options.reloadHistory && (keyChanged || urlChanged)) {
+            resetChatToDefault();
+            requestHistory(getCurrentSessionId());
+        }
+    }
+
     function refreshNotebookIdentity(done) {
         if (!chrome?.runtime?.sendMessage) {
-            notebookKey = currentNotebookUrl();
+            applyNotebookIdentity({ url: currentNotebookUrl(), notebookKey: currentNotebookUrl() }, { reloadHistory: true });
             if (done) done();
             return;
         }
         chrome.runtime.sendMessage({ type: 'GET_TAB_NOTEBOOK_URL' }, (response) => {
-            const url = normalizeNotebookUrl(response?.url || window.location.href);
-            notebookKey = String(response?.notebookKey || url).trim() || url;
-            notebookId = response?.notebookId ?? null;
+            applyNotebookIdentity(response, { reloadHistory: true });
             if (done) done();
         });
+    }
+
+    function watchNotebookUrlChanges() {
+        const url = currentNotebookUrl();
+        if (!url) return;
+        if (url === lastObservedNotebookUrl && notebookKey) return;
+        refreshNotebookIdentity();
     }
 
     function notebookScopeMatches(msg) {
@@ -1549,10 +1572,10 @@
     };
 
     // 3. Load Initial History and Graph
-    refreshNotebookIdentity(() => {
-        requestHistory(getCurrentSessionId());
-    });
+    refreshNotebookIdentity();
     chrome.runtime.sendMessage({ type: 'GET_GRAPH', url: currentNotebookUrl() });
+    setInterval(watchNotebookUrlChanges, 2000);
+    window.addEventListener('popstate', watchNotebookUrlChanges);
 
     sendBtn.onclick = () => {
         if (isStreaming) return;
@@ -1612,6 +1635,11 @@
 
     // Listen for AI responses from background script
     chrome.runtime.onMessage.addListener((msg) => {
+        if (msg.type === 'NOTEBOOK_IDENTITY_UPDATED') {
+            applyNotebookIdentity(msg, { reloadHistory: true });
+            return;
+        }
+
         if (!notebookScopeMatches(msg)) {
             return;
         }

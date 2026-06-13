@@ -154,13 +154,32 @@ def resolve_history_key(
     if not normalized:
         return ""
 
-    resolved_id = notebook_id
-    if resolved_id is None:
+    slug_id = None
+    try:
+        from .kaggle_kernel_client import resolve_kernel_id_for_url
+    except Exception:
+        from kaggle_kernel_client import resolve_kernel_id_for_url
+    slug_id = resolve_kernel_id_for_url(normalized, log=log)
+
+    resolved_id = slug_id
+    if resolved_id is None and notebook_id is not None:
         try:
-            from .kaggle_kernel_client import resolve_kernel_id_for_url
-        except Exception:
-            from kaggle_kernel_client import resolve_kernel_id_for_url
-        resolved_id = resolve_kernel_id_for_url(normalized, log=log)
+            hinted = int(notebook_id)
+            if hinted > 0:
+                resolved_id = hinted
+        except (TypeError, ValueError):
+            resolved_id = None
+    elif notebook_id is not None and slug_id is not None:
+        try:
+            if int(notebook_id) != int(slug_id):
+                if log:
+                    log(
+                        f"[notebook_identity] Ignoring stale notebook_id={notebook_id} "
+                        f"for {normalized}; using slug id {slug_id}"
+                    )
+                resolved_id = slug_id
+        except (TypeError, ValueError):
+            resolved_id = slug_id
 
     stable = stable_notebook_key(resolved_id)
     if stable:

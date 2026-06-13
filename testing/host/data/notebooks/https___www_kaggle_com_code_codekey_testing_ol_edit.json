@@ -1,12 +1,12 @@
 {
   "tabUrl": "https://www.kaggle.com/code/codekey/testing-ol/edit",
   "title": "__notebook_source__",
-  "lastUpdated": "2026-06-13T01:18:12.587526+00:00",
+  "lastUpdated": "2026-06-13T14:52:16.501185+00:00",
   "cells": [
     {
       "type": "code",
       "index": 1,
-      "input": "# This Python 3 environment comes with many helpful analytics libraries installed\n# It is defined by the kaggle/python Docker image: https://github.com/kaggle/docker-python\n# For example, here's several helpful packages to load\n\n\nimport numpy as np # linear algebra\nimport pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)\n\n\n# Input data files are available in the read-only \"../input/\" directory\n# For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory\n\n\nimport os\nfor dirname, _, filenames in os.walk('/kaggle/input'):\n    for filename in filenames:\n        print(os.path.join(dirname, filename))\n\n\n# You can write up to 20GB to the current directory (/kaggle/working/) that gets preserved as output when you create a version using \"Save & Run All\" \n# You can also write temporary files to /kaggle/temp/, but they won't be saved outside of the current session",
+      "input": "print('edit-1')",
       "output": "",
       "execution_order": null,
       "execution_title": ""
@@ -14,10 +14,10 @@
     {
       "type": "code",
       "index": 2,
-      "input": "dcklmdskc",
-      "output": "---------------------------------------------------------------------------\nNameError                                 Traceback (most recent call last)\n/tmp/ipykernel_57/4168643109.py in <cell line: 0>()\n----> 1 dcklmdskc\n\nNameError: name 'dcklmdskc' is not defined",
-      "execution_order": 2,
-      "execution_title": "Execution #2"
+      "input": "print('lo')",
+      "output": "lo",
+      "execution_order": 1,
+      "execution_title": "Cell executed at 6:04pm"
     },
     {
       "type": "markdown",

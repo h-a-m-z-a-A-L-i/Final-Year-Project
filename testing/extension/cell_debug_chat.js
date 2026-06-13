@@ -61,18 +61,19 @@
   }
 
   function resolveNotebookUrl(callback) {
-    if (notebookUrl && notebookKey) {
+    const liveUrl = normalizeNotebookUrl(window.location.href);
+    if (notebookUrl && notebookKey && notebookUrl === liveUrl) {
       callback(notebookUrl);
       return;
     }
     if (!hasChromeRuntime()) {
-      notebookUrl = normalizeNotebookUrl(window.location.href);
-      notebookKey = notebookUrl;
+      notebookUrl = liveUrl;
+      notebookKey = liveUrl;
       callback(notebookUrl);
       return;
     }
     chrome.runtime.sendMessage({ type: "GET_TAB_NOTEBOOK_URL" }, (response) => {
-      notebookUrl = normalizeNotebookUrl(response?.url || window.location.href);
+      notebookUrl = normalizeNotebookUrl(response?.url || liveUrl);
       notebookKey = String(response?.notebookKey || notebookUrl).trim() || notebookUrl;
       notebookId = response?.notebookId ?? null;
       callback(notebookUrl);
@@ -1108,6 +1109,13 @@
   }
 
   function onRuntimeMessage(msg) {
+    if (msg?.type === "NOTEBOOK_IDENTITY_UPDATED") {
+      notebookUrl = normalizeNotebookUrl(msg?.url || window.location.href);
+      notebookKey = String(msg?.notebookKey || notebookUrl).trim() || notebookUrl;
+      notebookId = msg?.notebookId ?? null;
+      return;
+    }
+
     if (!activePanel || !activeSessionId) return;
 
     const msgKey = String(msg?.notebookKey || normalizeNotebookUrl(msg?.url || "")).trim();
@@ -1212,6 +1220,7 @@
     observeRoot(document.body || document.documentElement);
     scheduleScan(document);
     setInterval(() => scanForBadges(document), 2500);
+    setInterval(() => resolveNotebookUrl(() => {}), 2000);
   }
 
   if (document.readyState === "loading") {

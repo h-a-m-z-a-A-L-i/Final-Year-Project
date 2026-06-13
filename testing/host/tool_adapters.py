@@ -70,30 +70,8 @@ def creating_markdown_by_index(args: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def insert_and_edit_cell(args: Dict[str, Any]) -> Dict[str, Any]:
-    """Insert a new code cell below `index`, then paste `content` into it."""
-    try:
-        from .bot_command import run_insert_code_below_flow
-    except Exception:
-        from bot_command import run_insert_code_below_flow
-
-    idx = args.get("index")
-    if idx is None:
-        idx = args.get("cell_index") or args.get("cellIndex")
-    cmd = {
-        "action": "insert_code_below",
-        "url": args.get("url"),
-        "index": idx,
-        "cell_index": idx,
-        "cellIndex": idx,
-        "content": args.get("content", ""),
-        "tabId": args.get("tab_id") or args.get("tabId"),
-        "tab_id": args.get("tab_id") or args.get("tabId"),
-    }
-    event = run_insert_code_below_flow(cmd, timeout=float(args.get("timeout", 25)))
-    if not event.get("ok"):
-        return {"ok": False, "phase": "insert_code_below_failed", "details": event}
-    inner = event.get("result") if isinstance(event.get("result"), dict) else {}
-    return {"ok": True, **inner, "phase": inner.get("phase", "insert_code_below_complete")}
+    """Insert a new code cell below `cell_index`, then paste `content` into it."""
+    return _registry().call("insert_and_edit_cell", args)
 
 
 def convert_cell_to_markdown_by_index(args: Dict[str, Any]) -> Dict[str, Any]:

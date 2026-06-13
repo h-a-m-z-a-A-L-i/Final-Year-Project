@@ -19,8 +19,10 @@ _READER_STARTED = False
 
 _BOT_RESULT_TYPES = frozenset({
     "CLICK_CELL_RESULT", "CLICK_CELL_ERROR",
+    "CLICK_CELL_BY_INDEX_RESULT", "CLICK_CELL_BY_INDEX_ERROR",
     "CLICK_SELECTOR_RESULT", "CLICK_SELECTOR_ERROR",
     "SELECT_CELL_RESULT", "SELECT_CELL_ERROR",
+    "SELECT_CELL_BY_INDEX_RESULT", "SELECT_CELL_BY_INDEX_ERROR",
     "INSERT_CELL_RESULT", "INSERT_CELL_ERROR",
     "SET_CELL_CONTENT_RESULT", "SET_CELL_CONTENT_ERROR",
     "SEND_KEY_RESULT", "SEND_KEY_ERROR",
@@ -135,13 +137,13 @@ def _start_bot_command_watcher():
         while True:
             try:
                 if not BOT_COMMANDS_PATH.exists():
-                    time.sleep(0.25)
+                    time.sleep(0.01)
                     continue
                 size = BOT_COMMANDS_PATH.stat().st_size
                 if size < offset:
                     offset = 0
                 if size == offset:
-                    time.sleep(0.25)
+                    time.sleep(0.01)
                     continue
 
                 cmds = []
@@ -193,7 +195,7 @@ def _start_bot_command_watcher():
 
             except Exception as e:
                 print(f"Bot watcher loop error: {e}", file=sys.stderr)
-                time.sleep(0.25)
+                time.sleep(0.05)
 
     threading.Thread(target=_worker, daemon=True).start()
 

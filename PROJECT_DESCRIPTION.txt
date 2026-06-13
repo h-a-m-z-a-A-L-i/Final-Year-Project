@@ -1,0 +1,606 @@
+================================================================================
+NORMAL-CHROME / KAGGLE NOTEBOOK COPILOT — FULL PROJECT DESCRIPTION
+================================================================================
+Repository: normal-chrome (Final Year Project)
+Last analyzed: June 2026
+
+This document describes the system as implemented in code, with an explicit
+distinction between features that are ACTIVE in the primary workflow versus
+features that are BUILT but secondary, optional, or bypassed depending on
+configuration.
+
+================================================================================
+1. PROJECT SUMMARY
+================================================================================
+
+A Chrome extension + Python native host that adds an AI copilot to Kaggle
+notebook editor pages. The extension scrapes live notebook cells from the
+browser DOM, the host stores structured JSON snapshots, assembles LLM prompts
+with notebook context, streams responses from Cerebras, and persists chat
+history per notebook (and per cell session).
+
+Core value proposition (primary workflow):
+  - Live notebook scraping → structured cell index/input/output in prompt
+  - Ask mode: explain, debug, review, advise
+  - Code mode: generate runnable cells with placement guidance
+  - Sidebar copilot + per-cell debug chat panels
+  - SQLite chat memory keyed by stable Kaggle kernel ID
+  - Persistent notebook JSON snapshots with verification layer
+
+================================================================================
+2. HIGH-LEVEL ARCHITECTURE
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│  Kaggle /edit page (JupyterLab in browser)                              │
+│    ├── Content scripts (cell badges, kernel listener, cell debug chat)  │
+│    └── Injected copilot panel (ui_injector.js)                          │
+└───────────────────────────────┬─────────────────────────────────────────┘
+                                │ chrome.runtime messages
+┌───────────────────────────────▼─────────────────────────────────────────┐
+│  background.js (service worker)                                         │
+│    - Tab scan every 5s + on page complete                               │
+│    - scrapeNotebook() in all frames                                     │
+│    - Notebook identity cache per tab                                    │
+│    - Native messaging port → Python host                                │
+└───────────────────────────────┬─────────────────────────────────────────┘
+                                │ stdin/stdout JSON (Chrome Native Messaging)
+┌───────────────────────────────▼─────────────────────────────────────────┐
+│  testing/host/host.py (main loop)                                       │
+│    - NOTEBOOK_DATA → notebook_data_handler                              │
+│    - CHAT_REQUEST → pack_context + streaming.py                         │
+│    - GET_HISTORY / CLEAR_HISTORY → memory.py                            │
+│    - RESOLVE_NOTEBOOK_IDENTITY → notebook_identity + kaggle_kernel_client│
+└───────────────────────────────┬─────────────────────────────────────────┘
+                                │
+        ┌───────────────────────┼───────────────────────┐
+        ▼                       ▼                       ▼
+  SQLite chat DB          notebooks/live/          Cerebras API
+  notebooks/persistent/   meta/*.json              (gpt-oss-120b)
+
+================================================================================
+3. WHAT WE USE vs WHAT WE DO NOT USE (HONEST STATUS)
+================================================================================
+
+3.1 ACTIVELY USED (primary product path)
+----------------------------------------
+[YES] Chrome extension on Kaggle notebook /edit URLs
+[YES] DOM scraping of code + markdown cells (input, output, index)
+[YES] Native messaging bridge (extension ↔ Python host)
+[YES] NOTEBOOK_DATA pipeline → live JSON snapshot on every scrape
+[YES] Persistent JSON snapshots (with snapshot_verification gate)
+[YES] Cerebras LLM (gpt-oss-120b) via cerebras-cloud-sdk
+[YES] Ask mode and Code mode (user-selected in UI)
+[YES] Structured system prompt (Role → Task → Specifics → Context → Examples → Notes)
+[YES] Notebook context injected into every chat request
+[YES] SQLite chat history (per notebook key + per session_id)
+[YES] Stable notebook identity via Kaggle API (kaggle:kernel:{id_no})
+[YES] Chat history migration when notebook URL slug changes
+[YES] Main sidebar copilot (ui_injector.js)
+[YES] Per-cell debug chat panels (cell_debug_chat.js) — separate sessions
+[YES] Streaming responses (CHAT_STREAM / CHAT_STREAM_END)
+[YES] Stop/cancel stream
+[YES] Insert code below UI action (INSERT_CODE_CELL → host → extension)
+[YES] Markdown rendering in chat (markdown-it)
+[YES] Cell index badges on notebook cells
+[YES] TPM preflight + local rate limit tracking (Cerebras free tier)
+[YES] Context budget trimming (history + message fit)
+
+3.2 BUILT AND AVAILABLE BUT OFTEN BYPASSED (depends on .env)
+-------------------------------------------------------------
+[CONDITIONAL] CONTEXT_PACK_MODE=full
+  - Sends entire notebook in prompt
+  - DISABLES tool descriptions in system prompt
+  - SKIPS pre-stream tool prefetch
+  - SKIPS post-stream LLM tool-calling rounds
+  - This is the mode that matches "send whole codebase to LLM" behavior
+
+[CONDITIONAL] CONTEXT_PACK_MODE=intent  (current .env setting)
+  - Uses dependency graph to slice context by ask sub-intent
+  - ENABLES tool descriptions in prompt
+  - MAY run pre-stream tool prefetch when coverage is partial/none
+  - MAY run post-stream tool API rounds
+  - Better for large notebooks / token limits
+
+[CONDITIONAL] Local read tools (9 tools in local_notebook_tools.py)
+  - Only meaningfully active when CONTEXT_PACK_MODE != full
+  - Model may or may not actually call them at runtime
+  - Pre-stream prefetch injects tool results as system context in some cases
+
+[CONDITIONAL] Dependency graph for chat context
+  - Used in intent mode for slicing (upstream/downstream cells)
+  - NOT used when full mode is on
+  - Also powers GET_GRAPH debug panel and notebook_graph_query tool
+
+[CONDITIONAL] Symbol graph (symbol_graph.py)
+  - Enriches context with variable definition sites when SYMBOL_CONTEXT_ENABLED=1
+  - Active in intent mode explain/error/code packing paths
+
+3.3 BUILT BUT NOT CENTRAL TO DAY-TO-DAY CHAT (secondary / future)
+-----------------------------------------------------------------
+[NO — not in main chat path] AIML API / Grok (aimlapi.py commented out)
+[NO — not driving chat answers] Kernel scenario reasoning (fresh/reload/off)
+  - Collected and stored; appears in manifest metadata; not a separate AI logic
+[NO — not used by user in practice] GET_GRAPH dependency panel as input to LLM
+  - UI panel only unless intent mode + dependency intent
+[NO — minimal LLM integration] Browser automation bot tools (insert_cell, edit_cell,
+  click_cell, etc. in testing/host/tools/)
+  - Used via INSERT_CODE_CELL UI button and bot_command pipeline
+  - NOT exposed as default LLM tools in chat (local_only=True for Cerebras tools)
+[NO — dormant] notebook_identity.js browser scrape fast-path
+  - Host-side Kaggle API resolution is now authoritative
+[NO — legacy] Old prompt files: simple.txt, dependency.txt, explain_code.txt, etc.
+[NO — legacy] api_handlers.py parallel handler path (host.py is canonical)
+[NO — not a separate anti-hallucination engine] Formal hallucination detection
+  - Mitigation = prompt rules + providing notebook evidence in context
+
+3.4 PER-CELL vs MAIN CHAT — WHAT IS ACTUALLY DIFFERENT
+-------------------------------------------------------
+SAME pipeline:
+  - Same host.py CHAT_REQUEST handler
+  - Same pack_context()
+  - Same LLM model and prompt structure
+  - Same notebook history_key (kaggle:kernel:* or URL)
+
+DIFFERENT:
+  - session_id: main uses copilot_session_{notebookKey} in localStorage
+  - session_id: per-cell uses cell-debug-{cellIndex} pattern
+  - streamChannel: per-cell uses cell-{N} (isolated stop/cancel)
+  - prompt prefix: per-cell sends "cell N: {user text}"
+  - cellIndex passed in message → cell_num for pack_context
+
+IMPORTANT: If CONTEXT_PACK_MODE=full, both UIs behave nearly identically
+because the whole notebook is already in context. Per-cell's main extra value
+is separate conversation history per cell, not a different AI backend.
+
+================================================================================
+4. CHROME EXTENSION (testing/extension/)
+================================================================================
+
+4.1 manifest.json
+  - Manifest V3 service worker: background.js
+  - Content scripts on kaggle.com and jupyter-proxy.kaggle.net (all frames)
+  - Permissions: tabs, nativeMessaging, scripting, webNavigation
+
+4.2 background.js — central orchestrator
+  - Maintains native port to Python host
+  - sendTabs() every 5 seconds + on tabs.onUpdated(complete)
+  - scrapeNotebook(): extracts cells from JupyterLab DOM
+  - resolveNotebookIdentity(): always resolves via host Kaggle API
+  - notebookIdentityByTab cache (invalidated on URL mismatch)
+  - NOTEBOOK_DATA sent to host with cells, kernel status, kernel scenario
+  - Forwards CHAT_REQUEST, GET_HISTORY, STOP_CHAT, etc. with tabId + identity
+  - injectUI(): injects ui_injector.js into Kaggle edit pages
+  - INSERT_CODE_CELL: user-initiated cell insert below anchor index
+
+4.3 Scraping details (scrapeNotebook in background.js)
+  For each cell element:
+    - index: 1-based from data-windowed-list-index (DOM 0-based + 1)
+    - type: code | markdown (from jp-CodeCell / jp-MarkdownCell classes)
+    - input: CodeMirror / cm-editor text OR markdown rendered text
+    - output: jp-OutputArea text (code cells only)
+    - execution_order, execution_title, execution_status: from run button UI
+  Scrapes all frames; deduplicates cells before sending NOTEBOOK_DATA
+
+4.4 ui_injector.js — main copilot sidebar
+  - Fixed right panel: chat, mode selector (Ask/Code), history dropdown
+  - Sends CHAT_REQUEST with url, notebookId, notebookKey, sessionId, mode
+  - Watches URL changes → refreshes notebook identity → reloads history
+  - Insert below button on code blocks in assistant messages
+  - Listens for CHAT_STREAM, HISTORY_DATA, NOTEBOOK_IDENTITY_UPDATED
+
+4.5 cell_debug_chat.js — per-cell floating panel
+  - Purple badge on each code cell opens panel
+  - Prefixes prompts with "cell N:"
+  - Separate sessionId and streamChannel per cell
+  - Same CHAT_REQUEST path as main copilot
+
+4.6 Supporting extension scripts
+  - cell_index_badges.js / cell_index_utils.js: 1-based cell indexing
+  - kernel_state_listener.js: kernel on/off, cell click automation for bot
+  - notebook_identity.js: browser-side ID scrape (secondary; host API preferred)
+  - prompt_observer.js: detects prompt signals in cells (throttled rescan)
+
+================================================================================
+5. PYTHON HOST (testing/host/)
+================================================================================
+
+5.1 host.py — message router
+  Main message types handled:
+    RESOLVE_NOTEBOOK_IDENTITY  → resolve notebook key for tab
+    NOTEBOOK_DATA              → scrape ingest (notebook_data_handler)
+    NOTEBOOK_URL_CHANGED       → migrate registry + chat keys
+    CHAT_REQUEST               → build context, start streaming thread
+    STOP_CHAT                  → cancel active stream
+    GET_HISTORY / CLEAR_HISTORY→ SQLite memory
+    GET_GRAPH                  → dependency graph for UI panel
+    INSERT_CODE_CELL           → browser insert via bot pipeline
+
+5.2 config.py — environment-driven settings
+  Active LLM: Cerebras (CEREBRAS_API_KEY, CEREBRAS_MODEL=gpt-oss-120b)
+  Current .env: CONTEXT_PACK_MODE=intent (see section 7 for full vs intent)
+  Data paths under testing/host/data/
+  Token/history limits vary by CONTEXT_PACK_MODE
+
+5.3 notebook_data_handler.py — scrape ingestion
+  On NOTEBOOK_DATA:
+    1. Resolve notebook identity (notebook_identity.py)
+    2. Normalize cells (cell_index.py)
+    3. Always write live JSON: data/notebooks/live/{url_hash}.json
+    4. Compute code-cell content hash
+    5. Update execution_state.json (revision tracking per URL)
+    6. Write persistent JSON ONLY if snapshot_verification approves
+    7. Push GRAPH_DATA to extension (debug panel)
+
+5.4 snapshot_verification.py — persistent write gate
+  Rules:
+    - Allow initial create when no prior snapshot
+    - Block empty incoming over populated snapshot
+    - Block partial scrape (fewer code cells than stored)
+    - Block write when normalized cell fingerprint unchanged
+    - Allow write only on real content change
+
+5.5 persistence_helpers.py — file I/O
+  live/       → overwritten every scrape (real-time mirror)
+  persistent/ → verified long-term snapshot (+ legacy root copy)
+  Atomic write via .tmp rename
+
+5.6 notebook_identity.py + kaggle_kernel_client.py
+  - Parses Kaggle /edit URL → owner/slug
+  - Fetches kernel metadata via official Kaggle API (id_no)
+  - Stable chat key: kaggle:kernel:{id_no}
+  - notebook_registry.json maps URLs → stable keys
+  - kernel_slug_index.json + kernel_metadata/{id}.json cache
+  - migrate_notebook_key() moves SQLite rows on rename
+
+5.7 memory.py — SQLite chat store
+  Database: data/sessions/chat_history.sqlite3
+  Tables:
+    messages(notebook_url, session_id, role, content, timestamp)
+    profile_facts(notebook_url, session_id, fact_key, fact_value, updated_at)
+  notebook_url column stores history_key (stable kernel key when resolved)
+  WAL journal mode for concurrent access
+
+5.8 streaming.py — LLM orchestration
+  - build_chat_messages() assembles prompt
+  - fit_messages_to_budget() before API call
+  - Streaming completion → CHAT_STREAM deltas
+  - Optional tool rounds (skipped in full context mode)
+  - Appends assistant reply to SQLite on completion
+
+5.9 Other host modules (supporting)
+  - prompt_engineering.py: system prompt assembly, mode normalization
+  - notebook_context.py: pack_context(), intent slicing, full notebook pack
+  - context_budget.py: token estimation, history trim, message fit
+  - local_notebook_tools.py: 9 local JSON read tools
+  - tool_registry.py: dispatches tool calls; sync_persistence after bot edits
+  - dependency.py / extract_dependencies.py: graph for intent mode + UI
+  - symbol_graph.py: variable site enrichment
+  - bot_command.py + dispatcher.py: browser automation command queue
+  - aimlapi.py: DISABLED (commented out; Cerebras active)
+
+================================================================================
+6. HOW DATA IS SCRAPED, STORED, AND UPDATED
+================================================================================
+
+6.1 Scrape trigger
+  - Every 5 seconds for open Kaggle edit tabs
+  - On tab navigation complete (+ 500ms delay)
+  - On PROMPT_SIGNAL from prompt_observer (throttled)
+
+6.2 Scrape → host (NOTEBOOK_DATA message)
+  Fields: tabUrl, tabId, title, cells[], kernelStatus, kernelScenario,
+          kernelState, notebookId, notebookKey
+
+6.3 Storage layers
+  ┌────────────────┬──────────────────┬────────────────────────────────────┐
+  │ Layer          │ Path             │ Update policy                      │
+  ├────────────────┼──────────────────┼────────────────────────────────────┤
+  │ Live snapshot  │ notebooks/live/  │ Every successful scrape            │
+  │ Persistent     │ notebooks/persist│ Only on verified content change    │
+  │ Legacy copy    │ notebooks/*.json │ Written with persistent            │
+  │ Content hashes │ meta/hashes.json │ On persistent write                │
+  │ Execution state│ meta/execution_  │ Every non-empty scrape             │
+  │                │ state.json       │ (revision + execution metadata)    │
+  │ Kernel registry│ meta/notebook_   │ On identity resolve / URL change   │
+  │                │ registry.json    │                                    │
+  │ Kaggle cache   │ meta/kernel_     │ On API fetch                       │
+  │                │ metadata/        │                                    │
+  │ Chat history   │ sessions/chat_   │ Every user/assistant message       │
+  │                │ history.sqlite3  │                                    │
+  │ Host log       │ logs/host.log    │ Append                             │
+  └────────────────┴──────────────────┴────────────────────────────────────┘
+
+6.4 Execution metadata in snapshots
+  Each code cell may include:
+    execution_order, execution_title, execution_status, output
+  Fresh kernel scenario can clear execution fields in persistent snapshot
+  (only when verification detects a real metadata change)
+
+6.5 Empty notebook guard
+  If scrape has zero code cells (empty hash), persistent snapshot is NOT
+  overwritten (protects against blank/page-loading scrapes).
+
+================================================================================
+7. HOW CONTEXT IS BUILT FOR EACH CHAT REQUEST
+================================================================================
+
+7.1 CHAT_REQUEST flow (host.py)
+  1. snapshot_url = normalized tab /edit URL
+  2. history_key = resolve_history_key(url, notebookId) → kaggle:kernel:{id}
+  3. cell_num from msg.cellIndex OR parsed from prompt ("cell 4")
+  4. mode = UI mode (ask|code) — detect_mode does NOT auto-switch modes
+  5. ctx_pack = pack_context(mode, url, prompt, cell_index, bot_state)
+  6. context = merge_context_with_profile(ctx_pack.text, profile facts)
+  7. history = memory_store.get_history(history_key, session_id)
+  8. Append user message to SQLite
+  9. streaming._run_streaming_chat(..., context, context_meta)
+
+7.2 pack_context() — two strategies (CONTEXT_PACK_MODE)
+
+  A) FULL MODE (CONTEXT_PACK_MODE=full)  [USER'S DESCRIBED WORKFLOW]
+     - Loads live then persistent snapshot
+     - _pack_full_notebook(): EVERY cell with index, input, output, execution
+     - coverage = full
+     - Best for: small/medium notebooks, "explain cell N" with whole codebase
+
+  B) INTENT MODE (CONTEXT_PACK_MODE=intent)  [CURRENT .env]
+     - Builds dependency graph from cells
+     - classify_ask_intent(prompt) selects packer:
+         placement   → full graph context
+         error       → target cell + traceback + upstream
+         dependency  → graph neighbors
+         review      → all code cells (truncated)
+         explain     → target + symbols + upstream
+         general     → small preview
+     - Code mode → target cell + upstream/downstream + symbols
+     - coverage often partial unless entire notebook fits slice
+
+7.3 Context manifest (prepended to notebook evidence)
+  CONTEXT_MANIFEST block includes:
+    coverage: full|partial|none
+    snapshot: live|persistent|none
+    kernel_scenario: scenario_* (informational)
+    cell_index: target cell if any
+    listed_cells: which cell indices are included
+
+7.4 Profile memory (optional)
+  Extracts simple facts from user messages (e.g. name) → profile_facts table
+  Injected above notebook context when present
+
+================================================================================
+8. PROMPT STRUCTURE FOR EACH LLM CALL
+================================================================================
+
+8.1 Message list format (OpenAI-compatible / Cerebras)
+  [
+    { role: "system", content: <assembled system prompt> },
+    ... trimmed history turns (user/assistant) ...,
+    { role: "user", content: <current user prompt> }
+  ]
+
+8.2 System prompt assembly (build_system_content in prompt_engineering.py)
+  Ordered sections (lost-in-the-middle aware — Notes last):
+
+  ## Role
+    - base_notebook_assistant.txt
+    - ask.txt OR code.txt role section
+    - "Active UI mode: ask|code"
+
+  ## Task
+    - Mode-specific task (from ask.txt or code.txt)
+
+  ## Specifics
+    - Mode-specific rules (empty cell handling, placement, errors, etc.)
+
+  ## Context
+    - Jupyter structure model (jupyter_structure.txt) — optional
+    - Base context instructions
+    - Notebook URL
+    - Tool calling instructions (ONLY if include_tools=True, i.e. NOT full mode)
+    - Tool descriptions (local read tools)
+    - ### Notebook evidence
+        → full manifest + cell blocks from pack_context()
+
+  ## Examples
+    - Mode few-shot examples (ask.txt / code.txt)
+    - Tool argument examples (if tools enabled and budget allows)
+
+  ## Notes
+    - Mode notes + base notes
+    - Hard rules tail (_system_notes_tail): cite cells, INSUFFICIENT_CONTEXT, etc.
+
+8.3 include_tools flag (streaming.py)
+  include_tools = (CONTEXT_PACK_MODE != "full")
+  When full mode: tool descriptions NOT in prompt → model answers from evidence only
+
+8.4 Pre-stream tool prefetch (streaming.py)
+  When: intent mode AND coverage is none|partial
+  Actions: notebook_snapshot_status, notebook_graph_query, notebook_get_cell,
+            notebook_recommend_placement — results injected as system context
+  When full mode: SKIPPED
+
+8.5 Post-stream tool rounds (streaming.py)
+  After first streamed answer, up to 3 tool-call rounds via Cerebras tools API
+  Skipped when: full coverage OR pre_stream_tools_done OR stopped
+  local_only=True → only JSON read tools, not browser automation tools
+
+8.6 API parameters
+  model: CEREBRAS_MODEL (gpt-oss-120b)
+  temperature: 0.5 (default)
+  top_p: 1.0
+  stream: true (first pass)
+  reasoning_format: hidden (for gpt-oss models)
+
+================================================================================
+9. CHAT HISTORY — STORAGE AND RETRIEVAL
+================================================================================
+
+9.1 Key: history_key (not raw URL in normal operation)
+  Preferred: kaggle:kernel:{id_no}  (stable across renames)
+  Fallback: normalized /edit URL
+
+9.2 Session model
+  Main copilot:
+    session_id in localStorage: copilot_session_{notebookKey}
+    User can start "new conversation" → new UUID session
+    History dropdown lists sessions from list_sessions()
+
+  Per-cell debug:
+    session_id: cell-debug-{cellIndex} (local pattern)
+    streamChannel: cell-{cellIndex}
+    Separate SQLite rows under same history_key
+
+9.3 Retrieval (GET_HISTORY)
+  memory_store.get_history(history_key, session_id)
+  Returns last MAX_HISTORY_MESSAGES (24) turns
+  API prompt uses trim_history_for_api() — fewer messages, truncated chars
+    full mode: MAX_HISTORY_MESSAGES_API = 3
+    intent mode: MAX_HISTORY_MESSAGES_API = 10
+
+9.4 Migration on notebook rename
+  When URL slug changes but kernel id_no is same:
+    notebook_identity registers new URL → same kaggle:kernel:{id}
+    migrate_notebook_key() rewrites SQLite notebook_url column
+    Chat history appears preserved in UI
+
+9.5 Clear history
+  CLEAR_HISTORY deletes messages (+ profile facts) for url + optional session_id
+
+================================================================================
+10. MODES (USER-FACING)
+================================================================================
+
+10.1 Ask mode (prompts/ask.txt) — USED
+  Purpose: explain, debug, review, placement advice
+  Sub-intents (internal, not UI-exposed):
+    explain, error, dependency, placement, review, general
+  Key behaviors:
+    - Cite cells by 1-based index
+    - INSUFFICIENT_CONTEXT when evidence missing
+    - Empty cell → ask intent before generating code
+    - ~350 word default cap
+
+10.2 Code mode (prompts/code.txt) — USED
+  Purpose: generate runnable code + placement + run steps
+  Key behaviors:
+    - Placement section mandatory when shipping code
+    - Insert below vs fill empty cell rules
+    - Encourages notebook_find_symbol / notebook_recommend_placement (intent mode)
+
+10.3 Legacy modes — NOT USED in UI
+  auto, simple, dependency, explain_error, explain_code, code_review, general
+  (mapped to ask if encountered)
+
+================================================================================
+11. TOOLS REFERENCE
+================================================================================
+
+11.1 Local read tools (local_notebook_tools.py) — CONDITIONAL
+  ┌────────────────────────────┬──────────────────────────────────────────────┐
+  │ Tool                       │ Purpose                                      │
+  ├────────────────────────────┼──────────────────────────────────────────────┤
+  │ notebook_snapshot_status   │ Check live/persistent JSON availability      │
+  │ notebook_list_cells        │ Compact index of all cells                   │
+  │ notebook_graph_query       │ Dependency graph nodes                         │
+  │ notebook_get_cell          │ Full source/output for one cell              │
+  │ notebook_get_cells         │ Batch up to 10 cells                         │
+  │ notebook_find_symbol       │ Where variable is defined                    │
+  │ notebook_search            │ Text/regex search in inputs/outputs          │
+  │ notebook_cell_neighbors    │ Run-order neighbors for one cell             │
+  │ notebook_recommend_placement│ Insert anchor below defining cell           │
+  └────────────────────────────┴──────────────────────────────────────────────┘
+  Active when CONTEXT_PACK_MODE=intent; bypassed when full
+
+11.2 Browser automation tools (testing/host/tools/) — SEPARATE PIPELINE
+  insert_cell, edit_cell_by_index, click_cell, select_cell_by_index, etc.
+  Invoked via bot_command.py + kernel_state_listener.js
+  Triggered by INSERT_CODE_CELL UI button, NOT default LLM tool surface
+
+================================================================================
+12. LLM PROVIDERS
+================================================================================
+
+ACTIVE:   Cerebras Cloud SDK — gpt-oss-120b
+DISABLED: AIML API / Grok (aimlapi.py fully commented; config.py AIML block off)
+
+Switching providers requires config.py + .env changes and restart of host.
+
+================================================================================
+13. RATE LIMITING AND TOKEN BUDGET
+================================================================================
+
+- ENABLE_TPM_PREFLIGHT: on by default for Cerebras
+- Local tracker: meta/rate_limit_tracker.json
+- fit_messages_to_budget() drops/truncates before API call
+- MAX_INPUT_TOKENS: 7000 default (configurable)
+- On 429 / token_quota errors: user message to wait or switch to intent mode
+
+================================================================================
+14. UI FEATURES
+================================================================================
+
+[USED] Sidebar copilot panel (chat, modes, history, stop, new conversation)
+[USED] Per-cell purple badge → floating debug chat
+[USED] Cell index badges (1-based, aligned with JSON/tools)
+[USED] Streaming markdown responses
+[USED] Insert below button on code blocks in assistant messages
+[USED] History dropdown (sessions per notebook)
+[USED] Debug/graph panel (GET_GRAPH) — visualization only
+[NOT kernel-gated] Chat works regardless of kernel on/off
+
+================================================================================
+15. CONFIGURATION (.env)
+================================================================================
+
+Current deployment (.env):
+  CEREBRAS_API_KEY, CEREBRAS_MODEL=gpt-oss-120b
+  KAGGLE_USERNAME, KAGGLE_KEY (for stable notebook ID)
+  CONTEXT_PACK_MODE=intent
+
+To match "whole codebase in prompt" workflow:
+  CONTEXT_PACK_MODE=full
+  (optionally raise LLM_MAX_INPUT_TOKENS / cell output caps for large notebooks)
+
+================================================================================
+16. TESTING
+================================================================================
+
+pytest suite under testing/host/tests/ covering:
+  - notebook identity + Kaggle client
+  - snapshot verification + persistent guard
+  - notebook context packing
+  - prompt engineering
+  - memory / streaming / tools (partial)
+  - local notebook tools
+
+================================================================================
+17. KNOWN LIMITATIONS (for documentation honesty)
+================================================================================
+
+1. Scraping depends on Kaggle/JupyterLab DOM structure (fragile if UI changes)
+2. No formal hallucination guarantee — relies on prompt + context evidence
+3. Tools/graph/kernel orchestration built but inactive in full-context mode
+4. Per-cell and main chat share same context engine (differ mainly in session)
+5. Large notebooks may exceed token limits unless intent mode + truncation
+6. Browser automation (insert cell) works via UI button, not fully LLM-driven
+7. AIML/Grok path disabled until project finalization
+
+================================================================================
+18. RECOMMENDED DESCRIPTION FOR FYP REPORT (ONE PARAGRAPH)
+================================================================================
+
+This project implements a Chrome extension integrated with a Python native
+host that scrapes live Kaggle notebook cells and injects them as structured
+context into a Cerebras-hosted large language model. Users interact through
+Ask and Code modes in a sidebar copilot or per-cell debug panels, with
+conversation history persisted in SQLite keyed by stable Kaggle kernel IDs.
+The primary production path ground answers in the full or intent-sliced
+notebook snapshot embedded in the system prompt; supplementary subsystems
+including dependency-graph context packing, local JSON read tools, and
+browser automation are implemented for advanced scenarios but are not
+required for core explain-and-generate workflows on typical notebooks.
+
+================================================================================
+END OF DOCUMENT
+================================================================================

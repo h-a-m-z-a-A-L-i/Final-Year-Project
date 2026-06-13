@@ -1,5 +1,4 @@
 import json
-import uuid
 from pathlib import Path
 from typing import Callable, Dict, Any
 
@@ -131,43 +130,14 @@ def sync_persistence_for_action(action: str, cmd: dict, browser_result: dict) ->
         save_persistent_json(data, url)
 
 
-def _browser_tool(action: str):
-    def _runner(args: dict) -> dict:
-        try:
-            from .bot_command import execute_bot_command_sync
-        except Exception:
-            from bot_command import execute_bot_command_sync
+def _load_browser_tool_runner(mod_name: str, func_name: str):
+    import importlib
 
-        url = _pick("url", "tabUrl", "tab_url", src=args) or ""
-        if not url:
-            return {"ok": False, "error": "url is required (pass the open notebook URL)"}
-
-        cmd = {
-            "action": action,
-            "requestId": str(uuid.uuid4()),
-            "url": url,
-        }
-        tab_id = _pick("tab_id", "tabId", src=args)
-        if isinstance(tab_id, int) and tab_id > 0:
-            cmd["tabId"] = tab_id
-
-        cell_index = _pick("cell_index", "cellIndex", "index", src=args)
-        if cell_index is not None:
-            cmd["cellIndex"] = cell_index
-
-        if action == "insert_cell":
-            cmd["direction"] = args.get("direction", "below")
-        if action in {"edit_cell_by_index", "edit_cell"}:
-            cmd["content"] = args.get("content") or args.get("input") or ""
-
-        timeout = float(args.get("timeout", 12.0))
-        event = execute_bot_command_sync(cmd, timeout=timeout)
-        inner = event.get("result") if isinstance(event.get("result"), dict) else {}
-        if event.get("ok"):
-            return {"ok": True, **inner}
-        return {"ok": False, "error": event.get("error") or inner.get("error") or "tool failed", "details": event}
-
-    return _runner
+    try:
+        mod = importlib.import_module(f".{mod_name}", package=__package__ or "testing.host")
+    except Exception:
+        mod = importlib.import_module(mod_name)
+    return getattr(mod, func_name)
 
 
 def _register_default_tools():
@@ -178,70 +148,182 @@ def _register_default_tools():
             "click_cell",
             {
                 "type": "object",
-                "properties": {"cell_index": cell_schema, "url": url_schema},
-                "required": ["cell_index", "url"],
+                "properties": {
+                    "cell_index": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "1-based cell label (first cell is 1; matches notebook JSON index)",
+                    },
+                    "dom_index": {"type": "integer", "minimum": 0},
+                    "url": url_schema,
+                    "tab_id": {"type": "integer"},
+                    "index_basis": {"type": "string", "enum": ["dom", "app"]},
+                    "run_cell": {"type": "boolean"},
+                    "scroll_into_view": {"type": "boolean"},
+                },
+                "required": ["url"],
             },
-            "Click a notebook cell by index in the browser",
+            "Focus or run a notebook cell by 1-based cell label (first cell is 1; converted to DOM index internally)",
         ),
         (
             "select_cell_by_index",
             {
                 "type": "object",
-                "properties": {"cell_index": cell_schema, "url": url_schema},
+                "properties": {
+                    "cell_index": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "1-based cell label (first cell is 1)",
+                    },
+                    "url": url_schema,
+                    "tab_id": {"type": "integer"},
+                },
                 "required": ["cell_index", "url"],
             },
-            "Select a notebook cell by index in the browser",
+            "Select/focus a notebook cell by 1-based label without running it",
         ),
         (
             "insert_cell",
             {
                 "type": "object",
-                "properties": {"index": cell_schema, "direction": {"type": "string"}, "url": url_schema},
+                "properties": {
+                    "index": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "1-based anchor cell label",
+                    },
+                    "direction": {"type": "string", "enum": ["below", "above"]},
+                    "url": url_schema,
+                    "tab_id": {"type": "integer"},
+                },
                 "required": ["index", "url"],
             },
-            "Insert a cell above/below a given index in the browser",
+            "Insert an empty code cell above/below a 1-based anchor cell",
         ),
         (
             "edit_cell_by_index",
             {
                 "type": "object",
-                "properties": {"cell_index": cell_schema, "content": {"type": "string"}, "url": url_schema},
+                "properties": {
+                    "cell_index": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "1-based cell label (first cell is 1)",
+                    },
+                    "content": {"type": "string"},
+                    "url": url_schema,
+                    "tab_id": {"type": "integer"},
+                },
+                "required": ["cell_index", "url", "content"],
+            },
+            "Replace a notebook cell's source by 1-based cell label (select + paste content)",
+        ),
+        (
+            "insert_and_edit_cell",
+            {
+                "type": "object",
+                "properties": {
+                    "cell_index": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "1-based anchor cell (new cell inserted below this label)",
+                    },
+                    "content": {"type": "string"},
+                    "url": url_schema,
+                    "tab_id": {"type": "integer"},
+                    "direction": {"type": "string", "enum": ["below", "above"]},
+                },
+                "required": ["cell_index", "url", "content"],
+            },
+            "Insert a new code cell below a 1-based anchor cell and paste content into it",
+        ),
+        (
+            "run_cell",
+            {
+                "type": "object",
+                "properties": {
+                    "cell_index": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "1-based cell label to execute (first cell is 1)",
+                    },
+                    "url": url_schema,
+                    "tab_id": {"type": "integer"},
+                    "scroll_into_view": {"type": "boolean"},
+                },
                 "required": ["cell_index", "url"],
             },
-            "Focus and edit a notebook cell by index",
+            "Execute a notebook code cell by 1-based cell label (select cell and run in kernel)",
+        ),
+        (
+            "edit_and_run_cell",
+            {
+                "type": "object",
+                "properties": {
+                    "cell_index": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "1-based cell label to edit and execute",
+                    },
+                    "content": {"type": "string"},
+                    "url": url_schema,
+                    "tab_id": {"type": "integer"},
+                },
+                "required": ["cell_index", "url", "content"],
+            },
+            "Replace a cell's source by 1-based label, then run it in the kernel (edit + execute)",
         ),
         (
             "delete_by_index",
             {
                 "type": "object",
-                "properties": {"cell_index": cell_schema, "url": url_schema},
+                "properties": {
+                    "cell_index": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "1-based cell label to delete",
+                    },
+                    "url": url_schema,
+                    "tab_id": {"type": "integer"},
+                },
                 "required": ["cell_index", "url"],
             },
-            "Delete a notebook cell by index in the browser",
+            "Delete a notebook cell by 1-based cell label",
         ),
         (
             "creating_markdown_by_index",
             {
                 "type": "object",
-                "properties": {"index": cell_schema, "url": url_schema},
+                "properties": {
+                    "index": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "1-based anchor cell (markdown inserted above)",
+                    },
+                    "url": url_schema,
+                    "tab_id": {"type": "integer"},
+                },
                 "required": ["index", "url"],
             },
-            "Insert a new cell above a given index and convert it to Markdown",
+            "Insert a new markdown cell above a 1-based anchor cell",
         ),
     ]
 
-    action_map = {
-        "click_cell": "click",
-        "select_cell_by_index": "select_cell_by_index",
-        "insert_cell": "insert_cell",
-        "edit_cell_by_index": "edit_cell_by_index",
-        "delete_by_index": "delete_by_index",
-        "creating_markdown_by_index": "creating_markdown_by_index",
+    _TOOL_RUNNERS = {
+        "click_cell": ("click_cell_tool", "run_click_cell"),
+        "select_cell_by_index": ("select_cell_tool", "run_select_cell"),
+        "insert_cell": ("insert_cell_tool", "run_insert_cell"),
+        "edit_cell_by_index": ("edit_cell_tool", "run_edit_cell"),
+        "insert_and_edit_cell": ("insert_and_edit_cell_tool", "run_insert_and_edit_cell"),
+        "run_cell": ("run_cell_tool", "run_run_cell"),
+        "edit_and_run_cell": ("edit_and_run_cell_tool", "run_edit_and_run_cell"),
+        "delete_by_index": ("delete_cell_tool", "run_delete_cell"),
+        "creating_markdown_by_index": ("creating_markdown_tool", "run_creating_markdown"),
     }
 
     for name, schema, desc in candidates:
-        action = action_map.get(name, name)
-        _REGISTRY.register(name, schema, desc, _browser_tool(action))
+        mod_name, func_name = _TOOL_RUNNERS[name]
+        _REGISTRY.register(name, schema, desc, _load_browser_tool_runner(mod_name, func_name))
 
 
 _register_default_tools()

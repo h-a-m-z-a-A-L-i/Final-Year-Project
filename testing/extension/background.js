@@ -586,18 +586,189 @@ function normalizeNotebookUrl(rawUrl) {
   }
 }
 
+function isNotebookEditUrl(rawUrl) {
+  const normalized = normalizeNotebookUrl(rawUrl);
+  if (!normalized) return false;
+  return /\/edit$/i.test(normalized) || /jupyter-proxy\.kaggle\.net/i.test(normalized);
+}
+
+function notebookSlugFromUrl(rawUrl) {
+  const normalized = normalizeNotebookUrl(rawUrl);
+  const match = normalized.match(/\/code\/([^/]+)\/([^/]+)/);
+  return match ? `${match[1]}/${match[2]}`.toLowerCase() : null;
+}
+
+function notebookUrlVariants(rawUrl) {
+  const normalized = normalizeNotebookUrl(rawUrl);
+  const variants = new Set([normalized]);
+  try {
+    const parsed = new URL(normalized);
+    if (parsed.host === "www.kaggle.com") {
+      variants.add(`${parsed.protocol}//kaggle.com${parsed.pathname}`);
+    } else if (parsed.host === "kaggle.com") {
+      variants.add(`${parsed.protocol}//www.kaggle.com${parsed.pathname}`);
+    }
+  } catch (_) {}
+  return [...variants];
+}
+
+function urlsMatchTarget(tabUrl, targetUrl) {
+  const tabNorm = normalizeNotebookUrl(tabUrl);
+  const targetNorm = normalizeNotebookUrl(targetUrl);
+  if (!tabNorm || !targetNorm) return false;
+  if (tabNorm === targetNorm) return true;
+  const tabVariants = new Set(notebookUrlVariants(tabUrl));
+  return notebookUrlVariants(targetUrl).some((variant) => tabVariants.has(variant));
+}
+
+function findUniqueSlugTab(targetUrl, editTabs) {
+  const reqSlug = notebookSlugFromUrl(targetUrl);
+  if (!reqSlug) return null;
+  const hits = (editTabs || []).filter(
+    (tab) => isNotebookEditUrl(tab.url) && notebookSlugFromUrl(tab.url) === reqSlug,
+  );
+  if (hits.length === 1) return hits[0];
+  const exact = hits.find((tab) => urlsMatchTarget(tab.url, targetUrl));
+  return exact || null;
+}
+
+function queryNotebookEditTabs(callback) {
+  // Scan every window so background /edit tabs are found (not only the active tab).
+  chrome.tabs.query({}, (tabs) => {
+    if (chrome.runtime.lastError) {
+      callback([]);
+      return;
+    }
+    callback((tabs || []).filter((tab) => isNotebookEditUrl(tab.url)));
+  });
+}
+
 const notebookIdentityByTab = {};
 const lastNotebookUrlByTab = {};
+const tabIdByNotebookUrl = {};
+
+function cacheTabIdForUrl(rawUrl, tabId) {
+  const normalized = normalizeNotebookUrl(rawUrl);
+  if (!normalized || typeof tabId !== "number") return;
+  tabIdByNotebookUrl[normalized] = tabId;
+}
+
+function resolveTabIdForUrl(rawUrl, sender, callback, options = {}) {
+  const finish = (tabId, resolvedUrl) => {
+    if (typeof tabId === "number" && resolvedUrl) {
+      for (const variant of notebookUrlVariants(resolvedUrl)) {
+        tabIdByNotebookUrl[variant] = tabId;
+      }
+    }
+    callback(
+      typeof tabId === "number" ? tabId : null,
+      resolvedUrl ? normalizeNotebookUrl(resolvedUrl) : normalizeNotebookUrl(rawUrl),
+    );
+  };
+
+  const failNoMatch = () => {
+    queryNotebookEditTabs((editTabs) => {
+      const openCount = editTabs.length;
+      console.warn(
+        "[resolveTabIdForUrl] no tab matches target URL:",
+        normalizeNotebookUrl(rawUrl),
+        `(open notebook /edit tabs: ${openCount})`,
+      );
+      finish(null, null);
+    });
+  };
+
+  const resolveFromOpenTabs = () => {
+    queryNotebookEditTabs((editTabs) => {
+      const exactHits = editTabs.filter((tab) => urlsMatchTarget(tab.url, rawUrl));
+      if (exactHits.length >= 1) {
+        const pick = exactHits.sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0))[0];
+        finish(pick.id, pick.url);
+        return;
+      }
+
+      const slugHit = findUniqueSlugTab(rawUrl, editTabs);
+      if (slugHit) {
+        finish(slugHit.id, slugHit.url);
+        return;
+      }
+
+      failNoMatch();
+    });
+  };
+
+  if (typeof sender?.tab?.id === "number") {
+    const senderUrl = sender.tab.url || rawUrl;
+    if (urlsMatchTarget(senderUrl, rawUrl)) {
+      finish(sender.tab.id, senderUrl);
+    } else {
+      failNoMatch();
+    }
+    return;
+  }
+
+  const normalized = normalizeNotebookUrl(rawUrl);
+  if (!normalized) {
+    finish(null, null);
+    return;
+  }
+
+  const preferredTabId = options?.preferredTabId;
+  if (typeof preferredTabId === "number" && preferredTabId > 0) {
+    chrome.tabs.get(preferredTabId, (tab) => {
+      if (!chrome.runtime.lastError && tab && urlsMatchTarget(tab.url, rawUrl)) {
+        finish(preferredTabId, tab.url);
+        return;
+      }
+      resolveFromOpenTabs();
+    });
+    return;
+  }
+
+  const cached = tabIdByNotebookUrl[normalized];
+  if (typeof cached === "number") {
+    chrome.tabs.get(cached, (tab) => {
+      if (!chrome.runtime.lastError && tab && urlsMatchTarget(tab.url, rawUrl)) {
+        finish(cached, tab.url);
+        return;
+      }
+      delete tabIdByNotebookUrl[normalized];
+      for (const variant of notebookUrlVariants(rawUrl)) {
+        if (variant !== normalized) delete tabIdByNotebookUrl[variant];
+      }
+      resolveFromOpenTabs();
+    });
+    return;
+  }
+
+  resolveFromOpenTabs();
+}
+
+function uncacheTabId(tabId) {
+  const rawUrl = lastNotebookUrlByTab[tabId];
+  if (!rawUrl) return;
+  const normalized = normalizeNotebookUrl(rawUrl);
+  if (normalized && tabIdByNotebookUrl[normalized] === tabId) {
+    delete tabIdByNotebookUrl[normalized];
+  }
+}
 
 function fallbackNotebookIdentity(tabUrl) {
   const url = normalizeNotebookUrl(tabUrl);
   return { url, notebookId: null, notebookKey: url, userName: null, kernelSlug: null };
 }
 
-function attachNotebookIdentity(msg, tabId) {
+function identityMatchesTabUrl(identity, tabUrl) {
+  if (!identity?.url || !tabUrl) return false;
+  return normalizeNotebookUrl(identity.url) === normalizeNotebookUrl(tabUrl);
+}
+
+function attachNotebookIdentity(msg, tabId, tabUrl) {
+  const currentUrl = normalizeNotebookUrl(tabUrl || msg.url || "");
+  if (currentUrl) msg.url = currentUrl;
+
   const identity = typeof tabId === "number" ? notebookIdentityByTab[tabId] : null;
-  if (!identity) return msg;
-  if (identity.url) msg.url = identity.url;
+  if (!identity || !identityMatchesTabUrl(identity, currentUrl)) return msg;
   if (identity.notebookKey) msg.notebookKey = identity.notebookKey;
   if (identity.notebookId != null) msg.notebookId = identity.notebookId;
   return msg;
@@ -639,47 +810,17 @@ function resolveNotebookIdentityFromHost(tabUrl, tabId, callback) {
 
 function resolveNotebookIdentity(tab, callback) {
   const tabId = tab.id;
-  chrome.scripting.executeScript({
-    target: { tabId, allFrames: false },
-    files: ["notebook_identity.js"],
-  }, () => {
-    if (chrome.runtime.lastError) {
-      resolveNotebookIdentityFromHost(tab.url, tabId, callback);
-      return;
-    }
-    chrome.scripting.executeScript({
-      target: { tabId, allFrames: false },
-      func: async () => {
-        if (window.__ncNotebookIdentity?.resolveIdentity) {
-          return await window.__ncNotebookIdentity.resolveIdentity(window.location.href);
-        }
-        return {
-          url: window.location.href,
-          notebookId: null,
-          notebookKey: null,
-        };
-      },
-    }, (results) => {
-      const raw = results?.[0]?.result || {};
-      const url = normalizeNotebookUrl(raw.url || tab.url);
-      const browserId = raw.notebookId ?? null;
-      const browserKey = raw.notebookKey || url;
-      if (browserId != null && String(browserKey).startsWith("kaggle:kernel:")) {
-        callback({
-          url,
-          notebookId: browserId,
-          notebookKey: browserKey,
-          userName: raw.userName || null,
-          kernelSlug: raw.kernelSlug || null,
-        });
-        return;
-      }
-      resolveNotebookIdentityFromHost(url, tabId, callback);
-    });
-  });
+  const tabUrl = normalizeNotebookUrl(tab.url);
+  if (!tabUrl) {
+    callback(fallbackNotebookIdentity(tab.url));
+    return;
+  }
+  // Always resolve from host using the live /edit URL slug (authoritative).
+  resolveNotebookIdentityFromHost(tabUrl, tabId, callback);
 }
 
 function rememberNotebookIdentity(tabId, identity) {
+  const prev = notebookIdentityByTab[tabId];
   const prevUrl = lastNotebookUrlByTab[tabId];
   const newUrl = identity?.url || "";
   if (prevUrl && newUrl && prevUrl !== newUrl) {
@@ -695,7 +836,19 @@ function rememberNotebookIdentity(tabId, identity) {
     }
   }
   if (newUrl) lastNotebookUrlByTab[tabId] = newUrl;
+  cacheTabIdForUrl(newUrl, tabId);
   notebookIdentityByTab[tabId] = identity;
+
+  const keyChanged = String(prev?.notebookKey || "") !== String(identity?.notebookKey || "");
+  const urlChanged = String(prevUrl || "") !== String(newUrl || "");
+  if (keyChanged || urlChanged) {
+    broadcastToTabFrames(tabId, {
+      type: "NOTEBOOK_IDENTITY_UPDATED",
+      url: identity?.url || "",
+      notebookId: identity?.notebookId ?? null,
+      notebookKey: identity?.notebookKey || identity?.url || "",
+    });
+  }
 }
 
 const NOTEBOOK_SCOPED_MSG_TYPES = new Set([
@@ -712,6 +865,7 @@ const TAB_BROADCAST_TYPES = new Set([
   "CHAT_RESPONSE",
   "HISTORY_DATA",
   "HISTORY_CLEARED",
+  "NOTEBOOK_IDENTITY_UPDATED",
 ]);
 
 function broadcastToTabFrames(tabId, payload) {
@@ -726,27 +880,17 @@ function broadcastToTabFrames(tabId, payload) {
   });
 }
 
-function resolveTabIdForUrl(rawUrl, sender, callback) {
-  if (typeof sender?.tab?.id === "number") {
-    callback(sender.tab.id);
-    return;
-  }
-
-  const normalized = normalizeNotebookUrl(rawUrl);
-  if (!normalized) {
-    callback(null);
-    return;
-  }
-
-  chrome.tabs.query({}, (tabs) => {
-    if (chrome.runtime.lastError) {
-      callback(null);
-      return;
-    }
-
-    const match = (tabs || []).find((tab) => normalizeNotebookUrl(tab.url) === normalized);
-    callback(typeof match?.id === "number" ? match.id : null);
-  });
+/** Map host command types to the result/error types Python's stdin reader expects. */
+function botResultMessageType(commandType, ok) {
+  const suffix = ok ? '_RESULT' : '_ERROR';
+  const aliases = {
+    CLICK_CELL_BY_INDEX: 'CLICK_CELL',
+    SELECT_CELL_BY_INDEX: 'SELECT_CELL',
+    RUN_CELL_BY_INDEX: 'RUN_CELL',
+    CREATING_MARKDOWN_BY_INDEX: 'CREATING_MARKDOWN',
+  };
+  const base = aliases[commandType] || commandType;
+  return `${base}${suffix}`;
 }
 
 function getPort() {
@@ -776,7 +920,23 @@ function getPort() {
     }
 
     const dispatchToFrames = (tabId, payload, onResult) => {
-      chrome.webNavigation.getAllFrames({ tabId }, async (frames) => {
+      chrome.tabs.get(tabId, (tabInfo) => {
+        if (chrome.runtime.lastError || !tabInfo) {
+          onResult({ ok: false, error: "Target notebook tab is not available." });
+          return;
+        }
+        if (tabInfo.discarded) {
+          onResult({
+            ok: false,
+            error: "Target notebook tab was discarded by Chrome. Click the tab once to reload, then retry.",
+          });
+          return;
+        }
+
+        const isBackground = !tabInfo.active;
+        const backgroundBoostMs = isBackground ? 320 : 0;
+
+        chrome.webNavigation.getAllFrames({ tabId }, async (frames) => {
         if (chrome.runtime.lastError) {
           chrome.tabs.sendMessage(tabId, payload, (response) => {
             const lastError = chrome.runtime.lastError;
@@ -793,234 +953,436 @@ function getPort() {
         let lastFailure = null;
         const frameAttempts = [];
 
-        for (const frame of orderedFrames) {
-          const response = await new Promise((resolve) => {
+        const isFastCellOp =
+          payload?.type === 'CLICK_CELL_BY_INDEX'
+          || payload?.type === 'SELECT_CELL_BY_INDEX'
+          || payload?.type === 'INSERT_CELL'
+          || payload?.type === 'RUN_CELL_BY_INDEX'
+          || payload?.type === 'DELETE_CELL'
+          || payload?.type === 'CREATING_MARKDOWN_BY_INDEX';
+        const isEditOp = payload?.type === 'SET_CELL_CONTENT';
+        const isRunOp =
+          payload?.type === 'RUN_CELL_BY_INDEX'
+          || (payload?.type === 'CLICK_CELL_BY_INDEX' && payload?.runCell === true);
+        const frameTimeoutMs = isFastCellOp
+          ? Math.max(160, Number(payload?.maxWaitMs) || 160) + 80 + backgroundBoostMs
+          : isEditOp
+            ? Math.max(900, Number(payload?.maxWaitMs) || 160) + 700 + backgroundBoostMs
+            : isRunOp
+              ? Math.max(600, Number(payload?.maxWaitMs) || 240) + 500 + backgroundBoostMs
+              : 12000;
+        const useFrameRace = (isFastCellOp || isEditOp || isRunOp) && orderedFrames.length > 0;
+
+        const raceFramesForSuccess = (frames) =>
+          new Promise((resolve) => {
+            if (!frames.length) {
+              resolve({ ok: false, error: 'No frames in tab.' });
+              return;
+            }
+
+            let settled = false;
+            let remaining = frames.length;
+            let lastFailure = { ok: false, error: 'No frame accepted the command.' };
+            const attempts = [];
+
+            const finishAll = () => {
+              if (settled) return;
+              settled = true;
+              lastFailure.diagnostics = { frames: attempts, dispatch: 'race' };
+              resolve(lastFailure);
+            };
+
+            for (const frame of frames) {
+              sendToFrame(frame).then((response) => {
+                if (settled) return;
+                attempts.push({ frameId: frame.frameId, result: response });
+                const verdict = evaluateFrameResponse(response);
+                if (verdict.accept) {
+                  settled = true;
+                  verdict.success.diagnostics = { frames: attempts, dispatch: 'race' };
+                  resolve(verdict.success);
+                  return;
+                }
+                lastFailure = verdict.failure || lastFailure;
+                remaining -= 1;
+                if (remaining === 0) {
+                  finishAll();
+                }
+              });
+            }
+          });
+
+        const sendToFrame = (frame) =>
+          new Promise((resolve) => {
+            let settled = false;
+            const finish = (value) => {
+              if (settled) return;
+              settled = true;
+              clearTimeout(timer);
+              resolve(value);
+            };
+            const timer = setTimeout(
+              () => finish({ ok: false, error: 'frame response timeout', frameId: frame.frameId, frameTimeout: true }),
+              frameTimeoutMs,
+            );
             chrome.tabs.sendMessage(tabId, payload, { frameId: frame.frameId }, (reply) => {
               const lastError = chrome.runtime.lastError;
               if (lastError) {
-                resolve({ ok: false, error: lastError.message || String(lastError), frameId: frame.frameId });
+                finish({ ok: false, error: lastError.message || String(lastError), frameId: frame.frameId });
                 return;
               }
-              resolve(reply?.result || { ok: false, error: "No response from content script.", frameId: frame.frameId });
+              const wrapped = reply && typeof reply === 'object' ? reply : {};
+              const inner = wrapped.result;
+              if (wrapped.ok && inner && typeof inner === 'object') {
+                finish({ ...inner, ok: Boolean(inner.ok ?? true), frameId: frame.frameId });
+                return;
+              }
+              if (wrapped.ok) {
+                finish({ ok: true, ...wrapped, frameId: frame.frameId });
+                return;
+              }
+              finish(
+                inner && typeof inner === 'object'
+                  ? { ...inner, frameId: frame.frameId }
+                  : { ok: false, error: 'No response from content script.', frameId: frame.frameId },
+              );
             });
           });
+
+        const evaluateFrameResponse = (response) => {
+          const isKeyDispatch = payload?.type === "SEND_KEY" || payload?.type === "SEND_KEYS";
+          const landedOnIframe = isKeyDispatch && String(response?.tagName || "").toUpperCase() === "IFRAME";
+          if (landedOnIframe) {
+            return {
+              accept: false,
+              failure: {
+                ok: false,
+                error: "Key event landed on iframe element; trying next frame.",
+                frameId: response?.frameId,
+                tagName: response?.tagName,
+                key: response?.key,
+              },
+            };
+          }
+          if (response?.frameSkip || response?.frameTimeout) {
+            return { accept: false, failure: response };
+          }
+          if (response?.ok) {
+            return { accept: true, success: response };
+          }
+          return { accept: false, failure: response };
+        };
+
+        if (useFrameRace) {
+          const success = await raceFramesForSuccess(orderedFrames);
+          onResult(success);
+          return;
+        }
+
+        for (const frame of orderedFrames) {
+          const response = await sendToFrame(frame);
 
           // record attempt
           frameAttempts.push({ frameId: frame.frameId, result: response });
 
-          const isKeyDispatch = payload?.type === "SEND_KEY" || payload?.type === "SEND_KEYS";
-          const landedOnIframe = isKeyDispatch && String(response?.tagName || "").toUpperCase() === "IFRAME";
-
-          if (landedOnIframe) {
-            lastFailure = {
-              ok: false,
-              error: "Key event landed on iframe element; trying next frame.",
-              frameId: frame.frameId,
-              tagName: response?.tagName,
-              key: response?.key,
-            };
-            continue;
-          }
-
-          if (response?.ok) {
-            // attach diagnostics
-            response.diagnostics = { frames: frameAttempts };
-            onResult(response);
+          const verdict = evaluateFrameResponse(response);
+          if (verdict.accept) {
+            verdict.success.diagnostics = { frames: frameAttempts };
+            onResult(verdict.success);
             return;
           }
-
-          lastFailure = response;
+          lastFailure = verdict.failure;
         }
 
         if (lastFailure) lastFailure.diagnostics = { frames: frameAttempts };
         onResult(lastFailure || { ok: false, error: "No frame accepted the command.", diagnostics: { frames: frameAttempts } });
       });
+      });
     };
 
-    if (msg?.type === "SELECT_CELL_BY_INDEX" && typeof msg?.tabId === "number") {
-      const payload = {
-        type: "SELECT_CELL_BY_INDEX",
-        cellIndex: msg.cellIndex,
-        scrollIntoView: msg.scrollIntoView,
-        requestId: msg.requestId,
-        url: msg.url,
+    const TAB_RESOLUTION_ERROR =
+      "No open browser tab matches this notebook URL. "
+      + "Open the exact /edit page for the url you pass (multiple notebook tabs require an exact match).";
+
+    function postHostTabResolutionError(msg, url) {
+      try {
+        getPort().postMessage({
+          type: botResultMessageType(msg?.type, false),
+          tabId: null,
+          url: url || msg?.url,
+          requestId: msg?.requestId,
+          tunnel: msg?.type,
+          result: { ok: false, error: TAB_RESOLUTION_ERROR },
+        });
+      } catch (_) {}
+    }
+
+    function withResolvedHostTab(msg, onReady) {
+      const url = msg?.url || msg?.tabUrl || null;
+      const finish = (tabId, effectiveUrl) => {
+        if (typeof tabId !== "number") {
+          postHostTabResolutionError(msg, url);
+          return;
+        }
+        onReady(tabId, effectiveUrl || url);
       };
 
-      dispatchToFrames(msg.tabId, payload, (result) => {
-        getPort().postMessage({
-          type: result.ok ? "SELECT_CELL_RESULT" : "SELECT_CELL_ERROR",
-          tabId: msg.tabId,
-          url: msg.url,
-          requestId: msg.requestId,
+      if (typeof msg?.tabId === "number" && msg.tabId > 0 && url) {
+        chrome.tabs.get(msg.tabId, (tab) => {
+          if (!chrome.runtime.lastError && tab && urlsMatchTarget(tab.url, url)) {
+            finish(msg.tabId, normalizeNotebookUrl(tab.url));
+            return;
+          }
+          resolveTabIdForUrl(url, null, finish, { preferredTabId: msg.tabId });
+        });
+        return;
+      }
+
+      if (url) {
+        resolveTabIdForUrl(url, null, finish, { preferredTabId: msg?.tabId });
+        return;
+      }
+
+      if (typeof msg?.tabId === "number" && msg.tabId > 0) {
+        finish(msg.tabId, url);
+        return;
+      }
+
+      finish(null, null);
+    }
+
+    if (msg?.type === "SELECT_CELL_BY_INDEX" && typeof msg?.tabId === "number") {
+      withResolvedHostTab(msg, (tabId, effectiveUrl) => {
+        const payload = {
+          type: "SELECT_CELL_BY_INDEX",
           cellIndex: msg.cellIndex,
-          tunnel: payload.type,
-          diagnostics: result?.diagnostics || null,
-          result,
+          scrollIntoView: msg.scrollIntoView,
+          maxWaitMs: msg.maxWaitMs,
+          requestId: msg.requestId,
+          url: effectiveUrl,
+        };
+
+        dispatchToFrames(tabId, payload, (result) => {
+          getPort().postMessage({
+            type: botResultMessageType(payload.type, Boolean(result?.ok)),
+            tabId,
+            url: effectiveUrl,
+            requestId: msg.requestId,
+            cellIndex: msg.cellIndex,
+            tunnel: payload.type,
+            diagnostics: result?.diagnostics || null,
+            result,
+          });
+        });
+      });
+      return;
+    }
+
+    if (msg?.type === "RUN_CELL_BY_INDEX" && typeof msg?.tabId === "number") {
+      withResolvedHostTab(msg, (tabId, effectiveUrl) => {
+        const payload = {
+          type: "RUN_CELL_BY_INDEX",
+          cellIndex: msg.cellIndex,
+          scrollIntoView: msg.scrollIntoView,
+          maxWaitMs: msg.maxWaitMs,
+          requestId: msg.requestId,
+          url: effectiveUrl,
+        };
+
+        dispatchToFrames(tabId, payload, (result) => {
+          maybeScheduleScrapeAfterRun(payload, result);
+          getPort().postMessage({
+            type: botResultMessageType(payload.type, Boolean(result?.ok)),
+            tabId,
+            url: effectiveUrl,
+            requestId: msg.requestId,
+            cellIndex: msg.cellIndex,
+            tunnel: payload.type,
+            diagnostics: result?.diagnostics || null,
+            result,
+          });
         });
       });
       return;
     }
 
     if (msg?.type === "INSERT_CELL" && typeof msg?.tabId === "number") {
-      const payload = {
-        type: "INSERT_CELL",
-        direction: msg.direction,
-        cellIndex: msg.cellIndex,
-        toMarkdown: msg.toMarkdown === true,
-        markdownDelayMs: msg.markdownDelayMs,
-        requestId: msg.requestId,
-        url: msg.url,
-      };
-
-      dispatchToFrames(msg.tabId, payload, (result) => {
-        getPort().postMessage({
-          type: result.ok ? "INSERT_CELL_RESULT" : "INSERT_CELL_ERROR",
-          tabId: msg.tabId,
-          url: msg.url,
-          requestId: msg.requestId,
+      withResolvedHostTab(msg, (tabId, effectiveUrl) => {
+        const payload = {
+          type: "INSERT_CELL",
           direction: msg.direction,
-          tunnel: payload.type,
-          diagnostics: result?.diagnostics || null,
-          result,
+          cellIndex: msg.cellIndex,
+          toMarkdown: msg.toMarkdown === true,
+          markdownDelayMs: msg.markdownDelayMs,
+          requestId: msg.requestId,
+          url: effectiveUrl,
+        };
+
+        dispatchToFrames(tabId, payload, (result) => {
+          getPort().postMessage({
+            type: result.ok ? "INSERT_CELL_RESULT" : "INSERT_CELL_ERROR",
+            tabId,
+            url: effectiveUrl,
+            requestId: msg.requestId,
+            direction: msg.direction,
+            tunnel: payload.type,
+            diagnostics: result?.diagnostics || null,
+            result,
+          });
         });
       });
       return;
     }
 
     if (msg?.type === "CLICK_CELL_BY_INDEX" && typeof msg?.tabId === "number") {
-      const payload = {
-        type: "CLICK_CELL_BY_INDEX",
-        cellIndex: msg.cellIndex,
-        scrollIntoView: msg.scrollIntoView,
-        runCell: msg.runCell,
-        requestId: msg.requestId,
-        url: msg.url,
-      };
-
-      dispatchToFrames(msg.tabId, payload, (result) => {
-        getPort().postMessage({
-          type: result.ok ? "CLICK_CELL_RESULT" : "CLICK_CELL_ERROR",
-          tabId: msg.tabId,
-          url: msg.url,
-          requestId: msg.requestId,
+      withResolvedHostTab(msg, (tabId, effectiveUrl) => {
+        const payload = {
+          type: "CLICK_CELL_BY_INDEX",
           cellIndex: msg.cellIndex,
-          tunnel: payload.type,
-          diagnostics: result?.diagnostics || null,
-          result,
+          scrollIntoView: msg.scrollIntoView,
+          runCell: msg.runCell,
+          maxWaitMs: msg.maxWaitMs,
+          requestId: msg.requestId,
+          url: effectiveUrl,
+        };
+
+        dispatchToFrames(tabId, payload, (result) => {
+          maybeScheduleScrapeAfterRun(payload, result);
+          getPort().postMessage({
+            type: result.ok ? "CLICK_CELL_RESULT" : "CLICK_CELL_ERROR",
+            tabId,
+            url: effectiveUrl,
+            requestId: msg.requestId,
+            cellIndex: msg.cellIndex,
+            tunnel: payload.type,
+            diagnostics: result?.diagnostics || null,
+            result,
+          });
         });
       });
       return;
     }
 
     if (msg?.type === "CLICK_SELECTOR" && typeof msg?.tabId === "number") {
-      const payload = {
-        type: "CLICK_SELECTOR",
-        selector: msg.selector,
-        requestId: msg.requestId,
-        url: msg.url,
-      };
-
-      dispatchToFrames(msg.tabId, payload, (result) => {
-        getPort().postMessage({
-          type: result.ok ? "CLICK_SELECTOR_RESULT" : "CLICK_SELECTOR_ERROR",
-          tabId: msg.tabId,
-          url: msg.url,
-          requestId: msg.requestId,
+      withResolvedHostTab(msg, (tabId, effectiveUrl) => {
+        const payload = {
+          type: "CLICK_SELECTOR",
           selector: msg.selector,
-          tunnel: payload.type,
-          diagnostics: result?.diagnostics || null,
-          result,
+          requestId: msg.requestId,
+          url: effectiveUrl,
+        };
+
+        dispatchToFrames(tabId, payload, (result) => {
+          getPort().postMessage({
+            type: result.ok ? "CLICK_SELECTOR_RESULT" : "CLICK_SELECTOR_ERROR",
+            tabId,
+            url: effectiveUrl,
+            requestId: msg.requestId,
+            selector: msg.selector,
+            tunnel: payload.type,
+            diagnostics: result?.diagnostics || null,
+            result,
+          });
         });
       });
       return;
     }
 
     if (msg?.type === "DELETE_CELL" && typeof msg?.tabId === "number") {
-      const payload = {
-        type: "DELETE_CELL",
-        requestId: msg.requestId,
-        url: msg.url,
-      };
-
-      dispatchToFrames(msg.tabId, payload, (result) => {
-        getPort().postMessage({
-          type: result.ok ? "DELETE_CELL_RESULT" : "DELETE_CELL_ERROR",
-          tabId: msg.tabId,
-          url: msg.url,
+      withResolvedHostTab(msg, (tabId, effectiveUrl) => {
+        const payload = {
+          type: "DELETE_CELL",
           requestId: msg.requestId,
-          tunnel: payload.type,
-          diagnostics: result?.diagnostics || null,
-          result,
+          url: effectiveUrl,
+        };
+
+        dispatchToFrames(tabId, payload, (result) => {
+          getPort().postMessage({
+            type: result.ok ? "DELETE_CELL_RESULT" : "DELETE_CELL_ERROR",
+            tabId,
+            url: effectiveUrl,
+            requestId: msg.requestId,
+            tunnel: payload.type,
+            diagnostics: result?.diagnostics || null,
+            result,
+          });
         });
       });
       return;
     }
 
     if (msg?.type === "SEND_KEY" && typeof msg?.tabId === "number") {
-      const payload = {
-        type: "SEND_KEY",
-        key: msg.key,
-        requestId: msg.requestId,
-        url: msg.url,
-      };
-
-      dispatchToFrames(msg.tabId, payload, (result) => {
-        getPort().postMessage({
-          type: result.ok ? "SEND_KEY_RESULT" : "SEND_KEY_ERROR",
-          tabId: msg.tabId,
-          url: msg.url,
-          requestId: msg.requestId,
+      withResolvedHostTab(msg, (tabId, effectiveUrl) => {
+        const payload = {
+          type: "SEND_KEY",
           key: msg.key,
-          tunnel: payload.type,
-          diagnostics: result?.diagnostics || null,
-          result,
+          requestId: msg.requestId,
+          url: effectiveUrl,
+        };
+
+        dispatchToFrames(tabId, payload, (result) => {
+          getPort().postMessage({
+            type: result.ok ? "SEND_KEY_RESULT" : "SEND_KEY_ERROR",
+            tabId,
+            url: effectiveUrl,
+            requestId: msg.requestId,
+            key: msg.key,
+            tunnel: payload.type,
+            diagnostics: result?.diagnostics || null,
+            result,
+          });
         });
       });
       return;
     }
 
     if (msg?.type === "SET_CELL_CONTENT" && typeof msg?.tabId === "number") {
-      const payload = {
-        type: "SET_CELL_CONTENT",
-        cellIndex: msg.cellIndex,
-        content: msg.content,
-        requestId: msg.requestId,
-        url: msg.url,
-      };
-
-      dispatchToFrames(msg.tabId, payload, (result) => {
-        getPort().postMessage({
-          type: result.ok ? "SET_CELL_CONTENT_RESULT" : "SET_CELL_CONTENT_ERROR",
-          tabId: msg.tabId,
-          url: msg.url,
-          requestId: msg.requestId,
+      withResolvedHostTab(msg, (tabId, effectiveUrl) => {
+        const payload = {
+          type: "SET_CELL_CONTENT",
           cellIndex: msg.cellIndex,
-          tunnel: payload.type,
-          diagnostics: result?.diagnostics || null,
-          result,
+          content: msg.content,
+          maxWaitMs: msg.maxWaitMs,
+          requestId: msg.requestId,
+          url: effectiveUrl,
+        };
+
+        dispatchToFrames(tabId, payload, (result) => {
+          getPort().postMessage({
+            type: result.ok ? "SET_CELL_CONTENT_RESULT" : "SET_CELL_CONTENT_ERROR",
+            tabId,
+            url: effectiveUrl,
+            requestId: msg.requestId,
+            cellIndex: msg.cellIndex,
+            tunnel: payload.type,
+            diagnostics: result?.diagnostics || null,
+            result,
+          });
         });
       });
       return;
     }
 
     if (msg?.type === "SEND_KEYS" && typeof msg?.tabId === "number") {
-      const payload = {
-        type: "SEND_KEYS",
-        keys: msg.keys,
-        requestId: msg.requestId,
-        url: msg.url,
-      };
-
-      dispatchToFrames(msg.tabId, payload, (result) => {
-        getPort().postMessage({
-          type: result.ok ? "SEND_KEYS_RESULT" : "SEND_KEYS_ERROR",
-          tabId: msg.tabId,
-          url: msg.url,
-          requestId: msg.requestId,
+      withResolvedHostTab(msg, (tabId, effectiveUrl) => {
+        const payload = {
+          type: "SEND_KEYS",
           keys: msg.keys,
-          tunnel: payload.type,
-          diagnostics: result?.diagnostics || null,
-          result,
+          requestId: msg.requestId,
+          url: effectiveUrl,
+        };
+
+        dispatchToFrames(tabId, payload, (result) => {
+          getPort().postMessage({
+            type: result.ok ? "SEND_KEYS_RESULT" : "SEND_KEYS_ERROR",
+            tabId,
+            url: effectiveUrl,
+            requestId: msg.requestId,
+            keys: msg.keys,
+            tunnel: payload.type,
+            diagnostics: result?.diagnostics || null,
+            result,
+          });
         });
       });
       return;
@@ -1058,18 +1420,24 @@ function getPort() {
       "SET_CELL_CONTENT",
     ]);
 
-    resolveTabIdForUrl(notebookUrl, null, (resolvedTabId) => {
+    resolveTabIdForUrl(notebookUrl, null, (resolvedTabId, resolvedUrl) => {
+      const effectiveUrl = resolvedUrl || notebookUrl;
       if (typeof resolvedTabId !== 'number') {
         console.warn("Could not resolve tab for host message:", msg?.type, notebookUrl);
         if (tabTargetTypes.has(msg?.type)) {
           try {
             getPort().postMessage({
-              type: `${msg.type}_ERROR`,
+              type: botResultMessageType(msg?.type, false),
               tabId: null,
-              url: notebookUrl,
+              url: effectiveUrl,
               requestId: msg?.requestId,
               tunnel: msg?.type,
-              result: { ok: false, error: "Could not resolve notebook tab for URL (open the notebook /edit page)" },
+              result: {
+                ok: false,
+                error:
+                  "No open browser tab matches this notebook URL. "
+                  + "Open the exact /edit page for the url you pass (multiple notebook tabs require an exact match).",
+              },
             });
           } catch (e) {
             console.warn("Failed to post tab-resolution error to native host:", e);
@@ -1081,13 +1449,14 @@ function getPort() {
       // If this is an actionable/tab-targeted message, forward it to frames
       // (same strategy as tabId-scoped commands) and post the result back.
       if (tabTargetTypes.has(msg?.type)) {
-        const payload = { ...msg, tabId: resolvedTabId };
+        const payload = { ...msg, tabId: resolvedTabId, url: effectiveUrl };
         dispatchToFrames(resolvedTabId, payload, (res) => {
+          maybeScheduleScrapeAfterRun(payload, res);
           try {
             getPort().postMessage({
-              type: res?.ok ? `${msg.type}_RESULT` : `${msg.type}_ERROR`,
+              type: botResultMessageType(msg?.type, Boolean(res?.ok)),
               tabId: resolvedTabId,
-              url: notebookUrl,
+              url: effectiveUrl,
               requestId: msg?.requestId,
               cellIndex: msg?.cellIndex,
               selector: msg?.selector,
@@ -1107,11 +1476,11 @@ function getPort() {
 
       // Otherwise treat as passive data (history/graph/chat) and just forward
       if (TAB_BROADCAST_TYPES.has(msg?.type)) {
-        broadcastToTabFrames(resolvedTabId, msg);
+        broadcastToTabFrames(resolvedTabId, { ...msg, url: effectiveUrl });
       } else {
-        chrome.tabs.sendMessage(resolvedTabId, msg).catch(() => {});
+        chrome.tabs.sendMessage(resolvedTabId, { ...msg, url: effectiveUrl }).catch(() => {});
       }
-    });
+    }, { preferredTabId: msg?.tabId });
     return;
   });
   port.onDisconnect.addListener(() => {
@@ -1151,12 +1520,22 @@ const __pendingInsertCode = new Map();
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.type === "GET_TAB_NOTEBOOK_URL") {
     const tabId = sender.tab?.id;
+    const tabUrl = sender.tab?.url ? normalizeNotebookUrl(sender.tab.url) : "";
     const cached = typeof tabId === "number" ? notebookIdentityByTab[tabId] : null;
-    if (cached) {
+
+    if (cached && identityMatchesTabUrl(cached, tabUrl)) {
       sendResponse(cached);
       return true;
     }
-    const tabUrl = sender.tab?.url ? normalizeNotebookUrl(sender.tab.url) : "";
+
+    if (sender.tab && tabUrl) {
+      resolveNotebookIdentity(sender.tab, (identity) => {
+        rememberNotebookIdentity(tabId, identity);
+        sendResponse(identity);
+      });
+      return true;
+    }
+
     sendResponse(fallbackNotebookIdentity(tabUrl));
     return true;
   }
@@ -1225,7 +1604,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const tabNotebookUrl = normalizeNotebookUrl(sender.tab.url);
       if (tabNotebookUrl) msg.url = tabNotebookUrl;
       if (typeof sender.tab?.id === "number") {
-        attachNotebookIdentity(msg, sender.tab.id);
+        attachNotebookIdentity(msg, sender.tab.id, sender.tab.url);
       }
     }
 
@@ -1237,6 +1616,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 });
 
 // ── Main scan logic (includes UI check) ──────────────────────────────────────
+function scheduleNotebookScrape(delayMs = 2000) {
+  const wait = Math.max(500, Number(delayMs) || 2000);
+  setTimeout(() => {
+    try {
+      sendTabs();
+    } catch (_) {}
+  }, wait);
+}
+
+function maybeScheduleScrapeAfterRun(payload, result) {
+  if (result?.ok && payload?.runCell === true) {
+    scheduleNotebookScrape(2000);
+  }
+}
+
 function sendTabs() {
   chrome.tabs.query({}, (tabs) => {
     const targets = tabs.filter(t => {
@@ -1247,6 +1641,15 @@ function sendTabs() {
 
     for (const tab of targets) {
       console.log(`[sendTabs] Processing tab ${tab.id}: ${tab.url}`);
+
+      const tabUrl = normalizeNotebookUrl(tab.url);
+      for (const variant of notebookUrlVariants(tab.url)) {
+        tabIdByNotebookUrl[variant] = tab.id;
+      }
+      const cachedIdentity = notebookIdentityByTab[tab.id];
+      if (cachedIdentity && tabUrl && !identityMatchesTabUrl(cachedIdentity, tabUrl)) {
+        delete notebookIdentityByTab[tab.id];
+      }
 
       injectUI(tab.id);
 
@@ -1389,6 +1792,7 @@ chrome.tabs.onUpdated.addListener((id, info) => {
 });
 
 chrome.tabs.onRemoved.addListener((id) => {
+  uncacheTabId(id);
   delete kernelStateByTab[id];
   delete notebookIdentityByTab[id];
   delete lastNotebookUrlByTab[id];

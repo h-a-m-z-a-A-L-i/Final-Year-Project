@@ -30,6 +30,50 @@ def _pick_tab_id(cmd: dict) -> int | None:
     return tab_id
 
 
+def _pick_raw_cell_index(cmd: dict) -> Any:
+    for key in ("dom_index", "domIndex", "cellIndex", "cell_index", "index"):
+        if key in cmd and cmd.get(key) is not None:
+            return cmd.get(key)
+    return None
+
+
+def _dom_index_from_cmd(cmd: dict, *, default_basis: str = "dom") -> int | None:
+    """
+    Resolve 0-based DOM index for extension messages (data-windowed-list-index).
+
+    - Browser tools pass dom_index / index_basis=dom (default for click).
+    - Legacy insert/UI flows use 1-based app indices (default_basis=app).
+    """
+    try:
+        from .cell_index import app_to_dom
+    except Exception:
+        from cell_index import app_to_dom
+
+    for key in ("dom_index", "domIndex"):
+        raw = cmd.get(key)
+        if isinstance(raw, int) and raw >= 0:
+            return raw
+
+    raw = _pick_raw_cell_index(cmd)
+    if raw is None:
+        return None
+
+    try:
+        val = int(raw)
+    except (TypeError, ValueError):
+        return None
+
+    basis = str(cmd.get("index_basis") or cmd.get("indexBasis") or default_basis).strip().lower()
+    if basis in {"app", "1", "1-based", "one_based"}:
+        if val < 1:
+            return None
+        return app_to_dom(val)
+
+    if val >= 0:
+        return val
+    return None
+
+
 def _normalize_action(cmd: dict) -> str:
     action = str(cmd.get("action") or cmd.get("type") or "").strip().lower()
     if action not in {"click_selector", "click-selector", "clickselector"} and cmd.get("selector"):
@@ -124,29 +168,89 @@ def map_command_to_native(cmd: dict) -> dict | None:
         mapped["selector"] = cmd.get("selector") or cmd.get("sel")
         return mapped
 
-    if action in {"click", "click_cell", "click_cell_by_index", "clickcell", "select_cell_by_index", "selectcellbyindex"}:
-        mapped["type"] = "CLICK_CELL_BY_INDEX" if action.startswith("click") else "SELECT_CELL_BY_INDEX"
-        mapped["tunnel"] = "click_cell" if mapped["type"] == "CLICK_CELL_BY_INDEX" else "select_cell_by_index"
-        cell_index = cmd.get("cellIndex")
-        if cell_index is None:
-            cell_index = cmd.get("cell_index")
-        if cell_index is None:
-            cell_index = cmd.get("index")
-        mapped["cellIndex"] = cell_index
+    if action in {"click", "click_cell", "click_cell_by_index", "clickcell"}:
+        mapped["type"] = "CLICK_CELL_BY_INDEX"
+        mapped["tunnel"] = "click_cell"
+        dom_index = _dom_index_from_cmd(cmd, default_basis=cmd.get("index_basis") or "app")
+        if dom_index is None:
+            return None
+        mapped["cellIndex"] = dom_index
+        mapped["dom_index"] = dom_index
         mapped["scrollIntoView"] = cmd.get("scrollIntoView", True)
-        mapped["runCell"] = bool(cmd.get("runCell", False))
+        mapped["runCell"] = False
+        wait_ms = cmd.get("maxWaitMs") if cmd.get("maxWaitMs") is not None else cmd.get("max_wait_ms")
+        if wait_ms is None:
+            mapped["maxWaitMs"] = 160
+        else:
+            try:
+                mapped["maxWaitMs"] = int(wait_ms)
+            except Exception:
+                mapped["maxWaitMs"] = 160
+        return mapped
+
+    if action in {"select_cell_by_index", "selectcellbyindex"}:
+        mapped["type"] = "SELECT_CELL_BY_INDEX"
+        mapped["tunnel"] = "select_cell_by_index"
+        dom_index = _dom_index_from_cmd(cmd, default_basis=cmd.get("index_basis") or "app")
+        if dom_index is None:
+            return None
+        mapped["cellIndex"] = dom_index
+        mapped["dom_index"] = dom_index
+        mapped["scrollIntoView"] = cmd.get("scrollIntoView", True)
+        mapped["runCell"] = False
+        wait_ms = cmd.get("maxWaitMs") if cmd.get("maxWaitMs") is not None else cmd.get("max_wait_ms")
+        if wait_ms is None:
+            mapped["maxWaitMs"] = 160
+        else:
+            try:
+                mapped["maxWaitMs"] = int(wait_ms)
+            except Exception:
+                mapped["maxWaitMs"] = 160
+        return mapped
+
+    if action in {"run_cell", "run_cell_by_index"}:
+        mapped["type"] = "RUN_CELL_BY_INDEX"
+        mapped["tunnel"] = "run_cell"
+        dom_index = _dom_index_from_cmd(cmd, default_basis=cmd.get("index_basis") or "app")
+        if dom_index is None:
+            return None
+        mapped["cellIndex"] = dom_index
+        mapped["dom_index"] = dom_index
+        mapped["scrollIntoView"] = cmd.get("scrollIntoView", True)
+        wait_ms = cmd.get("maxWaitMs") if cmd.get("maxWaitMs") is not None else cmd.get("max_wait_ms")
+        if wait_ms is None:
+            mapped["maxWaitMs"] = 240
+        else:
+            try:
+                mapped["maxWaitMs"] = int(wait_ms)
+            except Exception:
+                mapped["maxWaitMs"] = 240
+        return mapped
+
+    if action in {"creating_markdown_by_index", "creating_markdown"}:
+        mapped["type"] = "CREATING_MARKDOWN_BY_INDEX"
+        mapped["tunnel"] = "creating_markdown_by_index"
+        dom_index = _dom_index_from_cmd(cmd, default_basis=cmd.get("index_basis") or "app")
+        if dom_index is None:
+            return None
+        mapped["cellIndex"] = dom_index
+        mapped["dom_index"] = dom_index
         return mapped
 
     if action == "insert_cell":
         mapped["type"] = "INSERT_CELL"
         mapped["tunnel"] = "insert_cell"
         mapped["direction"] = cmd.get("direction", "below")
-        mapped["toMarkdown"] = cmd.get("toMarkdown") is True
-        mapped["markdownDelayMs"] = cmd.get("markdownDelayMs")
-        if cmd.get("cellIndex") is not None:
-            mapped["cellIndex"] = cmd.get("cellIndex")
-        elif cmd.get("index") is not None:
-            mapped["cellIndex"] = cmd.get("index")
+        dom_index = _dom_index_from_cmd(cmd, default_basis=cmd.get("index_basis") or "app")
+        if dom_index is not None:
+            mapped["cellIndex"] = dom_index
+            mapped["dom_index"] = dom_index
+        wait_ms = cmd.get("maxWaitMs") if cmd.get("maxWaitMs") is not None else cmd.get("max_wait_ms")
+        if wait_ms is not None:
+            try:
+                mapped["maxWaitMs"] = int(wait_ms)
+            except Exception:
+                pass
         return mapped
 
     if action in {"send_key", "sendkey"}:
@@ -164,22 +268,30 @@ def map_command_to_native(cmd: dict) -> dict | None:
     if action in {"set_cell_content", "set_cell_content_by_index"}:
         mapped["type"] = "SET_CELL_CONTENT"
         mapped["tunnel"] = "set_cell_content"
-        cell_index = cmd.get("cellIndex")
-        if cell_index is None:
-            cell_index = cmd.get("cell_index")
-        if cell_index is None:
-            cell_index = cmd.get("index")
-        mapped["cellIndex"] = cell_index
+        dom_index = _dom_index_from_cmd(cmd, default_basis=cmd.get("index_basis") or "app")
+        if dom_index is None:
+            return None
+        mapped["cellIndex"] = dom_index
+        mapped["dom_index"] = dom_index
         mapped["content"] = cmd.get("content") or cmd.get("input") or ""
+        wait_ms = cmd.get("maxWaitMs") if cmd.get("maxWaitMs") is not None else cmd.get("max_wait_ms")
+        if wait_ms is None:
+            mapped["maxWaitMs"] = 160
+        else:
+            try:
+                mapped["maxWaitMs"] = int(wait_ms)
+            except Exception:
+                mapped["maxWaitMs"] = 160
         return mapped
 
     if action == "delete_by_index":
         mapped["type"] = "DELETE_CELL"
         mapped["tunnel"] = "delete_by_index"
-        if cmd.get("cellIndex") is not None:
-            mapped["cellIndex"] = cmd.get("cellIndex")
-        elif cmd.get("index") is not None:
-            mapped["cellIndex"] = cmd.get("index")
+        dom_index = _dom_index_from_cmd(cmd, default_basis=cmd.get("index_basis") or "app")
+        if dom_index is None:
+            return None
+        mapped["cellIndex"] = dom_index
+        mapped["dom_index"] = dom_index
         return mapped
 
     return None
@@ -208,29 +320,12 @@ def _sync_persistence(action: str, cmd: dict, browser_result: dict) -> None:
         pass
 
 
-def execute_bot_command_sync(cmd: dict, timeout: float = 12.0) -> dict:
+def _execute_browser_command(cmd: dict, timeout: float = 12.0) -> dict:
+    """Send one mapped browser command to the extension and wait (no composite flow re-entry)."""
     action = _normalize_action(cmd)
     request_id = str(cmd.get("requestId") or uuid.uuid4())
     cmd = dict(cmd)
     cmd["requestId"] = request_id
-
-    if action in {"creating_markdown_by_index", "creating_markdown"}:
-        return run_creating_markdown_flow(cmd, timeout=timeout)
-
-    if action in {"edit_cell_by_index", "edit_cell"}:
-        return run_edit_cell_flow(cmd, timeout=timeout)
-
-    if action in {"insert_code_below", "insert_and_edit_cell"}:
-        return run_insert_code_below_flow(cmd, timeout=timeout)
-
-    if action in {"set_cell_content", "set_cell_content_by_index"}:
-        return run_set_cell_content_flow(cmd, timeout=timeout)
-
-    if action == "delete_by_index":
-        return run_delete_cell_flow(cmd, timeout=timeout)
-
-    if action == "insert_cell":
-        return run_insert_cell_flow(cmd, timeout=timeout)
 
     if not should_use_browser(cmd):
         return build_result_event(
@@ -253,7 +348,7 @@ def execute_bot_command_sync(cmd: dict, timeout: float = 12.0) -> dict:
         return build_result_event(
             cmd,
             False,
-            {"ok": False, "error": "cell_index is required"},
+            {"ok": False, "error": "cell_index is required (0-based DOM index, data-windowed-list-index)"},
             "cell_index is required",
         )
 
@@ -294,23 +389,71 @@ def execute_bot_command_sync(cmd: dict, timeout: float = 12.0) -> dict:
     return event
 
 
+def execute_bot_command_sync(cmd: dict, timeout: float = 12.0) -> dict:
+    action = _normalize_action(cmd)
+    cmd = dict(cmd)
+    cmd["requestId"] = str(cmd.get("requestId") or uuid.uuid4())
+
+    if action in {"edit_cell_by_index", "edit_cell"}:
+        return run_edit_cell_flow(cmd, timeout=timeout)
+
+    if action in {"set_cell_content", "set_cell_content_by_index"}:
+        return run_set_cell_content_flow(cmd, timeout=timeout)
+
+    return _execute_browser_command(cmd, timeout=timeout)
+
+
 def _result_ok(event: dict | None) -> bool:
     return bool(event and event.get("ok") and _inner_ok(event))
 
 
+def _finalize_flow_result(outer_cmd: dict, step_event: dict | None, extra: dict | None = None) -> dict:
+    """Re-parent a nested browser step result onto the outer tool requestId."""
+    outer_id = str(outer_cmd.get("requestId") or "")
+    if (
+        isinstance(step_event, dict)
+        and outer_id
+        and str(step_event.get("requestId") or "") == outer_id
+    ):
+        return step_event
+
+    ok = _result_ok(step_event)
+    inner: dict[str, Any] = {}
+    if isinstance(step_event, dict):
+        candidate = step_event.get("result")
+        if isinstance(candidate, dict):
+            inner = dict(candidate)
+    if isinstance(extra, dict):
+        inner = {**inner, **extra}
+
+    error = None
+    if not ok:
+        if isinstance(step_event, dict):
+            error = str(step_event.get("error") or inner.get("error") or "step failed")
+        else:
+            error = "step failed"
+    return build_result_event(outer_cmd, ok, inner, error)
+
+
 def run_insert_cell_flow(cmd: dict, timeout: float = 12.0) -> dict:
-    idx = cmd.get("cellIndex") if cmd.get("cellIndex") is not None else cmd.get("cell_index") or cmd.get("index")
+    dom_idx = _dom_index_from_cmd(cmd, default_basis="app")
     direction = cmd.get("direction", "below")
     url = _pick_url(cmd)
+    click_timeout = float(cmd.get("click_timeout") or min(timeout, 4.0))
+    insert_timeout = float(cmd.get("insert_timeout") or min(timeout, 4.0))
 
-    if idx is not None:
+    if dom_idx is not None:
         click_cmd = dict(cmd)
         click_cmd["action"] = "click"
-        click_cmd["cellIndex"] = idx
+        click_cmd["index_basis"] = "dom"
+        click_cmd["cellIndex"] = dom_idx
+        click_cmd["dom_index"] = dom_idx
+        click_cmd["url"] = url
         click_cmd["requestId"] = str(uuid.uuid4())
-        click_event = execute_bot_command_sync(click_cmd, timeout=timeout)
+        click_cmd["maxWaitMs"] = cmd.get("maxWaitMs", 160)
+        click_event = _execute_browser_command(click_cmd, timeout=click_timeout)
         if not _result_ok(click_event):
-            return click_event
+            return _finalize_flow_result(cmd, click_event, {"phase": "click_failed"})
         tab_id = _pick_tab_id(cmd) or (click_event.get("result") or {}).get("tabId") or click_event.get("tabId")
     else:
         tab_id = _pick_tab_id(cmd)
@@ -321,8 +464,8 @@ def run_insert_cell_flow(cmd: dict, timeout: float = 12.0) -> dict:
         "direction": direction,
         "url": url,
     }
-    if idx is not None:
-        insert_cmd["cellIndex"] = idx
+    if dom_idx is not None:
+        insert_cmd["cellIndex"] = dom_idx
     if isinstance(tab_id, int):
         insert_cmd["tabId"] = tab_id
 
@@ -342,7 +485,7 @@ def run_insert_cell_flow(cmd: dict, timeout: float = 12.0) -> dict:
             _PENDING.pop(request_id, None)
         return build_result_event(cmd, False, {"ok": False, "error": str(exc)}, str(exc))
 
-    if not waiter.wait(max(0.5, float(timeout))):
+    if not waiter.wait(max(0.5, insert_timeout)):
         with _PENDING_LOCK:
             _PENDING.pop(request_id, None)
         return build_result_event(cmd, False, {"ok": False, "error": "timeout"}, "timeout")
@@ -351,108 +494,144 @@ def run_insert_cell_flow(cmd: dict, timeout: float = 12.0) -> dict:
         slot = _PENDING.pop(request_id, None)
     event = (slot or {}).get("event")
     inner = (event.get("result") or {}) if isinstance(event, dict) else {}
+    flow_extra = None
     if isinstance(event, dict) and event.get("ok"):
-        _sync_persistence("insert_cell", {**cmd, "index": idx, "direction": direction}, inner)
-        if idx is not None and direction == "below":
+        try:
+            from .cell_index import dom_to_app
+        except Exception:
+            from cell_index import dom_to_app
+        app_anchor = dom_to_app(dom_idx) if dom_idx is not None else None
+        _sync_persistence(
+            "insert_cell",
+            {**cmd, "index": app_anchor, "direction": direction},
+            inner,
+        )
+        if dom_idx is not None:
             try:
                 inner = dict(inner)
-                inner.setdefault("cellIndex", int(idx) + 1)
-                inner.setdefault("insertedBelow", int(idx))
-                event = build_result_event(cmd, True, inner)
+                if direction == "above":
+                    new_dom = int(dom_idx)
+                else:
+                    new_dom = int(dom_idx) + 1
+                inner.setdefault("cellIndex", new_dom)
+                inner.setdefault("domIndex", new_dom)
+                inner.setdefault("insertedBelow", int(dom_idx))
+                flow_extra = inner
             except Exception:
                 pass
-    return event if isinstance(event, dict) else build_result_event(cmd, False, {"ok": False, "error": "no response"}, "no response")
+    return _finalize_flow_result(cmd, event, flow_extra)
 
 
 def run_set_cell_content_flow(cmd: dict, timeout: float = 12.0) -> dict:
-    idx = cmd.get("cellIndex") if cmd.get("cellIndex") is not None else cmd.get("cell_index") or cmd.get("index")
+    dom_idx = _dom_index_from_cmd(cmd, default_basis=cmd.get("index_basis") or "dom")
     content = str(cmd.get("content") or cmd.get("input") or "")
-    if idx is None:
-        return build_result_event(cmd, False, {"ok": False, "error": "cell_index is required"}, "cell_index is required")
+    if dom_idx is None:
+        return build_result_event(
+            cmd,
+            False,
+            {"ok": False, "error": "cell_index is required (0-based DOM index)"},
+            "cell_index is required",
+        )
 
     url = _pick_url(cmd)
     tab_id = _pick_tab_id(cmd)
+    request_id = str(cmd.get("requestId") or uuid.uuid4())
 
-    click_cmd = {
-        "action": "click",
-        "requestId": str(uuid.uuid4()),
-        "cellIndex": idx,
-        "url": url,
-        "runCell": False,
-    }
-    if tab_id is not None:
-        click_cmd["tabId"] = tab_id
-    click_event = execute_bot_command_sync(click_cmd, timeout=timeout)
-    if not _result_ok(click_event):
-        return click_event
-
-    tab_id = tab_id or (click_event.get("result") or {}).get("tabId") or click_event.get("tabId")
-
-    enter_cmd = {
-        "action": "send_key",
-        "requestId": str(uuid.uuid4()),
-        "key": "Enter",
-        "url": url,
-    }
-    if isinstance(tab_id, int):
-        enter_cmd["tabId"] = tab_id
-    enter_event = execute_bot_command_sync(enter_cmd, timeout=timeout)
-    if not _result_ok(enter_event):
-        return enter_event
-
-    time.sleep(0.15)
-
-    set_cmd = {
+    browser_cmd = {
         "action": "set_cell_content",
-        "requestId": str(uuid.uuid4()),
-        "cellIndex": idx,
+        "requestId": request_id,
+        "cellIndex": dom_idx,
+        "dom_index": dom_idx,
+        "index_basis": "dom",
         "content": content,
         "url": url,
+        "maxWaitMs": cmd.get("maxWaitMs", 160),
+        "timeout": cmd.get("timeout", timeout),
     }
     if isinstance(tab_id, int):
-        set_cmd["tabId"] = tab_id
-    set_event = execute_bot_command_sync(set_cmd, timeout=max(timeout, 15.0))
+        browser_cmd["tabId"] = tab_id
+
+    wait_timeout = float(browser_cmd.get("timeout") or timeout)
+    set_event = _execute_browser_command(browser_cmd, timeout=wait_timeout)
     if not _result_ok(set_event):
-        return set_event
+        inner = set_event.get("result") if isinstance(set_event.get("result"), dict) else {}
+        error = str(set_event.get("error") or inner.get("error") or "set_cell_content failed")
+        return build_result_event(
+            cmd,
+            False,
+            {"ok": False, "error": error, **(inner if isinstance(inner, dict) else {})},
+            error,
+        )
+
+    inner = set_event.get("result") if isinstance(set_event.get("result"), dict) else {}
 
     try:
+        from .cell_index import dom_to_app
         from .tool_registry import sync_persistence_for_action
+    except Exception:
+        from cell_index import dom_to_app
+        from tool_registry import sync_persistence_for_action
 
+    try:
         sync_persistence_for_action(
             "edit_cell_by_index",
-            {"url": url, "cell_index": idx, "content": content},
+            {"url": url, "cell_index": dom_to_app(dom_idx), "content": content},
             {"ok": True},
         )
     except Exception:
         pass
 
+    app_idx = dom_to_app(dom_idx)
     return build_result_event(
         cmd,
         True,
-        {"ok": True, "phase": "content_set", "cellIndex": idx, "chars": len(content)},
+        {
+            "ok": True,
+            "phase": "content_set",
+            "domIndex": dom_idx,
+            "appIndex": app_idx,
+            "cellIndex": app_idx,
+            "chars": inner.get("chars") or len(content),
+            "strategy": inner.get("strategy"),
+            "dataWindowedListIndex": inner.get("dataWindowedListIndex") or str(dom_idx),
+        },
     )
 
 
 def run_insert_code_below_flow(cmd: dict, timeout: float = 12.0) -> dict:
-    """Insert a new code cell below `index`, then paste content into it."""
-    idx = cmd.get("cellIndex") if cmd.get("cellIndex") is not None else cmd.get("cell_index") or cmd.get("index")
-    if idx is None:
+    """Insert a new code cell below anchor, then paste content into it."""
+    dom_anchor = _dom_index_from_cmd(cmd, default_basis="app")
+    if dom_anchor is None:
         return build_result_event(cmd, False, {"ok": False, "error": "index is required"}, "index is required")
+
+    direction = str(cmd.get("direction") or "below").strip().lower()
+    click_timeout = float(cmd.get("click_timeout") or min(timeout, 4.0))
+    insert_timeout = float(cmd.get("insert_timeout") or min(timeout, 4.0))
+    edit_timeout = float(cmd.get("edit_timeout") or min(timeout, 5.0))
 
     insert_cmd = dict(cmd)
     insert_cmd["action"] = "insert_cell"
-    insert_cmd["direction"] = "below"
-    insert_cmd["cellIndex"] = idx
-    insert_cmd["index"] = idx
-    insert_event = run_insert_cell_flow(insert_cmd, timeout=timeout)
+    insert_cmd["direction"] = direction
+    insert_cmd["index_basis"] = "dom"
+    insert_cmd["cellIndex"] = dom_anchor
+    insert_cmd["dom_index"] = dom_anchor
+    insert_cmd["click_timeout"] = click_timeout
+    insert_cmd["insert_timeout"] = insert_timeout
+    insert_cmd["maxWaitMs"] = cmd.get("maxWaitMs", 160)
+    insert_event = run_insert_cell_flow(insert_cmd, timeout=click_timeout + insert_timeout)
     if not _result_ok(insert_event):
-        return insert_event
+        return _finalize_flow_result(cmd, insert_event, {"phase": "insert_failed"})
 
     inner = insert_event.get("result") or {}
-    new_idx = inner.get("cellIndex")
-    if new_idx is None:
+    new_dom = inner.get("domIndex")
+    if new_dom is None:
+        new_dom = inner.get("cellIndex")
+    if new_dom is None:
         try:
-            new_idx = int(idx) + 1
+            if direction == "above":
+                new_dom = int(dom_anchor)
+            else:
+                new_dom = int(dom_anchor) + 1
         except Exception:
             return build_result_event(
                 cmd,
@@ -462,12 +641,18 @@ def run_insert_code_below_flow(cmd: dict, timeout: float = 12.0) -> dict:
             )
 
     content = str(cmd.get("content") or cmd.get("input") or "")
+    tab_id = _pick_tab_id(cmd) or (insert_event.get("result") or {}).get("tabId") or insert_event.get("tabId")
     edit_cmd = dict(cmd)
     edit_cmd["action"] = "set_cell_content"
-    edit_cmd["cellIndex"] = new_idx
-    edit_cmd["cell_index"] = new_idx
+    edit_cmd["index_basis"] = "dom"
+    edit_cmd["cellIndex"] = new_dom
+    edit_cmd["dom_index"] = new_dom
     edit_cmd["content"] = content
-    set_event = run_set_cell_content_flow(edit_cmd, timeout=max(timeout, 20.0))
+    edit_cmd["maxWaitMs"] = cmd.get("maxWaitMs", 160)
+    edit_cmd["timeout"] = edit_timeout
+    if isinstance(tab_id, int):
+        edit_cmd["tabId"] = tab_id
+    set_event = run_set_cell_content_flow(edit_cmd, timeout=edit_timeout)
     if not _result_ok(set_event):
         return build_result_event(
             cmd,
@@ -475,8 +660,8 @@ def run_insert_code_below_flow(cmd: dict, timeout: float = 12.0) -> dict:
             {
                 "ok": False,
                 "phase": "insert_ok_edit_failed",
-                "insertedBelow": idx,
-                "newCellIndex": new_idx,
+                "insertedBelow": dom_anchor,
+                "newDomIndex": new_dom,
                 "insert": insert_event,
                 "edit": set_event,
             },
@@ -489,21 +674,26 @@ def run_insert_code_below_flow(cmd: dict, timeout: float = 12.0) -> dict:
         {
             "ok": True,
             "phase": "insert_code_below_complete",
-            "insertedBelow": int(idx),
-            "newCellIndex": int(new_idx),
+            "insertedBelow": int(dom_anchor),
+            "anchorDomIndex": int(dom_anchor),
+            "newDomIndex": int(new_dom),
+            "new_cell_index": int(new_dom),
             "chars": len(content),
+            "direction": direction,
         },
     )
 
 
 def run_delete_cell_flow(cmd: dict, timeout: float = 12.0) -> dict:
-    idx = cmd.get("cellIndex") if cmd.get("cellIndex") is not None else cmd.get("cell_index") or cmd.get("index")
-    if idx is None:
+    dom_idx = _dom_index_from_cmd(cmd, default_basis="app")
+    if dom_idx is None:
         return build_result_event(cmd, False, {"ok": False, "error": "cell_index is required"}, "cell_index is required")
 
     click_cmd = dict(cmd)
     click_cmd["action"] = "click"
-    click_cmd["cellIndex"] = idx
+    click_cmd["index_basis"] = "dom"
+    click_cmd["cellIndex"] = dom_idx
+    click_cmd["dom_index"] = dom_idx
     click_cmd["requestId"] = str(uuid.uuid4())
     click_event = execute_bot_command_sync(click_cmd, timeout=timeout)
     if not _result_ok(click_event):
@@ -513,9 +703,9 @@ def run_delete_cell_flow(cmd: dict, timeout: float = 12.0) -> dict:
     tab_id = _pick_tab_id(cmd) or (click_event.get("result") or {}).get("tabId") or click_event.get("tabId")
 
     candidates = [
-        f'[data-windowed-list-index="{idx}"] div > div > div > button.cell-context-menu-icon-button.delete',
-        f'[data-windowed-list-index="{idx}"] button[aria-label*="Delete"]',
-        f'[data-windowed-list-index="{idx}"] .cell-context-menu-icon-button.delete',
+        f'[data-windowed-list-index="{dom_idx}"] div > div > div > button.cell-context-menu-icon-button.delete',
+        f'[data-windowed-list-index="{dom_idx}"] button[aria-label*="Delete"]',
+        f'[data-windowed-list-index="{dom_idx}"] .cell-context-menu-icon-button.delete',
         "button.cell-context-menu-icon-button.delete",
         'button[aria-label*="Delete"]',
     ]
@@ -530,7 +720,11 @@ def run_delete_cell_flow(cmd: dict, timeout: float = 12.0) -> dict:
             sel_cmd["tabId"] = tab_id
         sel_event = execute_bot_command_sync(sel_cmd, timeout=timeout)
         if _result_ok(sel_event):
-            return build_result_event(cmd, True, {"ok": True, "phase": "deleted", "cellIndex": idx, "strategy": "selector"})
+            return build_result_event(
+                cmd,
+                True,
+                {"ok": True, "phase": "deleted", "domIndex": dom_idx, "cellIndex": dom_idx, "strategy": "selector"},
+            )
 
     for key in ("d", "d"):
         key_cmd = {
@@ -546,18 +740,30 @@ def run_delete_cell_flow(cmd: dict, timeout: float = 12.0) -> dict:
             return key_event
         time.sleep(0.06)
 
-    return build_result_event(cmd, True, {"ok": True, "phase": "deleted", "cellIndex": idx, "strategy": "dd_keys"})
+    return build_result_event(
+        cmd,
+        True,
+        {"ok": True, "phase": "deleted", "domIndex": dom_idx, "cellIndex": dom_idx, "strategy": "dd_keys"},
+    )
 
 
 def run_creating_markdown_flow(cmd: dict, timeout: float = 12.0) -> dict:
-    idx = cmd.get("cellIndex") if cmd.get("cellIndex") is not None else cmd.get("cell_index") or cmd.get("index")
-    if idx is None:
+    dom_idx = _dom_index_from_cmd(cmd, default_basis="app")
+    if dom_idx is None:
         return build_result_event(cmd, False, {"ok": False, "error": "index is required"}, "index is required")
 
     url = _pick_url(cmd)
     tab_id = _pick_tab_id(cmd)
 
-    click_cmd = {"action": "click", "requestId": str(uuid.uuid4()), "cellIndex": idx, "url": url, "runCell": False}
+    click_cmd = {
+        "action": "click",
+        "requestId": str(uuid.uuid4()),
+        "cellIndex": dom_idx,
+        "dom_index": dom_idx,
+        "index_basis": "dom",
+        "url": url,
+        "runCell": False,
+    }
     if tab_id is not None:
         click_cmd["tabId"] = tab_id
     click_event = execute_bot_command_sync(click_cmd, timeout=timeout)
@@ -571,7 +777,9 @@ def run_creating_markdown_flow(cmd: dict, timeout: float = 12.0) -> dict:
         "requestId": str(uuid.uuid4()),
         "direction": "above",
         "url": url,
-        "cellIndex": idx,
+        "cellIndex": dom_idx,
+        "dom_index": dom_idx,
+        "index_basis": "dom",
     }
     if isinstance(tab_id, int):
         insert_cmd["tabId"] = tab_id
@@ -580,7 +788,14 @@ def run_creating_markdown_flow(cmd: dict, timeout: float = 12.0) -> dict:
         return insert_event
 
     time.sleep(0.5)
-    focus_cmd = {"action": "click", "requestId": str(uuid.uuid4()), "cellIndex": idx, "url": url}
+    focus_cmd = {
+        "action": "click",
+        "requestId": str(uuid.uuid4()),
+        "cellIndex": dom_idx,
+        "dom_index": dom_idx,
+        "index_basis": "dom",
+        "url": url,
+    }
     if isinstance(tab_id, int):
         focus_cmd["tabId"] = tab_id
     focus_event = execute_bot_command_sync(focus_cmd, timeout=timeout)
@@ -599,56 +814,127 @@ def run_creating_markdown_flow(cmd: dict, timeout: float = 12.0) -> dict:
     return build_result_event(
         cmd,
         True,
-        {"ok": True, "phase": "markdown_created", "cellIndex": idx},
+        {"ok": True, "phase": "markdown_created", "domIndex": dom_idx, "cellIndex": dom_idx},
+    )
+
+
+def run_edit_and_run_flow(cmd: dict, timeout: float = 12.0) -> dict:
+    """Replace cell source, then execute that cell in the kernel."""
+    dom_idx = _dom_index_from_cmd(cmd, default_basis="app")
+    content = str(cmd.get("content") or cmd.get("input") or "")
+    if dom_idx is None:
+        return build_result_event(cmd, False, {"ok": False, "error": "cell_index is required"}, "cell_index is required")
+
+    edit_timeout = float(cmd.get("edit_timeout") or min(timeout, 5.0))
+    run_timeout = float(cmd.get("run_timeout") or min(timeout, 6.0))
+
+    edit_cmd = dict(cmd)
+    edit_cmd["action"] = "set_cell_content"
+    edit_cmd["index_basis"] = "dom"
+    edit_cmd["cellIndex"] = dom_idx
+    edit_cmd["dom_index"] = dom_idx
+    edit_cmd["content"] = content
+    edit_cmd["maxWaitMs"] = cmd.get("maxWaitMs", 160)
+    edit_cmd["timeout"] = edit_timeout
+    set_event = run_set_cell_content_flow(edit_cmd, timeout=edit_timeout)
+    if not _result_ok(set_event):
+        return _finalize_flow_result(cmd, set_event, {"phase": "edit_failed"})
+
+    inner_edit = set_event.get("result") if isinstance(set_event.get("result"), dict) else {}
+    tab_id = _pick_tab_id(cmd) or set_event.get("tabId") or inner_edit.get("tabId")
+
+    run_cmd = dict(cmd)
+    run_cmd["action"] = "run_cell"
+    run_cmd["index_basis"] = "dom"
+    run_cmd["cellIndex"] = dom_idx
+    run_cmd["dom_index"] = dom_idx
+    run_cmd["runCell"] = True
+    run_cmd["maxWaitMs"] = cmd.get("run_maxWaitMs", cmd.get("maxWaitMs", 240))
+    run_cmd["timeout"] = run_timeout
+    if isinstance(tab_id, int):
+        run_cmd["tabId"] = tab_id
+    run_event = _execute_browser_command(run_cmd, timeout=run_timeout)
+    if not _result_ok(run_event):
+        inner_run = run_event.get("result") if isinstance(run_event.get("result"), dict) else {}
+        try:
+            from .cell_index import dom_to_app
+        except Exception:
+            from cell_index import dom_to_app
+        return build_result_event(
+            cmd,
+            False,
+            {
+                "ok": False,
+                "phase": "edit_ok_run_failed",
+                "domIndex": dom_idx,
+                "appIndex": dom_to_app(dom_idx),
+                "edit": inner_edit,
+                "run": inner_run,
+            },
+            str(run_event.get("error") or inner_run.get("error") or "run_cell failed after edit"),
+        )
+
+    inner_run = run_event.get("result") if isinstance(run_event.get("result"), dict) else {}
+    try:
+        from .cell_index import dom_to_app
+    except Exception:
+        from cell_index import dom_to_app
+    app_idx = dom_to_app(dom_idx)
+    try:
+        from .tool_registry import sync_persistence_for_action
+    except Exception:
+        try:
+            from tool_registry import sync_persistence_for_action
+        except Exception:
+            sync_persistence_for_action = None
+    if sync_persistence_for_action:
+        try:
+            sync_persistence_for_action(
+                "edit_cell_by_index",
+                {"url": _pick_url(cmd), "cell_index": app_idx, "content": content},
+                {"ok": True},
+            )
+        except Exception:
+            pass
+
+    return build_result_event(
+        cmd,
+        True,
+        {
+            "ok": True,
+            "phase": "edit_and_run_complete",
+            "domIndex": dom_idx,
+            "appIndex": app_idx,
+            "cellIndex": app_idx,
+            "chars": inner_edit.get("chars") or len(content),
+            "edit_strategy": inner_edit.get("strategy"),
+            "run_strategy": inner_run.get("strategy"),
+            "command_id": inner_run.get("commandId"),
+        },
     )
 
 
 def run_edit_cell_flow(cmd: dict, timeout: float = 12.0) -> dict:
-    idx = cmd.get("cellIndex") if cmd.get("cellIndex") is not None else cmd.get("cell_index") or cmd.get("index")
+    dom_idx = _dom_index_from_cmd(cmd, default_basis="app")
     content = cmd.get("content") or cmd.get("input") or ""
-    if idx is None:
+    if dom_idx is None:
         return build_result_event(cmd, False, {"ok": False, "error": "cell_index is required"}, "cell_index is required")
-
-    url = _pick_url(cmd)
-    click_cmd = dict(cmd)
-    click_cmd["action"] = "click"
-    click_cmd["cellIndex"] = idx
-    click_cmd["requestId"] = str(uuid.uuid4())
-    click_event = execute_bot_command_sync(click_cmd, timeout=timeout)
-    if not _result_ok(click_event):
-        return click_event
-
-    tab_id = _pick_tab_id(cmd) or (click_event.get("result") or {}).get("tabId") or click_event.get("tabId")
-    selector = f'[data-windowed-list-index="{idx}"] .jp-InputArea-editor .cm-content'
-    sel_cmd = {
-        "action": "click_selector",
-        "requestId": str(uuid.uuid4()),
-        "selector": selector,
-        "url": url,
-    }
-    if isinstance(tab_id, int):
-        sel_cmd["tabId"] = tab_id
-    sel_event = execute_bot_command_sync(sel_cmd, timeout=timeout)
-    if not _result_ok(sel_event):
-        enter_cmd = {"action": "send_key", "requestId": str(uuid.uuid4()), "key": "Enter", "url": url}
-        if isinstance(tab_id, int):
-            enter_cmd["tabId"] = tab_id
-        enter_event = execute_bot_command_sync(enter_cmd, timeout=timeout)
-        if not _result_ok(enter_event):
-            return enter_event
-        sel_event = execute_bot_command_sync(sel_cmd, timeout=timeout)
-        if not _result_ok(sel_event):
-            return sel_event
-
-    if not str(content or "").strip():
-        return build_result_event(
-            cmd,
-            True,
-            {"ok": True, "phase": "edit_mode_only", "cellIndex": idx},
-        )
 
     set_cmd = dict(cmd)
     set_cmd["action"] = "set_cell_content"
-    set_cmd["cellIndex"] = idx
+    set_cmd["index_basis"] = "dom"
+    set_cmd["cellIndex"] = dom_idx
+    set_cmd["dom_index"] = dom_idx
     set_cmd["content"] = content
-    return run_set_cell_content_flow(set_cmd, timeout=max(timeout, 15.0))
+    if not str(content or "").strip():
+        set_cmd["content"] = ""
+    return run_set_cell_content_flow(set_cmd, timeout=timeout)
+
+
+def execute_bot_command(cmd: dict, timeout: float = 12.0) -> dict:
+    """Native host when inside host.py; JSONL queue for CLI smoke tests."""
+    try:
+        from .bot_command_client import execute_bot_command as _route
+    except Exception:
+        from bot_command_client import execute_bot_command as _route
+    return _route(cmd, timeout=timeout)

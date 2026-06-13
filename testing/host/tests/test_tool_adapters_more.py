@@ -33,8 +33,8 @@ def test_insert_and_edit_inproc(tmp_path, monkeypatch):
     initial = {"cells": [{"index": 1, "input": "a"}]}
     ph._atomic_write_json(ppath, initial)
 
-    def _fake_insert_flow(cmd, timeout=25):
-        tr.sync_persistence_for_action("insert_cell", cmd, {"ok": True})
+    def _fake_bot_command(cmd, timeout=12):
+        tr.sync_persistence_for_action("insert_cell", {"url": url, "index": 1, "direction": "below"}, {"ok": True})
         tr.sync_persistence_for_action(
             "edit_cell_by_index",
             {"url": url, "cell_index": 2, "content": "inserted content"},
@@ -45,13 +45,16 @@ def test_insert_and_edit_inproc(tmp_path, monkeypatch):
             "result": {
                 "ok": True,
                 "phase": "insert_code_below_complete",
-                "insertedBelow": 1,
-                "newCellIndex": 2,
+                "insertedBelow": 0,
+                "newDomIndex": 1,
+                "chars": len("inserted content"),
             },
         }
 
-    with patch.object(bc, "run_insert_code_below_flow", side_effect=_fake_insert_flow):
-        res = ta.insert_and_edit_cell({'url': url, 'index': 1, 'direction': 'below', 'content': 'inserted content'})
+    with patch("testing.host.bot_command_client.execute_bot_command", side_effect=_fake_bot_command):
+        res = ta.insert_and_edit_cell(
+            {"url": url, "cell_index": 1, "direction": "below", "content": "inserted content"}
+        )
     assert res.get('ok') is True
 
     data = ph.read_json_file(ppath)
