@@ -17,6 +17,174 @@
       "timestamp": "2026-06-11T10:56:51.223028+00:00",
       "tokens": 194,
       "requests": 1
+    },
+    {
+      "id": "3668d22f-ab6b-4f5f-b9f5-5f2075fe6f65",
+      "timestamp": "2026-06-12T04:00:55.295727+00:00",
+      "tokens": 0,
+      "requests": 1
+    },
+    {
+      "id": "a56073f3-76b6-4b7e-b414-2f3a316f26e7",
+      "timestamp": "2026-06-12T04:01:25.061314+00:00",
+      "tokens": 0,
+      "requests": 1
+    },
+    {
+      "id": "58df5c5c-5153-45d8-800d-64e5195e626a",
+      "timestamp": "2026-06-12T04:03:30.752162+00:00",
+      "tokens": 0,
+      "requests": 1
+    },
+    {
+      "id": "87fef2e2-76ae-40f0-a37e-7b865b1bf96d",
+      "timestamp": "2026-06-12T04:05:37.804824+00:00",
+      "tokens": 0,
+      "requests": 1
+    },
+    {
+      "id": "c099e1d3-80f4-4ac0-ba45-7bd36926b138",
+      "timestamp": "2026-06-12T04:07:43.765561+00:00",
+      "tokens": 0,
+      "requests": 1
+    },
+    {
+      "id": "a7d9f057-9066-4ead-b419-76c504f52926",
+      "timestamp": "2026-06-12T04:09:45.536968+00:00",
+      "tokens": 0,
+      "requests": 1
+    },
+    {
+      "id": "24a53ac6-5dd0-4105-bda9-6c2e2e46c95d",
+      "timestamp": "2026-06-12T04:11:54.838554+00:00",
+      "tokens": 0,
+      "requests": 1
+    },
+    {
+      "id": "3e03e539-1b02-48ee-9f29-09d8ee08396e",
+      "timestamp": "2026-06-12T04:14:00.402876+00:00",
+      "tokens": 0,
+      "requests": 1
+    },
+    {
+      "id": "fa83387b-cedd-48bc-8f8e-476886943da2",
+      "timestamp": "2026-06-12T04:16:06.166017+00:00",
+      "tokens": 0,
+      "requests": 1
+    },
+    {
+      "id": "26934ec6-f0d5-4a54-bcca-c0b32705eb53",
+      "timestamp": "2026-06-12T04:18:10.836783+00:00",
+      "tokens": 0,
+      "requests": 1
+    },
+    {
+      "id": "9533f0f4-97d2-4778-8067-1643919806cd",
+      "timestamp": "2026-06-12T04:19:02.412609+00:00",
+      "tokens": 215,
+      "requests": 1
+    },
+    {
+      "id": "6a7fd32a-eaaa-45b4-951b-89548dfc71ab",
+      "timestamp": "2026-06-12T04:21:00.128966+00:00",
+      "tokens": 571,
+      "requests": 1
+    },
+    {
+      "id": "7afbfc60-4b74-4e0a-bd67-fbc826d733f6",
+      "timestamp": "2026-06-12T04:22:03.981653+00:00",
+      "tokens": 319,
+      "requests": 1
+    },
+    {
+      "id": "dc3f7aa5-a5c5-4193-adb5-deb039b62dd0",
+      "timestamp": "2026-06-12T04:30:48.769833+00:00",
+      "tokens": 16,
+      "requests": 1
+    },
+    {
+      "id": "ae163e80-54a7-40fd-86bb-1e5a409b1e19",
+      "timestamp": "2026-06-12T04:31:12.248448+00:00",
+      "tokens": 119,
+      "requests": 1
+    },
+    {
+      "id": "a1308297-bffd-4368-bbcd-faee43a98407",
+      "timestamp": "2026-06-12T04:45:46.102790+00:00",
+      "tokens": 33,
+      "requests": 1
+    },
+    {
+      "id": "27ef44d5-b1e7-4dc3-aef8-a4d7a1757ba1",
+      "timestamp": "2026-06-12T04:46:00.077219+00:00",
+      "tokens": 17,
+      "requests": 1
+    },
+    {
+      "id": "facb7553-0e53-4aca-9bec-2c404e6c0029",
+      "timestamp": "2026-06-12T04:46:17.110978+00:00",
+      "tokens": 18,
+      "requests": 1
+    },
+    {
+      "id": "9803a579-0c86-4ad5-8433-2f443ba8e6a6",
+      "timestamp": "2026-06-12T04:46:42.442708+00:00",
+      "tokens": 18,
+      "requests": 1
+    },
+    {
+      "id": "4ca27b1d-a546-4e6c-bd95-0db1fa55490b",
+      "timestamp": "2026-06-12T04:47:05.083652+00:00",
+      "tokens": 12,
+      "requests": 1
+    },
+    {
+      "id": "880e3a7b-a9d7-4132-b033-63f9ee73e936",
+      "timestamp": "2026-06-12T05:29:17.857321+00:00",
+      "tokens": 15,
+      "requests": 1
+    },
+    {
+      "id": "cff4b9da-4157-4606-a172-a871c25750f5",
+      "timestamp": "2026-06-12T05:29:27.806289+00:00",
+      "tokens": 13,
+      "requests": 1
+    },
+    {
+      "id": "0a9301f6-bc01-417f-ae47-aa4b76bc6122",
+      "timestamp": "2026-06-12T07:08:55.834081+00:00",
+      "tokens": 129,
+      "requests": 1
+    },
+    {
+      "id": "7a0931aa-5bcb-4da9-8dba-efde9b183fcb",
+      "timestamp": "2026-06-12T07:09:22.414462+00:00",
+      "tokens": 52,
+      "requests": 1
+    },
+    {
+      "id": "21b3c31d-4978-49ad-9bb4-14465b80192a",
+      "timestamp": "2026-06-12T07:10:00.861656+00:00",
+      "tokens": 222,
+      "requests": 1
+    },
+    {
+      "id": "ee3565be-9c0f-42ab-8e50-53cea21a1fae",
+      "timestamp": "2026-06-12T07:33:23.667302+00:00",
+      "tokens": 151,
+      "requests": 1
+    },
+    {
+      "id": "0c6978c0-f771-42eb-9d48-a15cec6da1c3",
+      "timestamp": "2026-06-12T07:34:06.519138+00:00",
+      "tokens": 353,
+      "requests": 1
+    },
+    {
+      "id": "fff372c0-1b46-4bd8-845f-1cac5e88ff2e",
+      "timestamp": "2026-06-12T08:00:12.554911+00:00",
+      "tokens": 187,
+      "requests": 1
     }
   ]
 }

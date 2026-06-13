@@ -45,6 +45,7 @@ def test_pack_dependency_includes_graph(tmp_path, monkeypatch):
     url = "https://example.com/notebook/edit"
     scraped = _write_snapshot(tmp_path, url)
     monkeypatch.setattr(config, "SCRAPED_DIR", scraped)
+    monkeypatch.setattr(config, "CONTEXT_PACK_MODE", "intent")
 
     pack = nc.pack_context(mode="ask", url=url, prompt="cell 2 dependencies", cell_index=2)
     assert "CONTEXT_MANIFEST" in pack.text
@@ -69,6 +70,7 @@ def test_pack_simple_includes_output(tmp_path, monkeypatch):
     url = "https://example.com/notebook/edit"
     scraped = _write_snapshot(tmp_path, url)
     monkeypatch.setattr(config, "SCRAPED_DIR", scraped)
+    monkeypatch.setattr(config, "CONTEXT_PACK_MODE", "intent")
     pack = nc.pack_context(mode="ask", url=url, prompt="cell 2", cell_index=2)
     assert "NameError" in pack.text or "Traceback" in pack.text or "output:" in pack.text
 
@@ -77,6 +79,7 @@ def test_pack_explain_error_includes_output(tmp_path, monkeypatch):
     url = "https://example.com/notebook/edit"
     scraped = _write_snapshot(tmp_path, url)
     monkeypatch.setattr(config, "SCRAPED_DIR", scraped)
+    monkeypatch.setattr(config, "CONTEXT_PACK_MODE", "intent")
 
     pack = nc.pack_context(mode="ask", url=url, prompt="fix error in cell 2", cell_index=2)
     assert "NameError" in pack.text or "output" in pack.text
@@ -98,3 +101,53 @@ def test_truncate_at_cell_boundaries():
     body = "### Cell [1]\ncode\n" + "### Cell [2]\n" + ("x" * 5000)
     out = nc._truncate_at_cell_boundaries(body, 200)
     assert "Cell [2]" not in out or "omitted" in out
+
+
+def test_pack_full_includes_all_cells(tmp_path, monkeypatch):
+    url = "https://example.com/notebook/edit"
+    scraped = _write_snapshot(tmp_path, url)
+    monkeypatch.setattr(config, "SCRAPED_DIR", scraped)
+    monkeypatch.setattr(config, "CONTEXT_PACK_MODE", "full")
+    monkeypatch.setattr(config, "MAX_NOTEBOOK_CONTEXT_CHARS", 0)
+    monkeypatch.setattr(config, "MAX_FULL_NOTEBOOK_CONTEXT_CHARS", 30_000)
+
+    pack = nc.pack_context(mode="ask", url=url, prompt="summarize notebook", cell_index=2)
+    assert pack.coverage == "full"
+    assert "### Cell [1]" in pack.text
+    assert "### Cell [2]" in pack.text
+    assert "### Cell [3]" in pack.text
+    assert "execution_order" in pack.text or "metadata:" in pack.text
+    assert "NameError" in pack.text or "Traceback" in pack.text
+    assert pack.manifest.get("listed_cells") == [1, 2, 3]
+
+
+def test_empty_cell_context_note(tmp_path, monkeypatch):
+    url = "https://example.com/notebook/edit"
+    scraped = _write_snapshot(tmp_path, url)
+    monkeypatch.setattr(config, "SCRAPED_DIR", scraped)
+    cells = FIXTURE_CELLS["cells"]
+    note = nc._empty_cell_context_note(cells, 99)
+    assert note == ""
+    empty_cell = {"index": 4, "type": "code", "input": "", "output": ""}
+    note = nc._empty_cell_context_note(cells + [empty_cell], 4)
+    assert "Cell [4]" in note
+    assert "empty" in note.lower()
+    assert "1–2" in note or "1-2" in note or "suggest" in note.lower()
+
+
+def test_format_full_cell_block_metadata():
+    block = nc._format_full_cell_block(
+        {
+            "index": 4,
+            "type": "code",
+            "input": "x = 1",
+            "output": "ok",
+            "execution_order": 3,
+            "execution_status": "executed",
+        }
+    )
+    assert "### Cell [4]" in block
+    assert "execution_order: 3" in block
+    assert "execution_status: executed" in block
+    assert "x = 1" in block
+    assert "ok" in block

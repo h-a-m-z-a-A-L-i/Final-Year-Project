@@ -83,4 +83,4 @@ def _build_profile_memory_context(facts: dict) -> str:
             lines.append(f"- {key}: {value}")
     if not lines:
         return ""
-    return "Known user facts:\n" + "\n".join(lines)
+    return "Known user facts (this conversation only):\n" + "\n".join(lines)

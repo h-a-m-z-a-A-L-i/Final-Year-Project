@@ -27,6 +27,7 @@ try:
         _signal_remote_stop,
         begin_active_stream,
         is_stream_stopped,
+        resolve_active_key,
         send_stream_end,
     )
 except Exception:
@@ -50,6 +51,7 @@ except Exception:
             _signal_remote_stop,
             begin_active_stream,
             is_stream_stopped,
+            resolve_active_key,
             send_stream_end,
         )
     except Exception:
@@ -66,6 +68,7 @@ except Exception:
             _signal_remote_stop,
             begin_active_stream,
             is_stream_stopped,
+            resolve_active_key,
             send_stream_end,
         )
 
@@ -173,7 +176,8 @@ def main():
                 send_msg({"type": "CHAT_RESPONSE", "error": "Missing or invalid notebook URL.", "tabId": tab_id})
                 continue
 
-            active_key = str(tab_id)
+            stream_channel = str(msg.get("streamChannel") or "main").strip() or "main"
+            active_key = resolve_active_key(tab_id, stream_channel)
             begin_active_stream(active_key, session_id, url)
 
             try:
@@ -184,7 +188,14 @@ def main():
                 from notebook_context import pack_context
 
             ui_mode = str(msg.get("mode") or "ask").strip().lower()
-            cell_num = _extract_cell_number(prompt)
+            raw_cell = msg.get("cellIndex")
+            if raw_cell is not None and str(raw_cell).strip() != "":
+                try:
+                    cell_num = int(raw_cell)
+                except (TypeError, ValueError):
+                    cell_num = _extract_cell_number(prompt)
+            else:
+                cell_num = _extract_cell_number(prompt)
 
             with _BOT_STATE_LOCK:
                 bot_state = dict(host_ctx.get("bot_state") or {})
@@ -211,9 +222,9 @@ def main():
 
             extracted_facts = _extract_user_profile_facts(prompt)
             for fact_key, fact_value in extracted_facts.items():
-                memory_store.upsert_fact(url, fact_key, fact_value)
+                memory_store.upsert_fact(url, fact_key, fact_value, session_id=session_id)
 
-            facts = memory_store.get_facts(url)
+            facts = memory_store.get_facts(url, session_id=session_id)
             profile_context = _build_profile_memory_context(facts)
 
             if re.search(r"\b(what\s+is|tell\s+me)\s+my\s+name\b", prompt, re.IGNORECASE):
@@ -242,6 +253,8 @@ def main():
                 "coverage": ctx_pack.coverage,
                 "cell_index": ctx_pack.cell_index,
                 "snapshot": ctx_pack.snapshot,
+                "active_key": active_key,
+                "stream_channel": stream_channel,
             }
 
             worker = threading.Thread(
@@ -260,9 +273,21 @@ def main():
             tab_id = msg.get("tabId")
             session_id = str(msg.get("sessionId") or "")
             url = _history_url_key(msg.get("url"))
+            stream_channel = str(msg.get("streamChannel") or "").strip()
+            active_key = resolve_active_key(tab_id, stream_channel) if stream_channel else None
             _signal_remote_stop(session_id)
             with _ACTIVE_STREAMS_LOCK:
-                state = _ACTIVE_STREAMS.get(str(tab_id))
+                state = None
+                if active_key:
+                    state = _ACTIVE_STREAMS.get(active_key)
+                if state is None and session_id:
+                    for key, candidate in _ACTIVE_STREAMS.items():
+                        if str(candidate.get("sessionId") or "") == session_id:
+                            active_key = key
+                            state = candidate
+                            break
+                if state is None and tab_id is not None:
+                    state = _ACTIVE_STREAMS.get(str(tab_id))
                 if state and not session_id:
                     session_id = str(state.get("sessionId") or "")
                 if state and not url:
@@ -307,7 +332,15 @@ def main():
             session_id = str(msg.get("sessionId") or "default")
             history = memory_store.get_history(url, session_id=session_id) if url else []
             sessions = memory_store.list_sessions(url) if url else []
-            send_msg({"type": "HISTORY_DATA", "history": history, "sessions": sessions, "activeSessionId": session_id, "tabId": tab_id, "url": url})
+            send_msg({
+                "type": "HISTORY_DATA",
+                "history": history,
+                "sessions": sessions,
+                "activeSessionId": session_id,
+                "sessionId": session_id,
+                "tabId": tab_id,
+                "url": url,
+            })
             continue
 
         if m_type == "CLEAR_HISTORY":

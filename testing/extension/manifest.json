@@ -21,12 +21,22 @@
         "*://*.jupyter-proxy.kaggle.net/*"
       ],
       "all_frames": true,
-      "js": ["cell_index_utils.js", "kernel_state_listener.js", "cell_index_badges.js"],
+      "js": ["cell_index_utils.js", "kernel_state_listener.js", "markdown-it.min.js", "cell_index_badges.js", "cell_debug_chat.js"],
       "run_at": "document_start"
     }
   ],
   "action": {
     "default_title": "Kernel State Detector",
     "default_popup": ""
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["markdown-it.min.js"],
+      "matches": [
+        "*://kaggle.com/*",
+        "*://*.kaggle.com/*",
+        "*://*.jupyter-proxy.kaggle.net/*"
+      ]
+    }
+  ]
 }

@@ -14,6 +14,7 @@ from testing.host.streaming import (
     begin_active_stream,
     is_stream_stopped,
     clear_active_stream,
+    resolve_active_key,
 )
 
 
@@ -24,6 +25,20 @@ def _clear_streams():
     yield
     with _ACTIVE_STREAMS_LOCK:
         _ACTIVE_STREAMS.clear()
+
+
+def test_resolve_active_key_isolates_cell_debug():
+    assert resolve_active_key(42, "main") == "42"
+    assert resolve_active_key(42, None) == "42"
+    assert resolve_active_key(42, "cell-7") == "42:cell-7"
+
+
+def test_cell_debug_stream_does_not_stop_main_stream():
+    begin_active_stream("9", "main-session", "https://a.com/n")
+    begin_active_stream("9:cell-3", "cell-session", "https://a.com/n")
+    _signal_remote_stop("cell-session")
+    assert is_stream_stopped("9:cell-3", "cell-session")
+    assert not is_stream_stopped("9", "main-session")
 
 
 def test_begin_and_stop_by_session():

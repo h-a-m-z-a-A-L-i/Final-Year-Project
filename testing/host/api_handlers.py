@@ -37,9 +37,9 @@ def handle_chat_request(ctx: dict, msg: dict):
 
     extracted_facts = extract_user_profile_facts(prompt)
     for k, v in extracted_facts.items():
-        memory_store.upsert_fact(url, k, v)
+        memory_store.upsert_fact(url, k, v, session_id=session_id)
 
-    facts = memory_store.get_facts(url)
+    facts = memory_store.get_facts(url, session_id=session_id)
     profile_context = build_profile_memory_context(facts)
     if profile_context:
         context = f"{profile_context}\n\n{context}" if context else profile_context

@@ -179,6 +179,148 @@ def _cell_has_output(cell: dict) -> bool:
     return bool(str(cell.get("output") or "").strip())
 
 
+def _cell_is_empty(cell: dict) -> bool:
+    return not str(cell.get("input") or "").strip()
+
+
+def _empty_cell_context_note(cells: list[dict], cell_index: int | None) -> str:
+    """Hint for prompts when the user references an empty cell."""
+    if cell_index is None:
+        return ""
+    target = _cell_by_index(cells, cell_index)
+    if not target or not _cell_is_empty(target):
+        return ""
+    lines = [
+        f"TARGET_CELL_STATUS: Cell [{cell_index}] is **empty** (no code yet).",
+        "Required assistant behaviour:",
+        "- Tell the user Cell [N] is empty.",
+        "- Ask what they want this cell to do (one short question).",
+        "- Suggest **1–2** sensible next steps based on upstream/downstream flow — do not paste code yet.",
+        "- Only provide code after they pick an option or give a concrete task.",
+    ]
+    upstream: list[str] = []
+    for cell in sorted(cells, key=lambda c: int(c.get("index", 0) or 0)):
+        try:
+            idx = int(cell.get("index", 0))
+        except Exception:
+            continue
+        if idx >= cell_index:
+            break
+        if str(cell.get("type") or "code") != "code" or _cell_is_empty(cell):
+            continue
+        preview = str(cell.get("input") or "").split("\n")[0].strip()[:90]
+        upstream.append(f"  - Cell [{idx}]: {preview}")
+    if upstream:
+        lines.append("Upstream flow (for suggestions):")
+        lines.extend(upstream[-4:])
+    for cell in sorted(cells, key=lambda c: int(c.get("index", 0) or 0)):
+        try:
+            idx = int(cell.get("index", 0))
+        except Exception:
+            continue
+        if idx <= cell_index:
+            continue
+        if str(cell.get("type") or "code") != "code" or _cell_is_empty(cell):
+            continue
+        preview = str(cell.get("input") or "").split("\n")[0].strip()[:90]
+        lines.append(f"Downstream next: Cell [{idx}]: {preview}")
+        break
+    return "\n".join(lines)
+
+
+def _format_full_cell_block(cell: dict) -> str:
+    """Full snapshot block: index, type, execution metadata, input, and output."""
+    try:
+        idx = int(cell.get("index", 0))
+    except Exception:
+        idx = 0
+    ctype = str(cell.get("type") or "code")
+    inp = str(cell.get("input") or "")
+    lines = [f"### Cell [{idx}] ({ctype})", "metadata:"]
+    if _cell_is_empty(cell) and ctype == "code":
+        lines.append("  cell_state: empty (no input code)")
+    for key in (
+        "execution_order",
+        "execution_status",
+        "execution_title",
+        "execution_signal",
+        "state",
+    ):
+        val = cell.get(key)
+        if val is not None and str(val).strip() != "":
+            lines.append(f"  {key}: {val}")
+    lang = "python" if ctype == "code" else "markdown"
+    lines.append("input:")
+    lines.append(f"```{lang}")
+    lines.append(inp or "(empty)")
+    lines.append("```")
+    if ctype == "code":
+        out = str(cell.get("output") or "").strip()
+        cap = int(MAX_CELL_OUTPUT_CHARS)
+        if out and len(out) > cap:
+            out = out[:cap] + "\n... [output truncated]"
+        if out:
+            lines.append("output:")
+            lines.append("```")
+            lines.append(out)
+            lines.append("```")
+        else:
+            lines.append("output: (none)")
+    return "\n".join(lines)
+
+
+def _pack_full_notebook(
+    cells: list[dict],
+    meta: dict,
+    cell_index: int | None,
+) -> tuple[str, list[int]]:
+    """Include every scraped cell with index, input, execution metadata, and output."""
+    listed: list[int] = []
+    sections: list[str] = [
+        "## Full notebook snapshot",
+        "All cells below include index, input, execution metadata, and output (code cells).",
+    ]
+    for cell in sorted(cells, key=lambda c: int(c.get("index", 0) or 0)):
+        try:
+            listed.append(int(cell.get("index", 0)))
+        except Exception:
+            continue
+        sections.append(_format_full_cell_block(cell))
+    body = "\n".join(sections)
+    manifest = _manifest_block(
+        "full",
+        meta.get("snapshot", "none"),
+        kernel_scenario=meta.get("kernel_scenario", "unknown"),
+        cell_index=cell_index,
+        listed_cells=listed,
+    )
+    extra_rules = (
+        "\nrules: Full snapshot mode — every cell is listed. "
+        "Cite cells by 1-based index. Use execution_order and output when reasoning about runs."
+    )
+    return manifest + extra_rules + "\n\n" + body, listed
+
+
+def _notebook_context_char_limit() -> int:
+    try:
+        from .config import (
+            CONTEXT_PACK_MODE,
+            MAX_FULL_NOTEBOOK_CONTEXT_CHARS,
+            MAX_NOTEBOOK_CONTEXT_CHARS,
+        )
+    except Exception:
+        from config import (
+            CONTEXT_PACK_MODE,
+            MAX_FULL_NOTEBOOK_CONTEXT_CHARS,
+            MAX_NOTEBOOK_CONTEXT_CHARS,
+        )
+    if CONTEXT_PACK_MODE == "full":
+        if MAX_FULL_NOTEBOOK_CONTEXT_CHARS > 0:
+            return MAX_FULL_NOTEBOOK_CONTEXT_CHARS
+        return MAX_NOTEBOOK_CONTEXT_CHARS
+    return MAX_NOTEBOOK_CONTEXT_CHARS
+
+
 def _format_cell_block(
     cell: dict,
     *,
@@ -672,19 +814,36 @@ def pack_context(
             manifest={"coverage": "none", "snapshot": "none"},
         )
 
-    tracker, deps, reverse_deps = build_dependency_graph(cells)
+    try:
+        from .config import CONTEXT_PACK_MODE
+    except Exception:
+        from config import CONTEXT_PACK_MODE
 
-    if mode == "code":
-        body, listed = _pack_code(cells, tracker, deps, reverse_deps, cell_index, {**meta, "snapshot": source}, prompt)
-    else:
-        body, listed = _pack_ask(
-            cells, tracker, deps, reverse_deps, cell_index, {**meta, "snapshot": source}, prompt
+    if CONTEXT_PACK_MODE == "full":
+        body, listed = _pack_full_notebook(
+            cells, {**meta, "snapshot": source}, cell_index
         )
+    else:
+        tracker, deps, reverse_deps = build_dependency_graph(cells)
+        if mode == "code":
+            body, listed = _pack_code(
+                cells, tracker, deps, reverse_deps, cell_index, {**meta, "snapshot": source}, prompt
+            )
+        else:
+            body, listed = _pack_ask(
+                cells, tracker, deps, reverse_deps, cell_index, {**meta, "snapshot": source}, prompt
+            )
 
     if meta.get("editor_loading"):
         body += "\n\nNOTE: Kernel/editor is loading — execution metadata may be stale."
 
-    body = _truncate_at_cell_boundaries(body, MAX_NOTEBOOK_CONTEXT_CHARS)
+    empty_note = _empty_cell_context_note(cells, cell_index)
+    if empty_note:
+        body += "\n\n" + empty_note
+
+    char_limit = _notebook_context_char_limit()
+    if char_limit > 0:
+        body = _truncate_at_cell_boundaries(body, char_limit)
     coverage = "none"
     if "coverage: full" in body:
         coverage = "full"

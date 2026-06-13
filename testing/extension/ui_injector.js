@@ -646,19 +646,59 @@
         .history-scroll-area::-webkit-scrollbar-thumb { background: var(--cp-border); border-radius: 10px; }
         .history-placeholder { font-size: 12px; opacity: 0.5; text-align: center; margin-top: 40px; }
         .history-item {
+            display: flex;
+            align-items: stretch;
+            gap: 0;
             background: var(--cp-bubble-bot);
             border: 1px solid var(--cp-bubble-bot-border);
             border-radius: 8px;
-            padding: 8px 10px;
-            cursor: pointer;
+            padding: 0;
             text-align: left;
             color: var(--cp-text);
             transition: border-color 0.2s, background 0.2s;
+            overflow: hidden;
         }
         .history-item:hover { border-color: var(--cp-accent); }
         .history-item.active {
             border-color: var(--cp-accent);
             background: rgba(71,161,255,0.12);
+        }
+        .history-item.removing {
+            opacity: 0;
+            transform: translateX(8px);
+            transition: opacity 0.15s ease, transform 0.15s ease;
+            pointer-events: none;
+        }
+        .history-delete-btn {
+            flex-shrink: 0;
+            width: 32px;
+            border: none;
+            border-left: 1px solid var(--cp-bubble-bot-border);
+            background: transparent;
+            color: var(--cp-text);
+            cursor: pointer;
+            opacity: 0.5;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .history-delete-btn svg {
+            width: 14px;
+            height: 14px;
+            display: block;
+            pointer-events: none;
+        }
+        .history-delete-btn:hover {
+            opacity: 1;
+            background: rgba(220, 70, 70, 0.15);
+            color: #e85d5d;
+        }
+        .history-item-body {
+            flex: 1;
+            min-width: 0;
+            padding: 8px 10px;
+            cursor: pointer;
         }
         .history-title {
             font-size: 12px;
@@ -1355,6 +1395,10 @@
             streamMessageEl.classList.remove('streaming');
         } else if (opts.error) {
             appendMessage('assistant', `Error: ${opts.error}`);
+        } else if (opts.stopped) {
+            appendMessage('assistant', 'Stopped.');
+        } else {
+            appendMessage('assistant', 'No response.');
         }
 
         setStreamingState(false);
@@ -1414,6 +1458,118 @@
             type: 'GET_HISTORY',
             url: currentNotebookUrl(),
             sessionId: sessionId || getCurrentSessionId()
+        });
+    }
+
+    const deletedSessionIds = new Set();
+
+    const historyTrashIcon = (
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">'
+        + '<path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-7 0l.7 11.2c.1 1.1 1 2 2.1 2h5.4c1.1 0 2-.9 2.1-2L17 7"/>'
+        + '<path stroke-linecap="round" d="M10 11v5M14 11v5"/>'
+        + '</svg>'
+    );
+
+    function getHistoryListEl() {
+        return wrapper.querySelector('#history-list');
+    }
+
+    function removeConversationFromList(sessionId) {
+        const sid = String(sessionId || '').trim();
+        const list = getHistoryListEl();
+        if (!list || !sid) return;
+        const safeSid = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(sid) : sid.replace(/"/g, '\\"');
+        const item = list.querySelector(`.history-item[data-session-id="${safeSid}"]`);
+        if (item) item.remove();
+        if (!list.querySelector('.history-item')) {
+            list.innerHTML = '<p class="history-placeholder">No saved conversations yet.</p>';
+        }
+    }
+
+    function buildHistoryItem(session, activeSessionId, index) {
+        const sid = String(session.sessionId || '').trim();
+        if (!sid) return null;
+        const title = String(session.title || '').trim() || `Conversation ${index + 1}`;
+
+        const item = document.createElement('div');
+        item.className = `history-item${sid === activeSessionId ? ' active' : ''}`;
+        item.dataset.sessionId = sid;
+
+        const body = document.createElement('div');
+        body.className = 'history-item-body';
+        body.title = title;
+        body.innerHTML = `<div class="history-title">${escapeHtml(title)}</div><div class="history-meta">${Number(session.messageCount || 0)} messages</div>`;
+        body.addEventListener('click', () => {
+            setCurrentSessionId(sid);
+            requestHistory(sid);
+            historyDropdown.classList.remove('active');
+            historyToggle.classList.remove('active');
+        });
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'history-delete-btn';
+        deleteBtn.title = 'Delete conversation';
+        deleteBtn.setAttribute('aria-label', `Delete conversation: ${title}`);
+        deleteBtn.innerHTML = historyTrashIcon;
+        deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteConversation(sid);
+        });
+
+        item.appendChild(body);
+        item.appendChild(deleteBtn);
+        return item;
+    }
+
+    function syncDeletedSessionIds(sessions) {
+        const serverIds = new Set(
+            (Array.isArray(sessions) ? sessions : [])
+                .map((s) => String(s.sessionId || '').trim())
+                .filter(Boolean)
+        );
+        deletedSessionIds.forEach((sid) => {
+            if (!serverIds.has(sid)) deletedSessionIds.delete(sid);
+        });
+    }
+
+    function renderConversationList(sessions, activeSessionId) {
+        const list = getHistoryListEl();
+        if (!list) return;
+        list.innerHTML = '';
+        const rows = (Array.isArray(sessions) ? sessions : []).filter(
+            (s) => !deletedSessionIds.has(String(s.sessionId || '').trim())
+        );
+        if (rows.length === 0) {
+            list.innerHTML = '<p class="history-placeholder">No saved conversations yet.</p>';
+            return;
+        }
+        rows.forEach((s, i) => {
+            const item = buildHistoryItem(s, activeSessionId, i);
+            if (item) list.appendChild(item);
+        });
+    }
+
+    function deleteConversation(sessionId) {
+        const sid = String(sessionId || '').trim();
+        if (!sid) return;
+        if (!confirm('Delete this conversation permanently?')) return;
+
+        deletedSessionIds.add(sid);
+        removeConversationFromList(sid);
+        historyDropdown.classList.add('active');
+        historyToggle.classList.add('active');
+        if (sid === getCurrentSessionId()) {
+            setCurrentSessionId(createSessionId());
+            resetChatToDefault();
+        }
+
+        chrome.runtime.sendMessage({
+            type: 'CLEAR_HISTORY',
+            url: currentNotebookUrl(),
+            sessionId: sid
+        }, () => {
+            requestHistory(getCurrentSessionId());
         });
     }
 
@@ -1533,7 +1689,8 @@
             return;
         }
         const msgSessionId = String(msg?.sessionId || '');
-        if (msgSessionId && msgSessionId !== getCurrentSessionId()) {
+        const sessionScopedTypes = new Set(['CHAT_STREAM', 'CHAT_STREAM_END', 'CHAT_RESPONSE']);
+        if (msgSessionId && sessionScopedTypes.has(msg.type) && msgSessionId !== getCurrentSessionId()) {
             return;
         }
 
@@ -1565,31 +1722,24 @@
                 appendMessage('assistant', msg.response || msg.error || 'No response.');
             }
         }
+        if (msg.type === 'HISTORY_CLEARED') {
+            const deletedSid = String(msg.sessionId || '').trim();
+            if (deletedSid) deletedSessionIds.add(deletedSid);
+            removeConversationFromList(deletedSid);
+            if (deletedSid && deletedSid === getCurrentSessionId()) {
+                setCurrentSessionId(createSessionId());
+                resetChatToDefault();
+            }
+            requestHistory(getCurrentSessionId());
+            return;
+        }
+
         if (msg.type === 'HISTORY_DATA') {
             const activeSessionId = String(msg.activeSessionId || getCurrentSessionId());
             const history = Array.isArray(msg.history) ? msg.history : [];
             const sessions = Array.isArray(msg.sessions) ? msg.sessions : [];
-            const list = wrapper.querySelector('#history-list');
-            list.innerHTML = '';
-
-            if (sessions.length > 0) {
-                sessions.forEach((s, i) => {
-                    const sid = String(s.sessionId || '');
-                    if (!sid) return;
-                    const item = document.createElement('div');
-                    item.className = `history-item${sid === activeSessionId ? ' active' : ''}`;
-                    item.innerHTML = `<div class="history-title">Conversation ${i + 1}</div><div class="history-meta">${Number(s.messageCount || 0)} messages</div>`;
-                    item.addEventListener('click', () => {
-                        setCurrentSessionId(sid);
-                        requestHistory(sid);
-                        historyDropdown.classList.remove('active');
-                        historyToggle.classList.remove('active');
-                    });
-                    list.appendChild(item);
-                });
-            } else {
-                list.innerHTML = '<p class="history-placeholder">No saved conversations yet.</p>';
-            }
+            syncDeletedSessionIds(sessions);
+            renderConversationList(sessions, activeSessionId);
 
             if (activeSessionId !== getCurrentSessionId()) {
                 return;

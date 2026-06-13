@@ -586,6 +586,34 @@ function normalizeNotebookUrl(rawUrl) {
   }
 }
 
+const NOTEBOOK_SCOPED_MSG_TYPES = new Set([
+  "CHAT_REQUEST",
+  "STOP_CHAT",
+  "GET_HISTORY",
+  "CLEAR_HISTORY",
+  "GET_GRAPH",
+]);
+
+const TAB_BROADCAST_TYPES = new Set([
+  "CHAT_STREAM",
+  "CHAT_STREAM_END",
+  "CHAT_RESPONSE",
+  "HISTORY_DATA",
+  "HISTORY_CLEARED",
+]);
+
+function broadcastToTabFrames(tabId, payload) {
+  chrome.webNavigation.getAllFrames({ tabId }, (frames) => {
+    if (chrome.runtime.lastError || !Array.isArray(frames) || frames.length === 0) {
+      chrome.tabs.sendMessage(tabId, payload).catch(() => {});
+      return;
+    }
+    for (const frame of frames) {
+      chrome.tabs.sendMessage(tabId, payload, { frameId: frame.frameId }).catch(() => {});
+    }
+  });
+}
+
 function resolveTabIdForUrl(rawUrl, sender, callback) {
   if (typeof sender?.tab?.id === "number") {
     callback(sender.tab.id);
@@ -888,7 +916,11 @@ function getPort() {
 
     // Only deliver tab-scoped data to the originating tab to avoid cross-tab leakage.
     if (typeof msg?.tabId === "number") {
-      chrome.tabs.sendMessage(msg.tabId, msg);
+      if (TAB_BROADCAST_TYPES.has(msg?.type)) {
+        broadcastToTabFrames(msg.tabId, msg);
+      } else {
+        chrome.tabs.sendMessage(msg.tabId, msg).catch(() => {});
+      }
       return;
     }
 
@@ -962,7 +994,11 @@ function getPort() {
       }
 
       // Otherwise treat as passive data (history/graph/chat) and just forward
-      chrome.tabs.sendMessage(resolvedTabId, msg);
+      if (TAB_BROADCAST_TYPES.has(msg?.type)) {
+        broadcastToTabFrames(resolvedTabId, msg);
+      } else {
+        chrome.tabs.sendMessage(resolvedTabId, msg).catch(() => {});
+      }
     });
     return;
   });
@@ -987,7 +1023,7 @@ function injectUI(tabId) {
 
   chrome.scripting.executeScript({
     target: { tabId: tabId, allFrames: true },
-    files: ["cell_index_utils.js", "cell_index_badges.js"]
+    files: ["markdown-it.min.js", "cell_index_utils.js", "cell_index_badges.js", "cell_debug_chat.js"]
   }).catch(e => console.warn("Cell index badge injection failed:", e));
 
   // Ensure kernel_state_listener is present for already-open tabs
@@ -1001,6 +1037,12 @@ function injectUI(tabId) {
 const __pendingInsertCode = new Map();
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg?.type === "GET_TAB_NOTEBOOK_URL") {
+    const tabUrl = sender.tab?.url ? normalizeNotebookUrl(sender.tab.url) : "";
+    sendResponse({ url: tabUrl || null });
+    return true;
+  }
+
   if (msg?.type === "INSERT_CODE_CELL") {
     const requestId = msg.requestId || `insert_${Date.now()}_${Math.random().toString(16).slice(2)}`;
     const tabId = sender.tab?.id;
@@ -1058,6 +1100,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         }
       });
       return true;
+    }
+
+    // Notebook data/history is keyed by the tab's /edit URL, not the Jupyter iframe URL.
+    if (sender.tab?.url && NOTEBOOK_SCOPED_MSG_TYPES.has(msg?.type)) {
+      const tabNotebookUrl = normalizeNotebookUrl(sender.tab.url);
+      if (tabNotebookUrl) msg.url = tabNotebookUrl;
     }
 
     // Tag the message with the sender's tabId so we know where to send the AI's reply

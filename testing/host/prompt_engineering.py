@@ -71,14 +71,28 @@ _PLACEMENT_HINT_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-# Appended last in every system prompt (lost-in-the-middle mitigation).
-_SYSTEM_NOTES_TAIL = """\
-- Read CONTEXT_MANIFEST before citing any cell.
+# Appended last in system prompts (lost-in-the-middle mitigation).
+_SYSTEM_NOTES_ASK = """\
+- Read CONTEXT_MANIFEST and TARGET_CELL_STATUS before citing any cell.
+- Only cite cells in `listed_cells` or notebook evidence — never invent cell contents.
+- **Empty target cell:** acknowledge it, ask what the user wants there, suggest 1–2 flow-appropriate next steps — no code dump yet.
+- Reply directly to the user. No meta preamble ("User asks…", "I will explain…", "Let me think…").
+- Do not echo notebook UI actions (Insert below, Create new cell, Copy, Edit cell) — describe cells by index only.
+- Use clean Markdown: heading, bullets or numbered steps. No raw JSON or graph dumps.
+- If `coverage` is none or partial and evidence is missing, start with **INSUFFICIENT_CONTEXT** and one question."""
+
+_SYSTEM_NOTES_CODE = """\
+- Read CONTEXT_MANIFEST and TARGET_CELL_STATUS before citing any cell.
 - Only cite cells in `listed_cells` or tool results — never invent cell contents.
-- For new scripts: recommend **Insert Code Cell Below** the defining cell (from `notebook_recommend_placement`), not a random empty cell far away.
-- User-facing reply: Placement bullets + one `python` code block. No raw graph JSON, no duplicate code blocks, no "bold evidence" filler.
+- **Empty target cell:** ask what the user wants, suggest 1–2 flow-appropriate options — no Placement/Code until they confirm.
+- For new scripts: recommend **Insert Code Cell Below** the defining cell, not a random empty cell far away.
+- User-facing reply: Placement bullets + one `python` code block when generating code. No duplicate blocks.
 - If `coverage` is none or partial and tools lack data, start with **INSUFFICIENT_CONTEXT**.
 - When calling tools, pass the exact session notebook URL from Context."""
+
+
+def _system_notes_tail(mode: str) -> str:
+    return _SYSTEM_NOTES_CODE if normalize_mode(mode) == "code" else _SYSTEM_NOTES_ASK
 
 
 def list_chat_modes() -> list[dict[str, str]]:
@@ -216,9 +230,10 @@ def merge_context_with_profile(notebook_context: str, profile_context: str) -> s
     if notebook_context:
         parts.append(notebook_context.strip())
     merged = "\n\n".join(parts)
-    if len(merged) > MAX_CONTEXT_CHARS + MAX_NOTEBOOK_CONTEXT_CHARS:
+    notebook_budget = MAX_NOTEBOOK_CONTEXT_CHARS if MAX_NOTEBOOK_CONTEXT_CHARS > 0 else None
+    if notebook_budget is not None and len(merged) > MAX_CONTEXT_CHARS + notebook_budget:
         if profile_context and len(profile_context) < MAX_CONTEXT_CHARS:
-            budget = MAX_CONTEXT_CHARS + MAX_NOTEBOOK_CONTEXT_CHARS - len(profile_context)
+            budget = MAX_CONTEXT_CHARS + notebook_budget - len(profile_context)
             if notebook_context and len(notebook_context) > budget:
                 notebook_context = notebook_context[:budget] + "\n...[merged context truncated]"
             parts = [profile_context.strip(), notebook_context.strip()] if notebook_context else [profile_context.strip()]
@@ -270,9 +285,10 @@ def build_system_content(
         context_parts.append(base["context"])
     if notebook_url:
         context_parts.append(f"Notebook URL: {notebook_url}")
-    context_parts.append(
-        "When calling tools, always pass this exact notebook URL in the `url` argument."
-    )
+    if include_tools:
+        context_parts.append(
+            "When calling tools, always pass this exact notebook URL in the `url` argument."
+        )
     context_parts.append(
         "Ground answers only in CONTEXT_MANIFEST, notebook evidence below, and tool/prefetched results."
     )
@@ -294,7 +310,7 @@ def build_system_content(
         notes_parts.append(mode_secs["notes"])
     if base.get("notes"):
         notes_parts.append(base["notes"])
-    notes_parts.append(_SYSTEM_NOTES_TAIL)
+    notes_parts.append(_system_notes_tail(mode))
 
     ordered_blocks = [
         _section_block(

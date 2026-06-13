@@ -41,17 +41,50 @@ BOT_COMMANDS_PATH = DATA_ROOT / "meta" / "bot_commands.jsonl"
 BOT_RESULTS_PATH = DATA_ROOT / "meta" / "bot_results.jsonl"
 DB_TIMEOUT_SECONDS = 10
 MAX_HISTORY_MESSAGES = 24  # SQLite + UI display
-MAX_HISTORY_MESSAGES_API = int(os.environ.get("MAX_HISTORY_MESSAGES_API", "10"))
 MAX_HISTORY_CHARS_PER_MSG = int(os.environ.get("MAX_HISTORY_CHARS_PER_MSG", "1000"))
-MAX_INPUT_TOKENS = int(os.environ.get("MAX_INPUT_TOKENS", "7000"))
+# Context packing: "full" sends every cell with metadata; "intent" uses mode-specific slices.
+CONTEXT_PACK_MODE = os.environ.get("CONTEXT_PACK_MODE", "full").strip().lower()
+if CONTEXT_PACK_MODE not in ("full", "intent"):
+    CONTEXT_PACK_MODE = "full"
+if "MAX_HISTORY_MESSAGES_API" in os.environ:
+    MAX_HISTORY_MESSAGES_API = int(os.environ["MAX_HISTORY_MESSAGES_API"])
+elif CONTEXT_PACK_MODE == "full":
+    MAX_HISTORY_MESSAGES_API = 3
+else:
+    MAX_HISTORY_MESSAGES_API = 10
+if "MAX_INPUT_TOKENS" in os.environ:
+    MAX_INPUT_TOKENS = int(os.environ["MAX_INPUT_TOKENS"])
+elif CONTEXT_PACK_MODE == "full":
+    MAX_INPUT_TOKENS = 50_000
+else:
+    MAX_INPUT_TOKENS = 7000
 CHARS_PER_TOKEN_ESTIMATE = int(os.environ.get("CHARS_PER_TOKEN_ESTIMATE", "4"))
 MAX_CONTEXT_CHARS = 1800
-MAX_NOTEBOOK_CONTEXT_CHARS = int(os.environ.get("MAX_NOTEBOOK_CONTEXT_CHARS", "6000"))
+if "MAX_NOTEBOOK_CONTEXT_CHARS" in os.environ:
+    MAX_NOTEBOOK_CONTEXT_CHARS = int(os.environ["MAX_NOTEBOOK_CONTEXT_CHARS"])
+elif CONTEXT_PACK_MODE == "full":
+    MAX_NOTEBOOK_CONTEXT_CHARS = 0  # 0 = no char cap; output per cell still uses MAX_CELL_OUTPUT_CHARS
+else:
+    MAX_NOTEBOOK_CONTEXT_CHARS = 6000
+# Full-mode notebook char cap (keeps prompts under free-tier 60k TPM). 0 = unlimited (may 429).
+if "MAX_FULL_NOTEBOOK_CONTEXT_CHARS" in os.environ:
+    MAX_FULL_NOTEBOOK_CONTEXT_CHARS = int(os.environ["MAX_FULL_NOTEBOOK_CONTEXT_CHARS"])
+elif CONTEXT_PACK_MODE == "full":
+    MAX_FULL_NOTEBOOK_CONTEXT_CHARS = 30_000
+else:
+    MAX_FULL_NOTEBOOK_CONTEXT_CHARS = 0
+# Reserve headroom under Cerebras free-tier TPM (60k/min) for completion tokens.
+TPM_PREFLIGHT_RATIO = float(os.environ.get("TPM_PREFLIGHT_RATIO", "0.85"))
 MAX_PROFILE_FACTS = 12
 SYMBOL_CONTEXT_ENABLED = os.environ.get("SYMBOL_CONTEXT_ENABLED", "1").strip().lower() in ("1", "true", "yes")
 MAX_SYMBOL_SNIPPET_CHARS = int(os.environ.get("MAX_SYMBOL_SNIPPET_CHARS", "400"))
 MAX_SYMBOL_DEPTH = int(os.environ.get("MAX_SYMBOL_DEPTH", "2"))
-MAX_CELL_OUTPUT_CHARS = int(os.environ.get("MAX_CELL_OUTPUT_CHARS", "2500"))
+if "MAX_CELL_OUTPUT_CHARS" in os.environ:
+    MAX_CELL_OUTPUT_CHARS = int(os.environ["MAX_CELL_OUTPUT_CHARS"])
+elif CONTEXT_PACK_MODE == "full":
+    MAX_CELL_OUTPUT_CHARS = 800
+else:
+    MAX_CELL_OUTPUT_CHARS = 2500
 ALLOWED_MODES = {"ask", "code"}
 
 # Free-tier limits.

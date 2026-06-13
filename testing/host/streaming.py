@@ -244,27 +244,28 @@ def _check_token_limits() -> tuple[bool, str]:
     return True, ""
 
 
-def _chunk_text_from_event(event) -> str:
-    def _extract_text(value) -> str:
-        if value is None:
-            return ""
-        if isinstance(value, str):
-            return value
-        if isinstance(value, list):
-            out = []
-            for part in value:
-                if isinstance(part, dict):
-                    t = part.get("text") or part.get("content") or ""
-                else:
-                    t = getattr(part, "text", None) or getattr(part, "content", "")
-                t = _extract_text(t)
-                if t:
-                    out.append(t)
-            return "".join(out)
-        if isinstance(value, dict):
-            return _extract_text(value.get("text") or value.get("content") or "")
-        return str(getattr(value, "text", None) or getattr(value, "content", "") or "")
+def _extract_delta_text(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        out = []
+        for part in value:
+            if isinstance(part, dict):
+                t = part.get("text") or part.get("content") or ""
+            else:
+                t = getattr(part, "text", None) or getattr(part, "content", "")
+            t = _extract_delta_text(t)
+            if t:
+                out.append(t)
+        return "".join(out)
+    if isinstance(value, dict):
+        return _extract_delta_text(value.get("text") or value.get("content") or "")
+    return str(getattr(value, "text", None) or getattr(value, "content", "") or "")
 
+
+def _chunk_text_from_event(event) -> str:
     try:
         choices = getattr(event, "choices", None) or []
         if not choices:
@@ -272,9 +273,36 @@ def _chunk_text_from_event(event) -> str:
         delta = getattr(choices[0], "delta", None)
         if delta is None:
             return ""
-        return _extract_text(getattr(delta, "content", None))
+        return _extract_delta_text(getattr(delta, "content", None))
     except Exception:
         return ""
+
+
+def _completion_extra_kwargs() -> dict:
+    """Model-specific API options (reasoning models, etc.)."""
+    extra: dict = {}
+    model = str(CEREBRAS_MODEL or "").lower()
+    if "gpt-oss" in model or "glm" in model or "qwen" in model:
+        extra["reasoning_format"] = "hidden"
+    return extra
+
+
+def _preflight_prompt_budget(estimated_tokens: int) -> tuple[bool, str]:
+    allowed, details = _check_token_limits()
+    if not allowed:
+        return False, details
+    budget = int(TPM_LIMIT * TPM_PREFLIGHT_RATIO)
+    with _RATE_LOCK:
+        tracker = _prune_rate_tracker(_load_rate_tracker())
+        tpm, _, _, _, _, _ = _rate_usage(tracker.get("events", []))
+    projected = tpm + max(0, int(estimated_tokens))
+    if projected > budget:
+        return (
+            False,
+            f"Prompt uses ~{estimated_tokens} tokens; rolling minute usage {tpm}/{TPM_LIMIT}. "
+            f"Wait ~60s and retry, or set CONTEXT_PACK_MODE=intent / lower MAX_CELL_OUTPUT_CHARS.",
+        )
+    return True, ""
 
 
 def _final_text_from_response(response) -> str:
@@ -310,9 +338,7 @@ def _final_text_from_response(response) -> str:
             return ""
         message = getattr(choices[0], "message", None)
         if message is not None:
-            text = _extract_text(getattr(message, "content", None))
-            if text:
-                return text
+            return _extract_text(getattr(message, "content", None))
         if hasattr(response, "model_dump"):
             dumped = response.model_dump()
             d_choices = dumped.get("choices") or []
@@ -342,6 +368,14 @@ def _stop_active_stream(state: dict | None):
         return
     state["stopped"] = True
     _close_stream_handle(state.get("stream"))
+
+
+def resolve_active_key(tab_id, stream_channel: str | None = None) -> str:
+    """Isolate concurrent streams on the same tab (main copilot vs per-cell debug)."""
+    channel = str(stream_channel or "main").strip() or "main"
+    if channel == "main":
+        return str(tab_id)
+    return f"{tab_id}:{channel}"
 
 
 def begin_active_stream(active_key: str, session_id: str, url: str):
@@ -411,7 +445,8 @@ def _interruptible_sleep(seconds: float, cancel_check) -> bool:
 
 def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode, explicit_mode=None, context_meta=None):
     full_text = ""
-    active_key = str(tab_id)
+    context_meta = context_meta if isinstance(context_meta, dict) else {}
+    active_key = str(context_meta.get("active_key") or tab_id)
     attempt_id = ""
     state = None
     response = None
@@ -434,7 +469,6 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
         except Exception:
             from prompt_engineering import detect_mode, build_chat_messages, normalize_mode
 
-        context_meta = context_meta if isinstance(context_meta, dict) else {}
         resolved_mode = detect_mode(
             prompt,
             explicit_mode or mode,
@@ -443,13 +477,14 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
         resolved_mode = normalize_mode(resolved_mode)
         log(f"AI Stream Request for {url} (session={session_id}, model={CEREBRAS_MODEL}, mode={resolved_mode})")
 
+        include_tools = str(CONTEXT_PACK_MODE or "").lower() != "full"
         messages = build_chat_messages(
             mode=resolved_mode,
             user_prompt=prompt,
             history=history,
             context=context,
             notebook_url=url,
-            include_tools=True,
+            include_tools=include_tools,
         )
 
         pre_stream_tools_done = False
@@ -516,7 +551,13 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
         except Exception:
             from context_budget import fit_messages_to_budget, estimate_messages_tokens
         messages = fit_messages_to_budget(messages)
-        log(f"Prompt budget: ~{estimate_messages_tokens(messages)} est. tokens, {len(messages)} messages")
+        est_tokens = estimate_messages_tokens(messages)
+        log(f"Prompt budget: ~{est_tokens} est. tokens, {len(messages)} messages")
+        ok_budget, budget_err = _preflight_prompt_budget(est_tokens)
+        if not ok_budget:
+            raise Exception(budget_err)
+
+        completion_extra = _completion_extra_kwargs()
 
         while True:
             if _is_stopped():
@@ -534,18 +575,27 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
             if not allowed:
                 raise Exception(f"Local rate limit hit: {details}")
             try:
+                log("Calling Cerebras API (streaming)...")
+                t_api = time.monotonic()
                 stream = _CEREBRAS_CLIENT.chat.completions.create(
                     messages=messages,
                     model=CEREBRAS_MODEL,
                     stream=True,
                     temperature=TEMPERATURE,
                     top_p=TOP_P,
+                    **completion_extra,
                 )
+                log(f"Cerebras stream opened in {time.monotonic() - t_api:.2f}s")
                 break
             except Exception as stream_error:
                 err = str(stream_error)
                 if _is_stopped():
                     break
+                if "too_many_tokens" in err or "token_quota_exceeded" in err:
+                    raise Exception(
+                        "Cerebras token-per-minute limit exceeded. The full notebook prompt is too large. "
+                        "Wait ~60 seconds, then retry. Or set CONTEXT_PACK_MODE=intent in .env."
+                    ) from stream_error
                 if "429" in err or "queue_exceeded" in err or "too_many_requests_error" in err:
                     log("Queue busy. Retrying in 2.5s...")
                     if _interruptible_sleep(2.5, _is_stopped):
@@ -589,6 +639,7 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
             })
             return
 
+        first_chunk_logged = False
         for event in stream:
             with _ACTIVE_STREAMS_LOCK:
                 state = _ACTIVE_STREAMS.get(active_key)
@@ -598,6 +649,10 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
             chunk = _chunk_text_from_event(event)
             if not chunk:
                 continue
+
+            if not first_chunk_logged:
+                log("First stream chunk received")
+                first_chunk_logged = True
 
             full_text += chunk
             send_msg({
@@ -631,6 +686,7 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                 model=CEREBRAS_MODEL,
                 temperature=TEMPERATURE,
                 top_p=TOP_P,
+                **completion_extra,
             )
             full_text = _final_text_from_response(response)
 
@@ -670,6 +726,7 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                             parallel_tool_calls=False,
                             temperature=TEMPERATURE,
                             top_p=TOP_P,
+                            **completion_extra,
                         )
                     except Exception as e:
                         log(f"Tool-enabled model call failed: {e}")
@@ -729,6 +786,7 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                             model=CEREBRAS_MODEL,
                             temperature=TEMPERATURE,
                             top_p=TOP_P,
+                            **completion_extra,
                         )
                         followup = _final_text_from_response(final_resp).strip()
                         if followup:
