@@ -1,0 +1,233 @@
+{
+  "tabUrl": "https://www.kaggle.com/code/codekey/zameen-scraping/edit",
+  "title": "__notebook_source__",
+  "lastUpdated": "2026-06-13T00:51:43.188917+00:00",
+  "cells": [
+    {
+      "type": "code",
+      "index": 1,
+      "input": "",
+      "output": "",
+      "execution_order": 1,
+      "execution_title": "Execution #1"
+    },
+    {
+      "type": "code",
+      "index": 2,
+      "input": "",
+      "output": "",
+      "execution_order": 2,
+      "execution_title": "Execution #2"
+    },
+    {
+      "type": "code",
+      "index": 3,
+      "input": "",
+      "output": "",
+      "execution_order": 3,
+      "execution_title": "Execution #3"
+    },
+    {
+      "type": "code",
+      "index": 4,
+      "input": "",
+      "output": "",
+      "execution_order": 4,
+      "execution_title": "Execution #4"
+    },
+    {
+      "type": "code",
+      "index": 5,
+      "input": "",
+      "output": "",
+      "execution_order": 5,
+      "execution_title": "Execution #5"
+    },
+    {
+      "type": "code",
+      "index": 6,
+      "input": "",
+      "output": "",
+      "execution_order": 6,
+      "execution_title": "Execution #6"
+    },
+    {
+      "type": "code",
+      "index": 7,
+      "input": "",
+      "output": "",
+      "execution_order": null,
+      "execution_title": ""
+    },
+    {
+      "type": "code",
+      "index": 8,
+      "input": "",
+      "output": "",
+      "execution_order": 12,
+      "execution_title": "Execution #12"
+    },
+    {
+      "type": "markdown",
+      "index": 9,
+      "input": "",
+      "state": "open"
+    },
+    {
+      "type": "code",
+      "index": 10,
+      "input": "",
+      "output": "",
+      "execution_order": 21,
+      "execution_title": "Execution #21"
+    },
+    {
+      "type": "code",
+      "index": 11,
+      "input": "",
+      "output": "",
+      "execution_order": 13,
+      "execution_title": "Execution #13"
+    },
+    {
+      "type": "markdown",
+      "index": 12,
+      "input": "",
+      "state": "open"
+    },
+    {
+      "type": "code",
+      "index": 13,
+      "input": "",
+      "output": "",
+      "execution_order": 1,
+      "execution_title": "Execution #1"
+    },
+    {
+      "type": "code",
+      "index": 14,
+      "input": "",
+      "output": "",
+      "execution_order": null,
+      "execution_title": ""
+    },
+    {
+      "type": "code",
+      "index": 15,
+      "input": "",
+      "output": "",
+      "execution_order": null,
+      "execution_title": ""
+    },
+    {
+      "type": "code",
+      "index": 16,
+      "input": "",
+      "output": "",
+      "execution_order": 17,
+      "execution_title": "Execution #17"
+    },
+    {
+      "type": "code",
+      "index": 17,
+      "input": "",
+      "output": "",
+      "execution_order": 20,
+      "execution_title": "Execution #20"
+    },
+    {
+      "type": "code",
+      "index": 18,
+      "input": "",
+      "output": "",
+      "execution_order": 8,
+      "execution_title": "Execution #8"
+    },
+    {
+      "type": "code",
+      "index": 19,
+      "input": "",
+      "output": "",
+      "execution_order": 18,
+      "execution_title": "Execution #18"
+    },
+    {
+      "type": "code",
+      "index": 20,
+      "input": "",
+      "output": "",
+      "execution_order": 23,
+      "execution_title": "Execution #23"
+    },
+    {
+      "type": "code",
+      "index": 21,
+      "input": "",
+      "output": "",
+      "execution_order": 42,
+      "execution_title": "Execution #42"
+    },
+    {
+      "type": "code",
+      "index": 22,
+      "input": "",
+      "output": "",
+      "execution_order": 26,
+      "execution_title": "Execution #26"
+    },
+    {
+      "type": "code",
+      "index": 23,
+      "input": "",
+      "output": "",
+      "execution_order": 34,
+      "execution_title": "Execution #34"
+    },
+    {
+      "type": "code",
+      "index": 24,
+      "input": "",
+      "output": "",
+      "execution_order": 37,
+      "execution_title": "Execution #37"
+    },
+    {
+      "type": "code",
+      "index": 25,
+      "input": "",
+      "output": "Initializing master dataset file: zameen_master_dataset.csv",
+      "execution_order": null,
+      "execution_title": ""
+    },
+    {
+      "type": "code",
+      "index": 26,
+      "input": "",
+      "output": "",
+      "execution_order": 43,
+      "execution_title": "Execution #43"
+    },
+    {
+      "type": "markdown",
+      "index": 27,
+      "input": "",
+      "state": "open"
+    },
+    {
+      "type": "code",
+      "index": 28,
+      "input": "",
+      "output": "",
+      "execution_order": 7,
+      "execution_title": "Execution #7"
+    },
+    {
+      "type": "code",
+      "index": 29,
+      "input": "",
+      "output": "",
+      "execution_order": null,
+      "execution_title": ""
+    }
+  ]
+}

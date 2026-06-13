@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal EnableExtensions
 
 REM Always run from this script's folder
 cd /d "%~dp0"
@@ -28,11 +28,20 @@ if "%COMMIT_MSG%"=="" (
 echo Staging all changes...
 git add -A
 
+REM Never commit local secrets. Allow a one-time staged delete to drop .env from the repo.
+call :unstage_sensitive
+
 git diff --cached --quiet
 if %errorlevel%==0 (
   echo No changes to commit.
   pause
   exit /b 0
+)
+
+call :block_if_sensitive_staged
+if errorlevel 1 (
+  pause
+  exit /b 1
 )
 
 echo Creating commit...
@@ -53,4 +62,34 @@ if errorlevel 1 (
 
 echo Done. Commit and push completed successfully.
 pause
+exit /b 0
+
+:unstage_path
+REM %1 = path to protect. Keep staged delete (D), unstage add/modify (A/M).
+git diff --cached --name-status -- "%~1" 2>nul | findstr /r /b "D" >nul
+if errorlevel 1 git reset HEAD -- "%~1" 2>nul
+exit /b 0
+
+:unstage_sensitive
+call :unstage_path .env
+call :unstage_path "kaggle json"
+for /f "delims=" %%f in ('git diff --cached --name-only ^| findstr /i /r "kaggle\\.json kernel-metadata\\.json \\.env\\."') do (
+  call :unstage_path "%%f"
+)
+exit /b 0
+
+:block_if_sensitive_staged
+set "BLOCKED=0"
+for /f "delims=" %%f in ('git diff --cached --name-only ^| findstr /i /r "\\.env$ \\.env\\. kaggle\\.json kernel-metadata\\.json"') do (
+  git diff --cached --name-status -- "%%f" | findstr /r /b "D" >nul
+  if errorlevel 1 (
+    echo ERROR: Sensitive file is staged and will not be committed: %%f
+    set "BLOCKED=1"
+  )
+)
+if "%BLOCKED%"=="1" (
+  echo.
+  echo Commit aborted. Secrets must stay local.
+  exit /b 1
+)
 exit /b 0

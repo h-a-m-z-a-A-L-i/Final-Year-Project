@@ -586,6 +586,118 @@ function normalizeNotebookUrl(rawUrl) {
   }
 }
 
+const notebookIdentityByTab = {};
+const lastNotebookUrlByTab = {};
+
+function fallbackNotebookIdentity(tabUrl) {
+  const url = normalizeNotebookUrl(tabUrl);
+  return { url, notebookId: null, notebookKey: url, userName: null, kernelSlug: null };
+}
+
+function attachNotebookIdentity(msg, tabId) {
+  const identity = typeof tabId === "number" ? notebookIdentityByTab[tabId] : null;
+  if (!identity) return msg;
+  if (identity.url) msg.url = identity.url;
+  if (identity.notebookKey) msg.notebookKey = identity.notebookKey;
+  if (identity.notebookId != null) msg.notebookId = identity.notebookId;
+  return msg;
+}
+
+function resolveNotebookIdentityFromHost(tabUrl, tabId, callback) {
+  const port = getPort();
+  if (!port) {
+    callback(fallbackNotebookIdentity(tabUrl));
+    return;
+  }
+  let settled = false;
+  const finish = (identity) => {
+    if (settled) return;
+    settled = true;
+    try { port.onMessage.removeListener(onHostMessage); } catch (_) {}
+    callback(identity);
+  };
+  const onHostMessage = (msg) => {
+    if (msg?.type !== "NOTEBOOK_IDENTITY") return;
+    if (typeof tabId === "number" && msg.tabId != null && msg.tabId !== tabId) return;
+    const url = normalizeNotebookUrl(msg.url || tabUrl);
+    finish({
+      url,
+      notebookId: msg.notebookId ?? null,
+      notebookKey: String(msg.notebookKey || url).trim() || url,
+      userName: null,
+      kernelSlug: null,
+    });
+  };
+  port.onMessage.addListener(onHostMessage);
+  port.postMessage({
+    type: "RESOLVE_NOTEBOOK_IDENTITY",
+    url: normalizeNotebookUrl(tabUrl),
+    tabId,
+  });
+  setTimeout(() => finish(fallbackNotebookIdentity(tabUrl)), 8000);
+}
+
+function resolveNotebookIdentity(tab, callback) {
+  const tabId = tab.id;
+  chrome.scripting.executeScript({
+    target: { tabId, allFrames: false },
+    files: ["notebook_identity.js"],
+  }, () => {
+    if (chrome.runtime.lastError) {
+      resolveNotebookIdentityFromHost(tab.url, tabId, callback);
+      return;
+    }
+    chrome.scripting.executeScript({
+      target: { tabId, allFrames: false },
+      func: async () => {
+        if (window.__ncNotebookIdentity?.resolveIdentity) {
+          return await window.__ncNotebookIdentity.resolveIdentity(window.location.href);
+        }
+        return {
+          url: window.location.href,
+          notebookId: null,
+          notebookKey: null,
+        };
+      },
+    }, (results) => {
+      const raw = results?.[0]?.result || {};
+      const url = normalizeNotebookUrl(raw.url || tab.url);
+      const browserId = raw.notebookId ?? null;
+      const browserKey = raw.notebookKey || url;
+      if (browserId != null && String(browserKey).startsWith("kaggle:kernel:")) {
+        callback({
+          url,
+          notebookId: browserId,
+          notebookKey: browserKey,
+          userName: raw.userName || null,
+          kernelSlug: raw.kernelSlug || null,
+        });
+        return;
+      }
+      resolveNotebookIdentityFromHost(url, tabId, callback);
+    });
+  });
+}
+
+function rememberNotebookIdentity(tabId, identity) {
+  const prevUrl = lastNotebookUrlByTab[tabId];
+  const newUrl = identity?.url || "";
+  if (prevUrl && newUrl && prevUrl !== newUrl) {
+    const port = getPort();
+    if (port) {
+      port.postMessage({
+        type: "NOTEBOOK_URL_CHANGED",
+        oldUrl: prevUrl,
+        newUrl,
+        notebookId: identity?.notebookId ?? null,
+        tabId,
+      });
+    }
+  }
+  if (newUrl) lastNotebookUrlByTab[tabId] = newUrl;
+  notebookIdentityByTab[tabId] = identity;
+}
+
 const NOTEBOOK_SCOPED_MSG_TYPES = new Set([
   "CHAT_REQUEST",
   "STOP_CHAT",
@@ -1038,8 +1150,14 @@ const __pendingInsertCode = new Map();
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.type === "GET_TAB_NOTEBOOK_URL") {
+    const tabId = sender.tab?.id;
+    const cached = typeof tabId === "number" ? notebookIdentityByTab[tabId] : null;
+    if (cached) {
+      sendResponse(cached);
+      return true;
+    }
     const tabUrl = sender.tab?.url ? normalizeNotebookUrl(sender.tab.url) : "";
-    sendResponse({ url: tabUrl || null });
+    sendResponse(fallbackNotebookIdentity(tabUrl));
     return true;
   }
 
@@ -1106,6 +1224,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (sender.tab?.url && NOTEBOOK_SCOPED_MSG_TYPES.has(msg?.type)) {
       const tabNotebookUrl = normalizeNotebookUrl(sender.tab.url);
       if (tabNotebookUrl) msg.url = tabNotebookUrl;
+      if (typeof sender.tab?.id === "number") {
+        attachNotebookIdentity(msg, sender.tab.id);
+      }
     }
 
     // Tag the message with the sender's tabId so we know where to send the AI's reply
@@ -1126,9 +1247,11 @@ function sendTabs() {
 
     for (const tab of targets) {
       console.log(`[sendTabs] Processing tab ${tab.id}: ${tab.url}`);
-      
-      // Ensure UI is injected
+
       injectUI(tab.id);
+
+      resolveNotebookIdentity(tab, (identity) => {
+        rememberNotebookIdentity(tab.id, identity);
 
       // (Rest of the scraping logic remains same...)
       chrome.scripting.executeScript({
@@ -1204,6 +1327,8 @@ function sendTabs() {
                 getPort().postMessage({
                   type: "NOTEBOOK_DATA", tabUrl: tab.url, iframes: iframes,
                   tabId: tab.id,
+                  notebookId: identity.notebookId,
+                  notebookKey: identity.notebookKey,
                   title: notebookTitle, cellCount: allCells.length, cells: allCells,
                   kernelStatus: kernelStatus,
                   kernelScenario: scenario,
@@ -1232,6 +1357,7 @@ function sendTabs() {
                 })();
               });
           });
+      });
       });
     }
   });
@@ -1264,6 +1390,8 @@ chrome.tabs.onUpdated.addListener((id, info) => {
 
 chrome.tabs.onRemoved.addListener((id) => {
   delete kernelStateByTab[id];
+  delete notebookIdentityByTab[id];
+  delete lastNotebookUrlByTab[id];
   console.log(`[Tab ${id}] Removed from state tracking`);
 });
 

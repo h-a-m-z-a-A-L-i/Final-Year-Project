@@ -1,0 +1,5 @@
+.env
+.env.*
+!.env.example
+kaggle json/
+**/kernel-metadata.json

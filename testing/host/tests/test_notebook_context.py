@@ -103,13 +103,30 @@ def test_truncate_at_cell_boundaries():
     assert "Cell [2]" not in out or "omitted" in out
 
 
+def test_listed_cells_synced_after_truncation():
+    body = "### Cell [1]\na\n### Cell [2]\n" + ("x" * 5000)
+    out = nc._truncate_at_cell_boundaries(body, 200)
+    listed = nc._listed_cells_from_body(out)
+    assert 1 in listed
+    assert 2 not in listed
+
+
+def test_format_full_cell_block_no_output_cap_when_zero(monkeypatch):
+    monkeypatch.setattr(nc, "MAX_CELL_OUTPUT_CHARS", 0)
+    block = nc._format_full_cell_block(
+        {"index": 1, "type": "code", "input": "x=1", "output": "y" * 5000}
+    )
+    assert "[output truncated]" not in block
+    assert "y" * 5000 in block
+
+
 def test_pack_full_includes_all_cells(tmp_path, monkeypatch):
     url = "https://example.com/notebook/edit"
     scraped = _write_snapshot(tmp_path, url)
     monkeypatch.setattr(config, "SCRAPED_DIR", scraped)
     monkeypatch.setattr(config, "CONTEXT_PACK_MODE", "full")
     monkeypatch.setattr(config, "MAX_NOTEBOOK_CONTEXT_CHARS", 0)
-    monkeypatch.setattr(config, "MAX_FULL_NOTEBOOK_CONTEXT_CHARS", 30_000)
+    monkeypatch.setattr(config, "MAX_FULL_NOTEBOOK_CONTEXT_CHARS", 0)
 
     pack = nc.pack_context(mode="ask", url=url, prompt="summarize notebook", cell_index=2)
     assert pack.coverage == "full"

@@ -1,4 +1,5 @@
 playwright>=1.52.0
-openai>=1.0.0
-# cerebras-cloud-sdk>=1.27.0  # disabled — using AIML API
+cerebras-cloud-sdk>=1.27.0
+kaggle>=1.6.0
+# openai>=1.0.0  # AIML API only — disabled until project finalized
 jsonschema>=4.0.0

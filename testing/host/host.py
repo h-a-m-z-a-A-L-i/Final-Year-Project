@@ -74,8 +74,12 @@ except Exception:
 
 # configuration comes from testing/host/config.py
 
-def _history_url_key(url: str) -> str:
-    return _normalized_url(url or "")
+def _history_url_key(url: str, notebook_id=None) -> str:
+    try:
+        from .notebook_identity import resolve_history_key
+    except Exception:
+        from notebook_identity import resolve_history_key
+    return resolve_history_key(url, notebook_id, memory_store=memory_store)
 
 try:
     from .dependency import _build_fallback_graph, DependencyManager, _DEP_AVAILABLE, _DEP_FALLBACK
@@ -150,6 +154,17 @@ def _start_http_server():
 
 def main():
     log("=== Structured Scraper + AI Host started ===")
+    try:
+        try:
+            from .kaggle_kernel_client import scan_import_local_metadata_files
+        except Exception:
+            from kaggle_kernel_client import scan_import_local_metadata_files
+        imported = scan_import_local_metadata_files()
+        if imported:
+            log(f"[kaggle] Imported {imported} local kernel-metadata.json file(s)")
+    except Exception as exc:
+        log(f"[kaggle] Local metadata import skipped: {exc}")
+
     host_ctx = {
         "dep_manager": dep_manager,
         "send_msg": send_msg,
@@ -167,18 +182,40 @@ def main():
         m_type = msg.get("type")
         log(f"Received message type: {m_type}")
 
+        if m_type == "RESOLVE_NOTEBOOK_IDENTITY":
+            try:
+                from .notebook_identity import resolve_notebook_identity
+            except Exception:
+                from notebook_identity import resolve_notebook_identity
+            tab_id = msg.get("tabId")
+            identity = resolve_notebook_identity(
+                msg.get("url") or "",
+                msg.get("notebookId"),
+                memory_store=memory_store,
+                log=log,
+            )
+            send_msg({
+                "type": "NOTEBOOK_IDENTITY",
+                "tabId": tab_id,
+                "url": identity.get("url"),
+                "notebookId": identity.get("notebookId"),
+                "notebookKey": identity.get("notebookKey"),
+            })
+            continue
+
         if m_type == "CHAT_REQUEST":
-            url = _history_url_key(msg.get("url"))
+            snapshot_url = _normalized_url(msg.get("url"))
+            history_key = _history_url_key(msg.get("url"), msg.get("notebookId"))
             prompt = str(msg.get("prompt", ""))
             tab_id = msg.get("tabId")
             session_id = str(msg.get("sessionId") or "default")
-            if not url:
+            if not history_key:
                 send_msg({"type": "CHAT_RESPONSE", "error": "Missing or invalid notebook URL.", "tabId": tab_id})
                 continue
 
             stream_channel = str(msg.get("streamChannel") or "main").strip() or "main"
             active_key = resolve_active_key(tab_id, stream_channel)
-            begin_active_stream(active_key, session_id, url)
+            begin_active_stream(active_key, session_id, history_key)
 
             try:
                 from .prompt_engineering import detect_mode, merge_context_with_profile
@@ -209,7 +246,7 @@ def main():
 
             ctx_pack = pack_context(
                 mode=mode,
-                url=url,
+                url=snapshot_url,
                 prompt=prompt,
                 cell_index=cell_num,
                 dep_manager=dep_manager,
@@ -222,31 +259,38 @@ def main():
 
             extracted_facts = _extract_user_profile_facts(prompt)
             for fact_key, fact_value in extracted_facts.items():
-                memory_store.upsert_fact(url, fact_key, fact_value, session_id=session_id)
+                memory_store.upsert_fact(history_key, fact_key, fact_value, session_id=session_id)
 
-            facts = memory_store.get_facts(url, session_id=session_id)
+            facts = memory_store.get_facts(history_key, session_id=session_id)
             profile_context = _build_profile_memory_context(facts)
 
             if re.search(r"\b(what\s+is|tell\s+me)\s+my\s+name\b", prompt, re.IGNORECASE):
                 known_name = (facts.get("name") or "").strip()
                 if known_name:
-                    memory_store.append(url, "user", prompt, session_id=session_id)
+                    memory_store.append(history_key, "user", prompt, session_id=session_id)
                     response = f"Your name is {known_name}."
-                    memory_store.append(url, "assistant", response, session_id=session_id)
-                    send_msg({"type": "CHAT_RESPONSE", "response": response, "tabId": tab_id, "url": url, "sessionId": session_id})
+                    memory_store.append(history_key, "assistant", response, session_id=session_id)
+                    send_msg({
+                        "type": "CHAT_RESPONSE",
+                        "response": response,
+                        "tabId": tab_id,
+                        "url": snapshot_url,
+                        "notebookKey": history_key,
+                        "sessionId": session_id,
+                    })
                     continue
 
             context = merge_context_with_profile(ctx_pack.text, profile_context)
 
             if is_stream_stopped(active_key, session_id):
-                send_stream_end(url, tab_id, session_id, stopped=True)
+                send_stream_end(history_key, tab_id, session_id, stopped=True)
                 continue
 
-            history = memory_store.get_history(url, session_id=session_id)
-            memory_store.append(url, "user", prompt, session_id=session_id)
+            history = memory_store.get_history(history_key, session_id=session_id)
+            memory_store.append(history_key, "user", prompt, session_id=session_id)
 
             if is_stream_stopped(active_key, session_id):
-                send_stream_end(url, tab_id, session_id, stopped=True)
+                send_stream_end(history_key, tab_id, session_id, stopped=True)
                 continue
 
             context_meta = {
@@ -255,11 +299,13 @@ def main():
                 "snapshot": ctx_pack.snapshot,
                 "active_key": active_key,
                 "stream_channel": stream_channel,
+                "snapshot_url": snapshot_url,
+                "history_key": history_key,
             }
 
             worker = threading.Thread(
                 target=_run_streaming_chat,
-                args=(url, prompt, tab_id, session_id, history, context, mode, ui_mode, context_meta),
+                args=(history_key, prompt, tab_id, session_id, history, context, mode, ui_mode, context_meta),
                 daemon=True,
             )
             with _ACTIVE_STREAMS_LOCK:
@@ -272,7 +318,7 @@ def main():
         if m_type == "STOP_CHAT":
             tab_id = msg.get("tabId")
             session_id = str(msg.get("sessionId") or "")
-            url = _history_url_key(msg.get("url"))
+            url = _history_url_key(msg.get("url"), msg.get("notebookId"))
             stream_channel = str(msg.get("streamChannel") or "").strip()
             active_key = resolve_active_key(tab_id, stream_channel) if stream_channel else None
             _signal_remote_stop(session_id)
@@ -322,12 +368,30 @@ def main():
             send_msg({"ok": True, "type": "PROMPT_SIGNAL", "cellIndex": cell_index, "tabUrl": tab_url})
             continue
 
+        if m_type == "NOTEBOOK_URL_CHANGED":
+            try:
+                from .notebook_identity import handle_notebook_url_changed
+            except Exception:
+                from notebook_identity import handle_notebook_url_changed
+            info = handle_notebook_url_changed(
+                msg.get("oldUrl") or "",
+                msg.get("newUrl") or "",
+                msg.get("notebookId"),
+                memory_store=memory_store,
+                log=log,
+            )
+            log(
+                f"NOTEBOOK_URL_CHANGED {info.get('url')} key={info.get('notebookKey')} "
+                f"migrated={info.get('migratedRows', 0)}"
+            )
+            continue
+
         if m_type == "GET_GRAPH":
             handle_get_graph(host_ctx, msg)
             continue
 
         if m_type == "GET_HISTORY":
-            url = _history_url_key(msg.get("url"))
+            url = _history_url_key(msg.get("url"), msg.get("notebookId"))
             tab_id = msg.get("tabId")
             session_id = str(msg.get("sessionId") or "default")
             history = memory_store.get_history(url, session_id=session_id) if url else []
@@ -339,21 +403,28 @@ def main():
                 "activeSessionId": session_id,
                 "sessionId": session_id,
                 "tabId": tab_id,
-                "url": url,
+                "url": _normalized_url(msg.get("url") or ""),
+                "notebookKey": url,
             })
             continue
 
         if m_type == "CLEAR_HISTORY":
-            url = _history_url_key(msg.get("url"))
+            url = _history_url_key(msg.get("url"), msg.get("notebookId"))
             tab_id = msg.get("tabId")
             session_id = msg.get("sessionId")
             if url:
                 memory_store.clear_history(url, session_id=session_id)
-            send_msg({"type": "HISTORY_CLEARED", "url": url, "tabId": tab_id, "sessionId": session_id})
+            send_msg({
+                "type": "HISTORY_CLEARED",
+                "url": _normalized_url(msg.get("url") or ""),
+                "notebookKey": url,
+                "tabId": tab_id,
+                "sessionId": session_id,
+            })
             continue
 
         if m_type == "INSERT_CODE_CELL":
-            url = _history_url_key(msg.get("url"))
+            url = _normalized_url(msg.get("url") or "")
             tab_id = msg.get("tabId")
             request_id = msg.get("requestId")
             try:

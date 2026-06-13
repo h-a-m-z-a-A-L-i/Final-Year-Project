@@ -7,45 +7,9 @@
   const observedRoots = new WeakSet();
   const lastPromptTitle = new WeakMap();
   const seenTitles = new Set();
-  let debugBox = null;
 
   if (!document.querySelector(PROMPT_SELECTOR)) {
     return;
-  }
-
-  function ensureDebugBox(){
-    if (debugBox && document.contains(debugBox)) return debugBox;
-    debugBox = document.getElementById('nc-prompt-debug-box');
-    if (debugBox) return debugBox;
-
-    debugBox = document.createElement('div');
-    debugBox.id = 'nc-prompt-debug-box';
-    debugBox.style.cssText = [
-      'position:fixed',
-      'right:12px',
-      'bottom:12px',
-      'z-index:2147483647',
-      'max-width:320px',
-      'padding:10px 12px',
-      'border-radius:10px',
-      'border:1px solid rgba(0,0,0,.18)',
-      'background:rgba(18,24,38,.96)',
-      'color:#fff',
-      'font:12px/1.45 monospace',
-      'box-shadow:0 10px 30px rgba(0,0,0,.25)',
-      'white-space:pre-wrap',
-      'pointer-events:none'
-    ].join(';');
-    debugBox.textContent = 'NC detector waiting...';
-    (document.body || document.documentElement).appendChild(debugBox);
-    return debugBox;
-  }
-
-  function updateDebugBox(text){
-    try {
-      const box = ensureDebugBox();
-      if (box) box.textContent = text;
-    } catch(e){}
   }
 
   function getCellIndex(promptEl){
@@ -84,7 +48,6 @@
         ts: Date.now()
       });
       console.log(`[NC-OBSERVER] Flag detected: "${text}" at cell index ${cellIndex}, order ${execOrder}`);
-      updateDebugBox(`NC detector\nFound: ${text}\nIndex: ${cellIndex || '?'}\nOrder: ${execOrder !== null ? '[' + execOrder + ']' : '?'}`);
     } catch(e){}
   }
 
@@ -92,11 +55,6 @@
     const title = (promptEl.getAttribute('title') || '').trim();
     if (lastPromptTitle.get(promptEl) === title) return;
     lastPromptTitle.set(promptEl, title);
-
-    if (title) {
-      const order = getExecutionOrder(promptEl);
-      updateDebugBox(`NC detector\nSeen: ${title}\nOrder: ${order !== null ? '[' + order + ']' : '?'}`);
-    }
 
     if (title && RE.test(title) && !seenTitles.has(title)){
       seenTitles.add(title);
@@ -153,7 +111,6 @@
   }
 
   function start(){
-    updateDebugBox('NC detector\nWatching Kaggle cells...');
     observeRoot(document);
     if (document.documentElement) observeRoot(document.documentElement);
     if (document.body) observeRoot(document.body);

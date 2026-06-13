@@ -150,6 +150,27 @@ def handle_notebook_data(ctx: dict, msg: dict):
 
     tab_url = _normalized_url(msg.get("tabUrl") or "unknown")
     tab_id = msg.get("tabId")
+    notebook_id = msg.get("notebookId")
+    try:
+        try:
+            from .notebook_identity import resolve_notebook_identity
+            from .memory import memory_store
+        except Exception:
+            from notebook_identity import resolve_notebook_identity
+            from memory import memory_store
+        if tab_url and tab_url != "unknown":
+            identity = resolve_notebook_identity(
+                tab_url,
+                notebook_id,
+                memory_store=memory_store,
+                log=log,
+            )
+            notebook_id = identity.get("notebookId") or notebook_id
+            if str(identity.get("notebookKey") or "").startswith("kaggle:kernel:"):
+                log(f"[notebook_identity] {tab_url} -> {identity.get('notebookKey')}")
+    except Exception as e:
+        log(f"[notebook_identity] Registration skipped: {e}")
+
     kernel_status = msg.get("kernelStatus")
     kernel_scenario = msg.get("kernelScenario", "unknown")
     kernel_state = msg.get("kernelState", {})

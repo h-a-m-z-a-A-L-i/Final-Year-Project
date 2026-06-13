@@ -1,5 +1,5 @@
 (function initCellDebugChat() {
-  const VERSION = "2026-06-12-v12";
+  const VERSION = "2026-06-13-v13";
   if (window.__ncCellDebugChatVersion === VERSION) return;
   window.__ncCellDebugChatVersion = VERSION;
 
@@ -13,6 +13,8 @@
   let activeSessionId = null;
   let activeStreamChannel = null;
   let notebookUrl = "";
+  let notebookKey = "";
+  let notebookId = null;
   let streamBuffer = "";
   let isStreaming = false;
   let repositionHandler = null;
@@ -39,25 +41,40 @@
     return `cell-${cellIndex}`;
   }
 
-  /** Stable per-cell session id (notebook url is the other key in SQLite). */
+  /** Stable per-cell session id (notebook key is the other key in SQLite). */
   function getCellDebugSessionId(cellIndex) {
     const n = Number(cellIndex);
     if (!Number.isInteger(n) || n < 1) return "cell-debug-cell-0";
     return `cell-debug-cell-${n}`;
   }
 
+  function currentNotebookKey() {
+    return notebookKey || notebookUrl || normalizeNotebookUrl(window.location.href);
+  }
+
+  function notebookPayload() {
+    return {
+      url: notebookUrl || normalizeNotebookUrl(window.location.href),
+      notebookId,
+      notebookKey: currentNotebookKey(),
+    };
+  }
+
   function resolveNotebookUrl(callback) {
-    if (notebookUrl) {
+    if (notebookUrl && notebookKey) {
       callback(notebookUrl);
       return;
     }
     if (!hasChromeRuntime()) {
       notebookUrl = normalizeNotebookUrl(window.location.href);
+      notebookKey = notebookUrl;
       callback(notebookUrl);
       return;
     }
     chrome.runtime.sendMessage({ type: "GET_TAB_NOTEBOOK_URL" }, (response) => {
       notebookUrl = normalizeNotebookUrl(response?.url || window.location.href);
+      notebookKey = String(response?.notebookKey || notebookUrl).trim() || notebookUrl;
+      notebookId = response?.notebookId ?? null;
       callback(notebookUrl);
     });
   }
@@ -480,7 +497,7 @@
     if (isStreaming && activeSessionId && hasChromeRuntime()) {
       chrome.runtime.sendMessage({
         type: "STOP_CHAT",
-        url: notebookUrl || undefined,
+        ...notebookPayload(),
         sessionId: activeSessionId,
         streamChannel: activeStreamChannel || undefined,
       });
@@ -866,7 +883,7 @@
       if (isStreaming && hasChromeRuntime()) {
         chrome.runtime.sendMessage({
           type: "STOP_CHAT",
-          url: notebookUrl || undefined,
+          ...notebookPayload(),
           sessionId: activeSessionId,
           streamChannel: activeStreamChannel || undefined,
         });
@@ -878,7 +895,7 @@
       if (!hasChromeRuntime() || !notebookUrl || !activeSessionId) return;
       chrome.runtime.sendMessage({
         type: "CLEAR_HISTORY",
-        url: notebookUrl,
+        ...notebookPayload(),
         sessionId: activeSessionId,
       });
     });
@@ -994,7 +1011,7 @@
       chrome.runtime.sendMessage(
         {
           type: "CHAT_REQUEST",
-          url: notebookUrl,
+          ...notebookPayload(),
           sessionId: activeSessionId,
           cellIndex: cellIndex,
           streamChannel: activeStreamChannel,
@@ -1024,7 +1041,7 @@
       if (!hasChromeRuntime() || !activeSessionId) return;
       chrome.runtime.sendMessage({
         type: "STOP_CHAT",
-        url: notebookUrl || undefined,
+        ...notebookPayload(),
         sessionId: activeSessionId,
         streamChannel: activeStreamChannel || undefined,
       });
@@ -1068,7 +1085,7 @@
     if (hasChromeRuntime() && activeSessionId && notebookUrl) {
       chrome.runtime.sendMessage({
         type: "GET_HISTORY",
-        url: notebookUrl,
+        ...notebookPayload(),
         sessionId: activeSessionId,
       });
     }
@@ -1093,9 +1110,9 @@
   function onRuntimeMessage(msg) {
     if (!activePanel || !activeSessionId) return;
 
-    const url = normalizeNotebookUrl(msg?.url || "");
-    const expected = notebookUrl || normalizeNotebookUrl(window.location.href);
-    if (url && expected && url !== expected) return;
+    const msgKey = String(msg?.notebookKey || normalizeNotebookUrl(msg?.url || "")).trim();
+    const expectedKey = currentNotebookKey();
+    if (msgKey && expectedKey && msgKey !== expectedKey) return;
 
     if (msg.type === "HISTORY_DATA") {
       const histSid = String(msg.activeSessionId || msg.sessionId || "");

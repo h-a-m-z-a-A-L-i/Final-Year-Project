@@ -162,6 +162,28 @@ class LocalMemoryStore:
                     conn.execute("DELETE FROM profile_facts WHERE notebook_url = ?", (url,))
                 conn.commit()
 
+    def migrate_notebook_key(self, old_key: str, new_key: str) -> int:
+        """Move chat rows from one notebook key to another (e.g. URL slug -> stable kernel id)."""
+        old = str(old_key or "").strip()
+        new = str(new_key or "").strip()
+        if not old or not new or old == new:
+            return 0
+        moved = 0
+        with self._lock:
+            with self._connect() as conn:
+                cur = conn.execute("SELECT COUNT(*) FROM messages WHERE notebook_url = ?", (old,))
+                moved += int(cur.fetchone()[0] or 0)
+                conn.execute(
+                    "UPDATE messages SET notebook_url = ? WHERE notebook_url = ?",
+                    (new, old),
+                )
+                conn.execute(
+                    "UPDATE profile_facts SET notebook_url = ? WHERE notebook_url = ?",
+                    (new, old),
+                )
+                conn.commit()
+        return moved
+
     def upsert_fact(self, url, key, value, session_id="default"):
         u = str(url or "").strip()
         k = str(key or "").strip()

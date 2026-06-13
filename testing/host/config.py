@@ -4,7 +4,7 @@ import threading
 from pathlib import Path
 from datetime import timedelta
 
-# from cerebras.cloud.sdk import Cerebras  # disabled — using AIML API (OpenAI-compatible)
+from cerebras.cloud.sdk import Cerebras
 
 
 def _load_dotenv(env_path: Path):
@@ -27,13 +27,17 @@ def _load_dotenv(env_path: Path):
 # Load .env from workspace root
 _load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
-# CEREBRAS_API_KEY = os.environ.get("CEREBRAS_API_KEY", "").strip()
-# CEREBRAS_MODEL = os.environ.get("CEREBRAS_MODEL", "gpt-oss-120b")
+CEREBRAS_API_KEY = os.environ.get("CEREBRAS_API_KEY", "").strip()
+CEREBRAS_MODEL = os.environ.get("CEREBRAS_MODEL", "gpt-oss-120b")
+LLM_MODEL = CEREBRAS_MODEL
 
-AIML_API_KEY = os.environ.get("AIML_API_KEY", "").strip()
-AIML_API_BASE_URL = os.environ.get("AIML_API_BASE_URL", "https://api.aimlapi.com/v1").strip()
-AIML_MODEL = os.environ.get("AIML_MODEL", "x-ai/grok-4-1-fast-reasoning").strip()
-LLM_MODEL = AIML_MODEL
+# AIML API (disabled until project finalized)
+# AIML_API_KEY = os.environ.get("AIML_API_KEY", "").strip()
+# AIML_API_BASE_URL = os.environ.get("AIML_API_BASE_URL", "https://api.aimlapi.com/v1").strip()
+# AIML_MODEL = os.environ.get("AIML_MODEL", "x-ai/grok-4-1-fast-reasoning").strip()
+
+KAGGLE_USERNAME = os.environ.get("KAGGLE_USERNAME", "").strip()
+KAGGLE_KEY = os.environ.get("KAGGLE_KEY", "").strip()
 
 TEMPERATURE = float(os.environ.get("LLM_TEMPERATURE", os.environ.get("CEREBRAS_TEMPERATURE", "0.5")))
 TOP_P = float(os.environ.get("LLM_TOP_P", os.environ.get("CEREBRAS_TOP_P", "1.0")))
@@ -41,6 +45,8 @@ DATA_ROOT = Path(__file__).parent / "data"
 CHAT_MEMORY_DB = DATA_ROOT / "sessions" / "chat_history.sqlite3"
 SCRAPED_DIR = DATA_ROOT / "notebooks"
 HASHES_PATH = DATA_ROOT / "meta" / "hashes.json"
+KERNEL_METADATA_DIR = DATA_ROOT / "meta" / "kernel_metadata"
+KERNEL_SLUG_INDEX_PATH = DATA_ROOT / "meta" / "kernel_slug_index.json"
 EXECUTION_STATE_PATH = DATA_ROOT / "meta" / "execution_state.json"
 LOG_PATH = DATA_ROOT / "logs" / "host.log"
 RATE_LIMIT_TRACKER = DATA_ROOT / "meta" / "rate_limit_tracker.json"
@@ -62,7 +68,7 @@ else:
 if "MAX_INPUT_TOKENS" in os.environ:
     MAX_INPUT_TOKENS = int(os.environ["MAX_INPUT_TOKENS"])
 elif CONTEXT_PACK_MODE == "full":
-    MAX_INPUT_TOKENS = 50_000
+    MAX_INPUT_TOKENS = int(os.environ.get("LLM_MAX_INPUT_TOKENS", "7000"))
 else:
     MAX_INPUT_TOKENS = 7000
 CHARS_PER_TOKEN_ESTIMATE = int(os.environ.get("CHARS_PER_TOKEN_ESTIMATE", "4"))
@@ -70,18 +76,22 @@ MAX_CONTEXT_CHARS = 1800
 if "MAX_NOTEBOOK_CONTEXT_CHARS" in os.environ:
     MAX_NOTEBOOK_CONTEXT_CHARS = int(os.environ["MAX_NOTEBOOK_CONTEXT_CHARS"])
 elif CONTEXT_PACK_MODE == "full":
-    MAX_NOTEBOOK_CONTEXT_CHARS = 0  # 0 = no char cap; output per cell still uses MAX_CELL_OUTPUT_CHARS
+    MAX_NOTEBOOK_CONTEXT_CHARS = int(os.environ.get("MAX_NOTEBOOK_CONTEXT_CHARS", "6000"))
 else:
     MAX_NOTEBOOK_CONTEXT_CHARS = 6000
-# Full-mode notebook char cap (keeps prompts under free-tier 60k TPM). 0 = unlimited (may 429).
+# Full-mode notebook char cap. 0 = include every cell (large-context LLMs).
 if "MAX_FULL_NOTEBOOK_CONTEXT_CHARS" in os.environ:
     MAX_FULL_NOTEBOOK_CONTEXT_CHARS = int(os.environ["MAX_FULL_NOTEBOOK_CONTEXT_CHARS"])
 elif CONTEXT_PACK_MODE == "full":
-    MAX_FULL_NOTEBOOK_CONTEXT_CHARS = 30_000
+    MAX_FULL_NOTEBOOK_CONTEXT_CHARS = int(os.environ.get("MAX_FULL_NOTEBOOK_CONTEXT_CHARS", "30000"))
 else:
     MAX_FULL_NOTEBOOK_CONTEXT_CHARS = 0
-# Reserve headroom under Cerebras free-tier TPM (60k/min) for completion tokens.
+# Local TPM preflight (on by default for Cerebras free tier).
 TPM_PREFLIGHT_RATIO = float(os.environ.get("TPM_PREFLIGHT_RATIO", "0.85"))
+ENABLE_TPM_PREFLIGHT = os.environ.get(
+    "ENABLE_TPM_PREFLIGHT",
+    "1" if CEREBRAS_API_KEY else "0",
+).strip().lower() in ("1", "true", "yes")
 MAX_PROFILE_FACTS = 12
 SYMBOL_CONTEXT_ENABLED = os.environ.get("SYMBOL_CONTEXT_ENABLED", "1").strip().lower() in ("1", "true", "yes")
 MAX_SYMBOL_SNIPPET_CHARS = int(os.environ.get("MAX_SYMBOL_SNIPPET_CHARS", "400"))
@@ -89,7 +99,7 @@ MAX_SYMBOL_DEPTH = int(os.environ.get("MAX_SYMBOL_DEPTH", "2"))
 if "MAX_CELL_OUTPUT_CHARS" in os.environ:
     MAX_CELL_OUTPUT_CHARS = int(os.environ["MAX_CELL_OUTPUT_CHARS"])
 elif CONTEXT_PACK_MODE == "full":
-    MAX_CELL_OUTPUT_CHARS = 800
+    MAX_CELL_OUTPUT_CHARS = int(os.environ.get("MAX_CELL_OUTPUT_CHARS", "2500"))
 else:
     MAX_CELL_OUTPUT_CHARS = 2500
 ALLOWED_MODES = {"ask", "code"}
@@ -111,14 +121,15 @@ _ACTIVE_STREAMS_LOCK = threading.Lock()
 _RATE_LOCK = threading.Lock()
 _BOT_STATE_LOCK = threading.Lock()
 
-# _CEREBRAS_CLIENT = Cerebras(api_key=CEREBRAS_API_KEY) if CEREBRAS_API_KEY else None
+_CEREBRAS_CLIENT = Cerebras(api_key=CEREBRAS_API_KEY) if CEREBRAS_API_KEY else None
+_LLM_CLIENT = _CEREBRAS_CLIENT
 
-try:
-    from .aimlapi import create_aiml_client
-except Exception:
-    from aimlapi import create_aiml_client
-
-_LLM_CLIENT = create_aiml_client()
+# AIML client (disabled until project finalized)
+# try:
+#     from .aimlapi import create_aiml_client
+# except Exception:
+#     from aimlapi import create_aiml_client
+# _LLM_CLIENT = create_aiml_client()
 
 
 def ensure_dirs():

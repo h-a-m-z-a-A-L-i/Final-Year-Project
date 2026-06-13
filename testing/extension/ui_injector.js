@@ -814,118 +814,8 @@
     toggleBtn.style.right = '16px';
     toggleBtn.style.bottom = '16px';
 
-    // Create kernel state indicator
-    const kernelStateIndicator = document.createElement('div');
-    kernelStateIndicator.id = 'kernel-state-indicator';
-    kernelStateIndicator.style.cssText = `
-        position: fixed;
-        top: 10px;
-        left: 10px;
-        padding: 8px 12px;
-        background: #2b2c31;
-        color: #f0f0f0;
-        border: 1px solid #47a1ff;
-        border-radius: 4px;
-        font-size: 12px;
-        font-weight: 600;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        z-index: 10000000;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    `;
-    kernelStateIndicator.textContent = 'Kernel: ...';
-
     document.body.appendChild(wrapper);
     document.body.appendChild(toggleBtn);
-    document.body.appendChild(kernelStateIndicator);
-
-    console.log('[ui_injector] Kernel state indicator created and appended to page');
-    console.log('[ui_injector] Indicator element:', kernelStateIndicator);
-
-    // Listen for kernel state updates via window.postMessage from content script
-    window.addEventListener('message', (event) => {
-        if (event.source !== window) {
-            return;
-        }
-        
-        const msg = event.data;
-        if (!msg || msg.type !== 'KERNEL_STATE_UPDATE') {
-            return;
-        }
-
-        console.log('[ui_injector] KERNEL_STATE_UPDATE received:', msg.kernelScenario, 'timestamp:', msg.timestamp);
-        
-        if (msg.kernelScenario) {
-            let displayText = 'Kernel: ...';
-            let borderColor = '#888888';
-            
-            if (msg.kernelScenario === 'scenario_1_new_notebook_off') {
-                displayText = 'Kernel: off';
-                borderColor = '#FF6B6B';
-            } else if (msg.kernelScenario === 'scenario_2_fresh_kernel_started') {
-                displayText = 'Kernel: fresh running';
-                borderColor = '#4ECDC4';
-            } else if (msg.kernelScenario === 'scenario_3_reload_running_kernel') {
-                displayText = 'Kernel: reloaded with already running kernel';
-                borderColor = '#45B7D1';
-            } else if (msg.kernelScenario === 'editor_loading') {
-                displayText = 'Kernel: loading...';
-                borderColor = '#FFA07A';
-            }
-            
-            if (kernelStateIndicator) {
-                kernelStateIndicator.textContent = displayText;
-                kernelStateIndicator.style.borderColor = borderColor;
-                console.log('[ui_injector] Indicator updated:', displayText);
-            } else {
-                console.error('[ui_injector] Indicator element not found!');
-            }
-        }
-    }, false);
-    
-    console.log('[ui_injector] Message listener registered on window');
-
-    // Also listen directly for runtime messages from background (more reliable)
-    try {
-        if (chrome && chrome.runtime && chrome.runtime.onMessage) {
-            chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-                try {
-                    if (!msg) return;
-                    if (msg.type === 'NOTEBOOK_DATA' || msg.type === 'KERNEL_STATE_UPDATE') {
-                        const scenarioMsg = msg.kernelScenario || msg.kernelScenario;
-                        console.log('[ui_injector] runtime NOTEBOOK_DATA received:', scenarioMsg);
-
-                        let displayText = 'Kernel: ...';
-                        let borderColor = '#888888';
-                        if (scenarioMsg === 'scenario_1_new_notebook_off') {
-                            displayText = 'Kernel: off';
-                            borderColor = '#FF6B6B';
-                        } else if (scenarioMsg === 'scenario_2_fresh_kernel_started') {
-                            displayText = 'Kernel: fresh running';
-                            borderColor = '#4ECDC4';
-                        } else if (scenarioMsg === 'scenario_3_reload_running_kernel') {
-                            displayText = 'Kernel: reloaded with already running kernel';
-                            borderColor = '#45B7D1';
-                        } else if (scenarioMsg === 'editor_loading') {
-                            displayText = 'Kernel: loading...';
-                            borderColor = '#FFA07A';
-                        }
-
-                        if (kernelStateIndicator) {
-                            kernelStateIndicator.textContent = displayText;
-                            kernelStateIndicator.style.borderColor = borderColor;
-                            console.log('[ui_injector] Indicator updated via runtime message:', displayText);
-                        }
-                        try { sendResponse && sendResponse({ ok: true }); } catch (e) {}
-                    }
-                } catch (e) {
-                    console.error('[ui_injector] Error handling runtime message:', e?.message);
-                }
-            });
-            console.log('[ui_injector] chrome.runtime.onMessage listener registered');
-        }
-    } catch (e) {
-        console.warn('[ui_injector] chrome.runtime not available or error registering runtime listener', e?.message);
-    }
 
     // 3. Logic
     let activeTab = 'chat-tab';
@@ -1421,8 +1311,35 @@
         return normalizeNotebookUrl(window.location.href);
     }
 
+    let notebookKey = '';
+    let notebookId = null;
+
+    function currentNotebookKey() {
+        return notebookKey || currentNotebookUrl();
+    }
+
+    function refreshNotebookIdentity(done) {
+        if (!chrome?.runtime?.sendMessage) {
+            notebookKey = currentNotebookUrl();
+            if (done) done();
+            return;
+        }
+        chrome.runtime.sendMessage({ type: 'GET_TAB_NOTEBOOK_URL' }, (response) => {
+            const url = normalizeNotebookUrl(response?.url || window.location.href);
+            notebookKey = String(response?.notebookKey || url).trim() || url;
+            notebookId = response?.notebookId ?? null;
+            if (done) done();
+        });
+    }
+
+    function notebookScopeMatches(msg) {
+        const msgKey = String(msg?.notebookKey || normalizeNotebookUrl(msg?.url || '')).trim();
+        if (!msgKey) return true;
+        return msgKey === currentNotebookKey();
+    }
+
     function sessionStorageKey() {
-        return `copilot_session_${currentNotebookUrl()}`;
+        return `copilot_session_${currentNotebookKey()}`;
     }
 
     function createSessionId() {
@@ -1457,6 +1374,8 @@
         chrome.runtime.sendMessage({
             type: 'GET_HISTORY',
             url: currentNotebookUrl(),
+            notebookId,
+            notebookKey: currentNotebookKey(),
             sessionId: sessionId || getCurrentSessionId()
         });
     }
@@ -1567,6 +1486,8 @@
         chrome.runtime.sendMessage({
             type: 'CLEAR_HISTORY',
             url: currentNotebookUrl(),
+            notebookId,
+            notebookKey: currentNotebookKey(),
             sessionId: sid
         }, () => {
             requestHistory(getCurrentSessionId());
@@ -1628,7 +1549,9 @@
     };
 
     // 3. Load Initial History and Graph
-    requestHistory(getCurrentSessionId());
+    refreshNotebookIdentity(() => {
+        requestHistory(getCurrentSessionId());
+    });
     chrome.runtime.sendMessage({ type: 'GET_GRAPH', url: currentNotebookUrl() });
 
     sendBtn.onclick = () => {
@@ -1650,6 +1573,8 @@
         chrome.runtime.sendMessage({
             type: 'CHAT_REQUEST',
             url: currentNotebookUrl(),
+            notebookId,
+            notebookKey: currentNotebookKey(),
             sessionId: sid,
             prompt: text,
             mode: modeSelect ? String(modeSelect.value || 'ask') : 'ask',
@@ -1668,6 +1593,8 @@
         chrome.runtime.sendMessage({
             type: 'STOP_CHAT',
             url: currentNotebookUrl(),
+            notebookId,
+            notebookKey: currentNotebookKey(),
             sessionId: sid
         });
         finalizeStream({ text: partial, stopped: true });
@@ -1685,7 +1612,7 @@
 
     // Listen for AI responses from background script
     chrome.runtime.onMessage.addListener((msg) => {
-        if (msg?.url && normalizeNotebookUrl(msg.url) !== currentNotebookUrl()) {
+        if (!notebookScopeMatches(msg)) {
             return;
         }
         const msgSessionId = String(msg?.sessionId || '');
@@ -1735,6 +1662,9 @@
         }
 
         if (msg.type === 'HISTORY_DATA') {
+            if (msg.notebookKey) {
+                notebookKey = String(msg.notebookKey).trim() || notebookKey;
+            }
             const activeSessionId = String(msg.activeSessionId || getCurrentSessionId());
             const history = Array.isArray(msg.history) ? msg.history : [];
             const sessions = Array.isArray(msg.sessions) ? msg.sessions : [];

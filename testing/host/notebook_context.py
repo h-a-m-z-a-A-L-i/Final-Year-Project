@@ -257,7 +257,7 @@ def _format_full_cell_block(cell: dict) -> str:
     if ctype == "code":
         out = str(cell.get("output") or "").strip()
         cap = int(MAX_CELL_OUTPUT_CHARS)
-        if out and len(out) > cap:
+        if cap > 0 and out and len(out) > cap:
             out = out[:cap] + "\n... [output truncated]"
         if out:
             lines.append("output:")
@@ -347,7 +347,7 @@ def _format_cell_block(
     if include_output and str(ctype) == "code":
         out = str(cell.get("output") or "").strip()
         cap = int(max_output if max_output is not None else MAX_CELL_OUTPUT_CHARS)
-        if out and len(out) > cap:
+        if cap > 0 and out and len(out) > cap:
             out = out[:cap] + "\n... [output truncated]"
         if out:
             lines.append("output:")
@@ -394,6 +394,19 @@ def _manifest_block(
             "If a cell is not listed, say you do not have it.",
         ]
     )
+
+
+def _listed_cells_from_body(body: str) -> list[int]:
+    """Parse 1-based cell indices actually present in packed context text."""
+    import re
+
+    found: list[int] = []
+    for m in re.finditer(r"### Cell \[(\d+)\]", body):
+        try:
+            found.append(int(m.group(1)))
+        except (TypeError, ValueError):
+            continue
+    return sorted(set(found))
 
 
 def _truncate_at_cell_boundaries(body: str, max_chars: int) -> str:
@@ -844,6 +857,7 @@ def pack_context(
     char_limit = _notebook_context_char_limit()
     if char_limit > 0:
         body = _truncate_at_cell_boundaries(body, char_limit)
+        listed = _listed_cells_from_body(body) or listed
     coverage = "none"
     if "coverage: full" in body:
         coverage = "full"

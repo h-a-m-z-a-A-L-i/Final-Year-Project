@@ -18,9 +18,10 @@ try:
         _EXECUTION_STATE_LOCK,
         _SEND_LOCK,
         _BOT_STATE_LOCK,
-        AIML_API_KEY,
+        CEREBRAS_API_KEY,
         _LLM_CLIENT,
         LLM_MODEL,
+        CEREBRAS_MODEL,
     )
 except Exception:
     try:
@@ -33,9 +34,10 @@ except Exception:
             _EXECUTION_STATE_LOCK,
             _SEND_LOCK,
             _BOT_STATE_LOCK,
-            AIML_API_KEY,
+            CEREBRAS_API_KEY,
             _LLM_CLIENT,
             LLM_MODEL,
+            CEREBRAS_MODEL,
         )
     except Exception as e:
         raise RuntimeError("streaming requires proper initialization of config locks and client: " + str(e))
@@ -283,14 +285,19 @@ def _chunk_text_from_event(event) -> str:
 def _completion_extra_kwargs() -> dict:
     """Model-specific API options (reasoning models, etc.)."""
     extra: dict = {}
-    # Cerebras-only: reasoning_format for gpt-oss / glm / qwen
-    # model = str(CEREBRAS_MODEL or "").lower()
-    # if "gpt-oss" in model or "glm" in model or "qwen" in model:
-    #     extra["reasoning_format"] = "hidden"
+    model = str(CEREBRAS_MODEL or LLM_MODEL or "").lower()
+    if "gpt-oss" in model or "glm" in model or "qwen" in model:
+        extra["reasoning_format"] = "hidden"
     return extra
 
 
 def _preflight_prompt_budget(estimated_tokens: int) -> tuple[bool, str]:
+    try:
+        from .config import ENABLE_TPM_PREFLIGHT
+    except Exception:
+        from config import ENABLE_TPM_PREFLIGHT
+    if not ENABLE_TPM_PREFLIGHT:
+        return True, ""
     allowed, details = _check_token_limits()
     if not allowed:
         return False, details
@@ -413,13 +420,14 @@ def clear_active_stream(active_key: str, session_id: str):
             _ACTIVE_STREAMS.pop(active_key, None)
 
 
-def send_stream_end(url, tab_id, session_id, *, response="", stopped=False, error=None):
+def send_stream_end(url, tab_id, session_id, *, response="", stopped=False, error=None, snapshot_url=None):
     payload = {
         "type": "CHAT_STREAM_END",
         "response": response,
         "stopped": stopped,
         "tabId": tab_id,
-        "url": url,
+        "url": snapshot_url or url,
+        "notebookKey": url,
         "sessionId": session_id,
     }
     if error:
@@ -449,6 +457,8 @@ def _interruptible_sleep(seconds: float, cancel_check) -> bool:
 def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode, explicit_mode=None, context_meta=None):
     full_text = ""
     context_meta = context_meta if isinstance(context_meta, dict) else {}
+    history_key = str(context_meta.get("history_key") or url)
+    snapshot_url = str(context_meta.get("snapshot_url") or url)
     active_key = str(context_meta.get("active_key") or tab_id)
     attempt_id = ""
     state = None
@@ -460,10 +470,10 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
             return bool(current and current.get("stopped"))
 
     if _LLM_CLIENT is None:
-        err = "Missing AIML_API_KEY environment variable."
+        err = "Missing CEREBRAS_API_KEY environment variable."
         log(err)
-        send_msg({"type": "CHAT_RESPONSE", "error": err, "tabId": tab_id, "url": url, "sessionId": session_id})
-        send_msg({"type": "CHAT_STREAM_END", "error": err, "stopped": False, "tabId": tab_id, "url": url, "sessionId": session_id})
+        send_msg({"type": "CHAT_RESPONSE", "error": err, "tabId": tab_id, "url": snapshot_url, "notebookKey": history_key, "sessionId": session_id})
+        send_msg({"type": "CHAT_STREAM_END", "error": err, "stopped": False, "tabId": tab_id, "url": snapshot_url, "notebookKey": history_key, "sessionId": session_id})
         return
 
     try:
@@ -478,7 +488,7 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
             has_cell_context=context_meta.get("cell_index") is not None,
         )
         resolved_mode = normalize_mode(resolved_mode)
-        log(f"AI Stream Request for {url} (session={session_id}, model={LLM_MODEL}, mode={resolved_mode})")
+        log(f"AI Stream Request for {history_key} (session={session_id}, model={LLM_MODEL}, mode={resolved_mode})")
 
         include_tools = str(CONTEXT_PACK_MODE or "").lower() != "full"
         messages = build_chat_messages(
@@ -486,7 +496,7 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
             user_prompt=prompt,
             history=history,
             context=context,
-            notebook_url=url,
+            notebook_url=snapshot_url,
             include_tools=include_tools,
         )
 
@@ -497,13 +507,13 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
             from notebook_context import TOOL_FIRST_MODES, cell_slice_from_snapshot
 
         if _is_stopped():
-            send_stream_end(url, tab_id, session_id, stopped=True)
+            send_stream_end(history_key, tab_id, session_id, stopped=True, snapshot_url=snapshot_url)
             return
 
         coverage = str(context_meta.get("coverage") or "none")
         if resolved_mode in TOOL_FIRST_MODES and coverage in ("none", "partial"):
             if _is_stopped():
-                send_stream_end(url, tab_id, session_id, stopped=True)
+                send_stream_end(history_key, tab_id, session_id, stopped=True, snapshot_url=snapshot_url)
                 return
             try:
                 from .tool_registry import registry as _registry_factory
@@ -515,8 +525,8 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
             except Exception:
                 from local_notebook_tools import extract_symbols_from_text
 
-            status = reg.call("notebook_snapshot_status", {"url": url})
-            graph = reg.call("notebook_graph_query", {"url": url})
+            status = reg.call("notebook_snapshot_status", {"url": snapshot_url})
+            graph = reg.call("notebook_graph_query", {"url": snapshot_url})
             cell_payload = None
             cell_idx = context_meta.get("cell_index")
             if cell_idx is not None:
@@ -524,7 +534,7 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                     cell_idx = int(cell_idx)
                     cell_payload = reg.call(
                         "notebook_get_cell",
-                        {"url": url, "cell_index": cell_idx, "include_output": True},
+                        {"url": snapshot_url, "cell_index": cell_idx, "include_output": True},
                     )
                 except Exception as e:
                     log(f"Pre-stream get_cell failed: {e}")
@@ -536,7 +546,7 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                 try:
                     placement_payload = reg.call(
                         "notebook_recommend_placement",
-                        {"url": url, "symbols": symbols},
+                        {"url": snapshot_url, "symbols": symbols},
                     )
                 except Exception as e:
                     log(f"Pre-stream placement recommend failed: {e}")
@@ -578,7 +588,7 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
             if not allowed:
                 raise Exception(f"Local rate limit hit: {details}")
             try:
-                log("Calling AIML API (streaming)...")
+                log("Calling Cerebras API (streaming)...")
                 t_api = time.monotonic()
                 stream = _LLM_CLIENT.chat.completions.create(
                     messages=messages,
@@ -588,7 +598,7 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                     top_p=TOP_P,
                     **completion_extra,
                 )
-                log(f"AIML stream opened in {time.monotonic() - t_api:.2f}s")
+                log(f"Cerebras stream opened in {time.monotonic() - t_api:.2f}s")
                 break
             except Exception as stream_error:
                 err = str(stream_error)
@@ -615,7 +625,8 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                 "response": "",
                 "stopped": True,
                 "tabId": tab_id,
-                "url": url,
+                "url": snapshot_url,
+                "notebookKey": history_key,
                 "sessionId": session_id,
             })
             return
@@ -637,7 +648,8 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                 "response": "",
                 "stopped": True,
                 "tabId": tab_id,
-                "url": url,
+                "url": snapshot_url,
+                "notebookKey": history_key,
                 "sessionId": session_id,
             })
             return
@@ -662,7 +674,8 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                 "type": "CHAT_STREAM",
                 "delta": chunk,
                 "tabId": tab_id,
-                "url": url,
+                "url": snapshot_url,
+                "notebookKey": history_key,
                 "sessionId": session_id,
             })
 
@@ -674,11 +687,12 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
             if attempt_id:
                 _finalize_request_attempt(attempt_id, 0)
             send_stream_end(
-                url,
+                history_key,
                 tab_id,
                 session_id,
                 response=full_text.strip(),
                 stopped=True,
+                snapshot_url=snapshot_url,
             )
             return
 
@@ -700,7 +714,7 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
             _finalize_request_attempt(attempt_id, estimated_tokens)
 
         if final_text and not was_stopped:
-            memory_store.append(url, "assistant", final_text, session_id=session_id)
+            memory_store.append(history_key, "assistant", final_text, session_id=session_id)
 
         skip_post_stream_tools = (
             resolved_mode in TOOL_FIRST_MODES
@@ -761,7 +775,7 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                             parsed_args = json.loads(raw_args) if isinstance(raw_args, str) else dict(raw_args or {})
                         except Exception:
                             parsed_args = {}
-                        parsed_args.setdefault("url", url)
+                        parsed_args.setdefault("url", snapshot_url)
                         if isinstance(tab_id, int) and tab_id > 0:
                             parsed_args.setdefault("tab_id", tab_id)
 
@@ -794,18 +808,19 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                         followup = _final_text_from_response(final_resp).strip()
                         if followup:
                             final_text = followup
-                            memory_store.append(url, "assistant", final_text, session_id=session_id)
+                            memory_store.append(history_key, "assistant", final_text, session_id=session_id)
                     except Exception as e:
                         log(f"Final model call after tools failed: {e}")
         except Exception as e:
             log(f"Orchestration error: {e}")
 
         send_stream_end(
-            url,
+            history_key,
             tab_id,
             session_id,
             response=final_text,
             stopped=was_stopped,
+            snapshot_url=snapshot_url,
         )
 
     except Exception as e:
@@ -814,8 +829,8 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
         if attempt_id:
             _finalize_request_attempt(attempt_id, 0)
         if not _is_stopped():
-            memory_store.append(url, "assistant", err_text, session_id=session_id)
-        send_msg({"type": "CHAT_RESPONSE", "error": str(e), "tabId": tab_id, "url": url, "sessionId": session_id})
-        send_msg({"type": "CHAT_STREAM_END", "error": str(e), "stopped": False, "tabId": tab_id, "url": url, "sessionId": session_id})
+            memory_store.append(history_key, "assistant", err_text, session_id=session_id)
+        send_msg({"type": "CHAT_RESPONSE", "error": str(e), "tabId": tab_id, "url": snapshot_url, "notebookKey": history_key, "sessionId": session_id})
+        send_msg({"type": "CHAT_STREAM_END", "error": str(e), "stopped": False, "tabId": tab_id, "url": snapshot_url, "notebookKey": history_key, "sessionId": session_id})
     finally:
         clear_active_stream(active_key, session_id)

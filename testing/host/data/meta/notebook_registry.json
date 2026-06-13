@@ -1,0 +1,44 @@
+{
+  "url_to_key": {
+    "https://www.kaggle.com/code/codekey/housing-final-updated-4/edit": "kaggle:kernel:119598996",
+    "https://www.kaggle.com/code/codekey/final-housing-updated-3/edit": "kaggle:kernel:119591106",
+    "https://www.kaggle.com/code/codekey/zameen-scraping/edit": "kaggle:kernel:119514635",
+    "https://www.kaggle.com/code/codekey/testing-only/edit": "https://www.kaggle.com/code/codekey/testing-only/edit",
+    "https://www.kaggle.com/code/codekey/testing-onlll/edit": "kaggle:kernel:112732919",
+    "https://www.kaggle.com/code/codekey/testing-onll/edit": "kaggle:kernel:112732919",
+    "https://www.kaggle.com/code/codekey/testing-ol/edit": "kaggle:kernel:119598996"
+  },
+  "kernels": {
+    "kaggle:kernel:119514635": {
+      "notebookId": 119514635,
+      "urls": [
+        "https://www.kaggle.com/code/codekey/zameen-scraping/edit"
+      ],
+      "updatedAt": "2026-06-13T01:19:46.149147+00:00"
+    },
+    "kaggle:kernel:119598996": {
+      "notebookId": 119598996,
+      "urls": [
+        "https://www.kaggle.com/code/codekey/housing-final-updated-4/edit",
+        "https://www.kaggle.com/code/codekey/testing-ol/edit"
+      ],
+      "updatedAt": "2026-06-13T01:19:42.709124+00:00"
+    },
+    "kaggle:kernel:119591106": {
+      "notebookId": 119591106,
+      "urls": [
+        "https://www.kaggle.com/code/codekey/final-housing-updated-3/edit"
+      ],
+      "updatedAt": "2026-06-13T01:19:42.208160+00:00"
+    },
+    "kaggle:kernel:112732919": {
+      "notebookId": 112732919,
+      "urls": [
+        "https://www.kaggle.com/code/codekey/testing-onlll/edit",
+        "https://www.kaggle.com/code/codekey/testing-onll/edit",
+        "https://www.kaggle.com/code/codekey/testing-ol/edit"
+      ],
+      "updatedAt": "2026-06-13T01:18:12.579515+00:00"
+    }
+  }
+}

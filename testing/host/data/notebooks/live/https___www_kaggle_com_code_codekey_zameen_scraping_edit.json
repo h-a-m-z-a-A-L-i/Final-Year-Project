@@ -1,0 +1,285 @@
+{
+  "tabUrl": "https://www.kaggle.com/code/codekey/zameen-scraping/edit",
+  "title": "__notebook_source__",
+  "lastUpdated": "2026-06-13T00:51:43.188917+00:00",
+  "cells": [
+    {
+      "execution_order": 1,
+      "execution_signal": "",
+      "execution_status": "executed",
+      "execution_title": "",
+      "index": 1,
+      "input": "",
+      "output": "",
+      "type": "code"
+    },
+    {
+      "execution_order": 2,
+      "execution_signal": "",
+      "execution_status": "executed",
+      "execution_title": "",
+      "index": 2,
+      "input": "",
+      "output": "",
+      "type": "code"
+    },
+    {
+      "execution_order": 3,
+      "execution_signal": "",
+      "execution_status": "executed",
+      "execution_title": "",
+      "index": 3,
+      "input": "",
+      "output": "",
+      "type": "code"
+    },
+    {
+      "execution_order": 4,
+      "execution_signal": "",
+      "execution_status": "executed",
+      "execution_title": "",
+      "index": 4,
+      "input": "",
+      "output": "",
+      "type": "code"
+    },
+    {
+      "execution_order": 5,
+      "execution_signal": "",
+      "execution_status": "executed",
+      "execution_title": "",
+      "index": 5,
+      "input": "",
+      "output": "",
+      "type": "code"
+    },
+    {
+      "execution_order": 6,
+      "execution_signal": "",
+      "execution_status": "executed",
+      "execution_title": "",
+      "index": 6,
+      "input": "",
+      "output": "",
+      "type": "code"
+    },
+    {
+      "execution_order": null,
+      "execution_signal": "",
+      "execution_status": "idle",
+      "execution_title": "",
+      "index": 7,
+      "input": "",
+      "output": "",
+      "type": "code"
+    },
+    {
+      "execution_order": 12,
+      "execution_signal": "",
+      "execution_status": "executed",
+      "execution_title": "",
+      "index": 8,
+      "input": "",
+      "output": "",
+      "type": "code"
+    },
+    {
+      "index": 9,
+      "input": "",
+      "state": "open",
+      "type": "markdown"
+    },
+    {
+      "execution_order": 21,
+      "execution_signal": "",
+      "execution_status": "executed",
+      "execution_title": "",
+      "index": 10,
+      "input": "",
+      "output": "",
+      "type": "code"
+    },
+    {
+      "execution_order": 13,
+      "execution_signal": "",
+      "execution_status": "executed",
+      "execution_title": "",
+      "index": 11,
+      "input": "",
+      "output": "",
+      "type": "code"
+    },
+    {
+      "index": 12,
+      "input": "",
+      "state": "open",
+      "type": "markdown"
+    },
+    {
+      "execution_order": 1,
+      "execution_signal": "",
+      "execution_status": "executed",
+      "execution_title": "",
+      "index": 13,
+      "input": "",
+      "output": "",
+      "type": "code"
+    },
+    {
+      "execution_order": null,
+      "execution_signal": "",
+      "execution_status": "idle",
+      "execution_title": "",
+      "index": 14,
+      "input": "",
+      "output": "",
+      "type": "code"
+    },
+    {
+      "execution_order": null,
+      "execution_signal": "",
+      "execution_status": "idle",
+      "execution_title": "",
+      "index": 15,
+      "input": "",
+      "output": "",
+      "type": "code"
+    },
+    {
+      "execution_order": 17,
+      "execution_signal": "",
+      "execution_status": "executed",
+      "execution_title": "",
+      "index": 16,
+      "input": "",
+      "output": "",
+      "type": "code"
+    },
+    {
+      "execution_order": 20,
+      "execution_signal": "",
+      "execution_status": "executed",
+      "execution_title": "",
+      "index": 17,
+      "input": "",
+      "output": "",
+      "type": "code"
+    },
+    {
+      "execution_order": 8,
+      "execution_signal": "",
+      "execution_status": "executed",
+      "execution_title": "",
+      "index": 18,
+      "input": "",
+      "output": "",
+      "type": "code"
+    },
+    {
+      "execution_order": 18,
+      "execution_signal": "",
+      "execution_status": "executed",
+      "execution_title": "",
+      "index": 19,
+      "input": "",
+      "output": "",
+      "type": "code"
+    },
+    {
+      "execution_order": 23,
+      "execution_signal": "",
+      "execution_status": "executed",
+      "execution_title": "",
+      "index": 20,
+      "input": "",
+      "output": "",
+      "type": "code"
+    },
+    {
+      "execution_order": 42,
+      "execution_signal": "",
+      "execution_status": "executed",
+      "execution_title": "",
+      "index": 21,
+      "input": "",
+      "output": "",
+      "type": "code"
+    },
+    {
+      "execution_order": 26,
+      "execution_signal": "",
+      "execution_status": "executed",
+      "execution_title": "",
+      "index": 22,
+      "input": "",
+      "output": "",
+      "type": "code"
+    },
+    {
+      "execution_order": 34,
+      "execution_signal": "",
+      "execution_status": "executed",
+      "execution_title": "",
+      "index": 23,
+      "input": "",
+      "output": "",
+      "type": "code"
+    },
+    {
+      "execution_order": 37,
+      "execution_signal": "",
+      "execution_status": "executed",
+      "execution_title": "",
+      "index": 24,
+      "input": "",
+      "output": "",
+      "type": "code"
+    },
+    {
+      "execution_order": null,
+      "execution_signal": "",
+      "execution_status": "idle",
+      "execution_title": "",
+      "index": 25,
+      "input": "",
+      "output": "Initializing master dataset file: zameen_master_dataset.csv",
+      "type": "code"
+    },
+    {
+      "execution_order": 43,
+      "execution_signal": "",
+      "execution_status": "executed",
+      "execution_title": "",
+      "index": 26,
+      "input": "",
+      "output": "",
+      "type": "code"
+    },
+    {
+      "index": 27,
+      "input": "",
+      "state": "open",
+      "type": "markdown"
+    },
+    {
+      "execution_order": 7,
+      "execution_signal": "",
+      "execution_status": "executed",
+      "execution_title": "",
+      "index": 28,
+      "input": "",
+      "output": "",
+      "type": "code"
+    },
+    {
+      "execution_order": null,
+      "execution_signal": "",
+      "execution_status": "idle",
+      "execution_title": "",
+      "index": 29,
+      "input": "",
+      "output": "",
+      "type": "code"
+    }
+  ]
+}
