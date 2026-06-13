@@ -3,3 +3,18 @@
 !.env.example
 kaggle json/
 **/kernel-metadata.json
+
+# Local host runtime (never commit)
+testing/host/data/logs/
+testing/host/data/sessions/*.sqlite3-shm
+testing/host/data/sessions/*.sqlite3-wal
+testing/host/data/meta/execution_state.json
+testing/host/data/meta/notebook_registry.json
+testing/host/data/meta/rate_limit_tracker.json
+testing/host/data/meta/hashes.json
+testing/host/data/meta/kernel_metadata/
+testing/host/data/meta/kernel_slug_index.json
+testing/host/data/notebooks/live/
+testing/host/__pycache__/
+**/__pycache__/
+*.pyc

@@ -4,7 +4,8 @@ setlocal EnableExtensions
 REM Always run from this script's folder
 cd /d "%~dp0"
 
-set "AUTO_STASHED=0"
+REM Never hang on locked files (e.g. SQLite -shm/-wal while host is running)
+set "GIT_TERMINAL_PROMPT=0"
 
 where git >nul 2>&1
 if errorlevel 1 (
@@ -30,8 +31,9 @@ if "%COMMIT_MSG%"=="" (
 echo Staging all changes...
 git add -A
 
-REM Never commit local secrets. Allow a one-time staged delete to drop .env from the repo.
+REM Never commit secrets or local runtime artifacts
 call :unstage_sensitive
+call :unstage_runtime
 
 git diff --cached --quiet
 if %errorlevel%==0 (
@@ -54,13 +56,12 @@ if errorlevel 1 (
 )
 
 :sync_and_push
-call :stash_if_dirty
+call :discard_runtime_changes
 
 echo Syncing with remote...
 git fetch origin
 if errorlevel 1 (
   echo Fetch failed.
-  call :restore_stash
   pause
   exit /b 1
 )
@@ -70,7 +71,6 @@ if errorlevel 1 (
   echo Pull failed. Another machine may have pushed first, or you have conflicts.
   echo Fix conflicts, then run: git rebase --continue
   echo Or abort with: git rebase --abort
-  call :restore_stash
   pause
   exit /b 1
 )
@@ -79,32 +79,12 @@ echo Pushing to remote...
 git push origin main
 if errorlevel 1 (
   echo Push failed.
-  call :restore_stash
   pause
   exit /b 1
 )
 
-call :restore_stash
-
 echo Done. Commit and push completed successfully.
 pause
-exit /b 0
-
-:stash_if_dirty
-git status --porcelain | findstr . >nul
-if errorlevel 1 exit /b 0
-goto :do_stash
-
-:do_stash
-echo Stashing uncommitted local changes before sync...
-git stash push -u -m "commit_and_push auto-stash"
-if not errorlevel 1 set "AUTO_STASHED=1"
-exit /b 0
-
-:restore_stash
-if not "%AUTO_STASHED%"=="1" exit /b 0
-echo Restoring stashed local changes...
-git stash pop
 exit /b 0
 
 :unstage_path
@@ -119,6 +99,33 @@ call :unstage_path "kaggle json"
 for /f "delims=" %%f in ('git diff --cached --name-only ^| findstr /i /r "kaggle\\.json kernel-metadata\\.json \\.env\\."') do (
   call :unstage_path "%%f"
 )
+exit /b 0
+
+:unstage_runtime
+call :unstage_path testing/host/data/logs
+call :unstage_path testing/host/data/sessions
+call :unstage_path testing/host/data/meta/execution_state.json
+call :unstage_path testing/host/data/meta/notebook_registry.json
+call :unstage_path testing/host/data/meta/rate_limit_tracker.json
+call :unstage_path testing/host/data/meta/hashes.json
+call :unstage_path testing/host/data/meta/kernel_metadata
+call :unstage_path testing/host/data/meta/kernel_slug_index.json
+call :unstage_path testing/host/data/notebooks/live
+for /f "delims=" %%f in ('git diff --cached --name-only ^| findstr /i /r "__pycache__ \\.pyc$ \\.sqlite3-shm$ \\.sqlite3-wal$"') do (
+  call :unstage_path "%%f"
+)
+exit /b 0
+
+:discard_runtime_changes
+REM Reset tracked runtime files so pull/rebase is not blocked by the host process.
+git restore testing/host/data/logs 2>nul
+git restore testing/host/data/meta/execution_state.json 2>nul
+git restore testing/host/data/meta/notebook_registry.json 2>nul
+git restore testing/host/data/meta/rate_limit_tracker.json 2>nul
+git restore testing/host/data/meta/hashes.json 2>nul
+git restore testing/host/data/meta/kernel_metadata 2>nul
+git restore testing/host/data/meta/kernel_slug_index.json 2>nul
+git restore testing/host/data/notebooks/live 2>nul
 exit /b 0
 
 :block_if_sensitive_staged
