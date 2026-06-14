@@ -6,6 +6,7 @@ kaggle json/
 
 # Local host runtime (never commit)
 testing/host/data/logs/
+testing/host/data/sessions/*.sqlite3
 testing/host/data/sessions/*.sqlite3-shm
 testing/host/data/sessions/*.sqlite3-wal
 testing/host/data/meta/execution_state.json

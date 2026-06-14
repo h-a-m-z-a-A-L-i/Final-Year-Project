@@ -1,7 +1,7 @@
 {
   "tabUrl": "https://www.kaggle.com/code/codekey/testing-ol/edit",
   "title": "__notebook_source__",
-  "lastUpdated": "2026-06-14T07:10:40.111742+00:00",
+  "lastUpdated": "2026-06-14T07:36:06.138930+00:00",
   "cells": [
     {
       "type": "code",
@@ -182,8 +182,8 @@
       "index": 23,
       "input": "import pandas as pd\n\n\ndf = pd.read_csv(\n    '/kaggle/input/datasets/codekey/zameen-com2026-16-5/zameen_master_dataset.csv',\n    on_bad_lines='skip',\n    engine='python'\n)\n\n\nprint(df.head())",
       "output": "property_id|location_id|page_url|property_type|price|location|city|province_name|latitude|longitude|baths|area|purpose|bedrooms|date_added|agency|agent|Area Type|Area Size|Area Category\n15702|1|https://www.zameen.com/Property/askari_...   Askari 11|Lahore|Punjab|34.540894|73.095732|5...                                                                                                                                       \n1806|1|https://www.zameen.com/Property/bahria_t...   Bahria Town - Sector E|Lahore|Punjab|34.54299...                                                                                                                                       \n373|1|https://www.zameen.com/Property/lahore_va...   Lahore|Lahore|Punjab|34.544394|73.092232|6|1 ...                                                                                                                                       \n3717|1|https://www.zameen.com/Property/dha_11_r...   DHA 11 Rahbar|Lahore|Punjab|34.545094|73.0915...                                                                                                                                       \n1450|1|https://www.zameen.com/Property/dha_defe...   DHA Defence|Lahore|Punjab|34.546494|73.090132...",
-      "execution_order": 20,
-      "execution_title": "Cell executed at 12:10pm"
+      "execution_order": 22,
+      "execution_title": "Execution #22"
     },
     {
       "type": "code",

@@ -93,7 +93,7 @@ def test_agentic_system_notes_require_single_turn_batch(monkeypatch):
         notebook_url="https://www.kaggle.com/code/x/edit",
         context="cell 1",
     )
-    assert "one tool per round" not in content.lower()
+    assert "never one tool per round" in content.lower()
     assert "all tool_calls" in content.lower() or "multiple" in content.lower()
     assert "edit_cell_by_index" in content
     assert "insert_and_edit_cell example" not in content

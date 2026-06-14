@@ -74,7 +74,9 @@ if errorlevel 1 (
   exit /b 1
 )
 
-git pull --rebase origin !BRANCH!
+REM --autostash temporarily shelves dirty tracked files (e.g. live SQLite DB)
+REM while the host is running, then restores them after rebase.
+git pull --rebase --autostash origin !BRANCH!
 if errorlevel 1 (
   echo Pull failed. Another machine may have pushed first, or you have conflicts.
   echo Fix conflicts, then run: git rebase --continue
@@ -132,7 +134,7 @@ for /f "delims=" %%f in ('git diff --cached --name-only ^| findstr /i /r "__pyca
 exit /b 0
 
 :discard_runtime_changes
-REM Reset tracked runtime files so pull/rebase is not blocked by the host process.
+REM Best-effort reset of runtime files before sync.
 git restore testing/host/data/logs >nul 2>&1
 git restore testing/host/data/sessions >nul 2>&1
 git restore testing/host/data/meta/execution_state.json >nul 2>&1
@@ -142,10 +144,8 @@ git restore testing/host/data/meta/hashes.json >nul 2>&1
 git restore testing/host/data/meta/kernel_metadata >nul 2>&1
 git restore testing/host/data/meta/kernel_slug_index.json >nul 2>&1
 git restore testing/host/data/notebooks/live >nul 2>&1
-for /f "delims=" %%f in ('git status --porcelain ^| findstr /i /r "__pycache__ \\.pyc$ \\.sqlite3-shm$ \\.sqlite3-wal$"') do (
-  set "LINE=%%f"
-  set "RUNTIME_FILE=!LINE:~3!"
-  if defined RUNTIME_FILE git restore -- "!RUNTIME_FILE!" >nul 2>&1
+for /f "delims=" %%f in ('git ls-files ^| findstr /i /r "__pycache__/ \\.pyc$"') do (
+  git restore -- "%%f" >nul 2>&1
 )
 exit /b 0
 

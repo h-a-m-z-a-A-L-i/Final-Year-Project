@@ -24,7 +24,8 @@ from testing.host.agentic_mode import set_dashboard_agentic_enabled  # noqa: E40
 from testing.host.config import LLM_MODEL, LLM_PROVIDER, TEMPERATURE, TOP_P, _LLM_CLIENT  # noqa: E402
 from testing.host.prompt_engineering import agentic_runtime_enabled, build_chat_messages  # noqa: E402
 from testing.host.streaming import _completion_extra_kwargs, _parallel_tool_calls_flag  # noqa: E402
-from testing.host.tool_registry import build_cerebras_tools  # noqa: E402
+from testing.host.agentic_tool_collector import expand_tool_batch_via_llm  # noqa: E402
+from testing.host.tool_registry import build_cerebras_tools, registry  # noqa: E402
 
 URL = "https://www.kaggle.com/code/codekey/testing-ol/edit"
 
@@ -149,6 +150,38 @@ def run_eval(*, min_tools: int, min_unique: int, prompt: str) -> EvalReport:
     report.assistant_text_round1 = str(assistant_msg.get("content") or "").strip()
     round1 = _parse_tool_calls(assistant_msg)
     report.round1_tool_count = len(round1)
+
+    # Simulate production: Cerebras collector merges micro-rounds before host execute
+    if len(round1) == 1:
+        tool_messages = list(messages)
+        tool_messages.append({
+            "role": "assistant",
+            "content": report.assistant_text_round1,
+            "tool_calls": round1,
+        })
+        merged, collect_rounds = expand_tool_batch_via_llm(
+            tool_messages=tool_messages,
+            tools=tools,
+            llm_create=_LLM_CLIENT.chat.completions.create,
+            create_kwargs_base={
+                "model": LLM_MODEL,
+                "tools": tools,
+                "parallel_tool_calls": report.parallel_tool_calls,
+                "temperature": TEMPERATURE,
+                "top_p": TOP_P,
+                **extra,
+            },
+            user_prompt=prompt,
+            registry=registry(),
+            url=URL,
+        )
+        if collect_rounds > 0:
+            report.notes.append(
+                f"Collector merged {len(merged)} tools over {collect_rounds + 1} LLM micro-round(s)."
+            )
+        round1 = merged
+        report.round1_tool_count = len(round1)
+
     report.round1_unique_tools = sorted(set(_tool_names(round1)))
     report.round1_tool_calls = _tool_args_preview(round1)
 
