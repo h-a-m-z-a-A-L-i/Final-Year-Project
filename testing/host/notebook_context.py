@@ -34,7 +34,7 @@ def _scraped_dir() -> Path:
             from testing.host.config import SCRAPED_DIR
             return SCRAPED_DIR
 
-TOOL_FIRST_MODES = frozenset({"ask", "code"})
+TOOL_FIRST_MODES = frozenset({"ask", "code", "agentic"})
 
 
 @dataclass

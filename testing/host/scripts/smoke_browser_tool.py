@@ -27,9 +27,7 @@ BROWSER_TOOLS = (
     "select_cell_by_index",
     "insert_cell",
     "edit_cell_by_index",
-    "insert_and_edit_cell",
     "run_cell",
-    "edit_and_run_cell",
     "delete_by_index",
     "creating_markdown_by_index",
 )
@@ -43,7 +41,6 @@ def main() -> int:
     parser.add_argument("--index", type=int, default=None, help="1-based anchor (insert/markdown)")
     parser.add_argument("--content", default=None, help="Cell source (edit tools)")
     parser.add_argument("--direction", default="below", choices=["below", "above"])
-    parser.add_argument("--run-cell", action="store_true", help="For click_cell only")
     parser.add_argument("--tab-id", type=int, default=None)
     args = parser.parse_args()
 
@@ -61,9 +58,7 @@ def main() -> int:
         "click_cell",
         "select_cell_by_index",
         "edit_cell_by_index",
-        "insert_and_edit_cell",
         "run_cell",
-        "edit_and_run_cell",
         "delete_by_index",
     }:
         if args.cell_index is None:
@@ -76,15 +71,13 @@ def main() -> int:
             print(f"--index (or --cell-index) is required for {tool}", file=sys.stderr)
             return 2
         payload["index"] = idx
-    if tool in {"edit_cell_by_index", "insert_and_edit_cell", "edit_and_run_cell"}:
+    if tool == "edit_cell_by_index":
         if not args.content:
             print(f"--content is required for {tool}", file=sys.stderr)
             return 2
         payload["content"] = args.content
     if tool == "insert_cell":
         payload["direction"] = args.direction
-    if tool == "click_cell" and args.run_cell:
-        payload["run_cell"] = True
 
     print(f"Calling {tool} with:", json.dumps(payload, indent=2))
     result = registry().call(tool, payload)

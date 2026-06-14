@@ -732,7 +732,43 @@
             border: 1px solid var(--cp-border);
             background: var(--cp-surface);
             color: inherit;
-        }`;
+        }
+        .settings-panel {
+            padding: 12px 14px;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        .settings-card {
+            border: 1px solid var(--cp-border);
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 12px;
+            background: var(--cp-surface);
+        }
+        .settings-card h3 {
+            margin: 0 0 8px;
+            font-size: 13px;
+        }
+        .settings-toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .settings-hint {
+            margin-top: 8px;
+            font-size: 11px;
+            opacity: 0.72;
+        }
+        .settings-status {
+            margin-top: 8px;
+            font-size: 11px;
+            padding: 6px 8px;
+            border-radius: 6px;
+            background: rgba(127, 127, 127, 0.12);
+        }
+        .settings-status.warn { color: #c9a227; }
+        .settings-status.ok { color: #3ecf8e; }`;
     document.head.appendChild(style);
 
     // 2. HTML Structure
@@ -763,6 +799,7 @@
         <nav class="copilot-tabs">
             <button class="tab-item active" data-tab="chat-tab">💬 Chat</button>
             <button class="tab-item" data-tab="debug-tab">🔗 Dependencies</button>
+            <button class="tab-item" data-tab="settings-tab">⚙️ Settings</button>
         </nav>
 
         <!-- Main Content Area -->
@@ -771,7 +808,7 @@
                 <div id="chat-history" class="chat-scroll-area">
                     <div class="message assistant">
                         <div class="bubble">
-                            Hello! I'm your notebook copilot. Use <strong>Ask</strong> for questions, errors, and explanations — <strong>Code</strong> to generate or edit cells.
+                            Hello! I'm your notebook copilot. Use <strong>Ask</strong> for questions, <strong>Code</strong> to generate cells, or enable <strong>Agentic</strong> in Settings to run browser tools.
                         </div>
                     </div>
                 </div>
@@ -786,15 +823,33 @@
                     <p class="debug-placeholder">Open this tab to load dependencies. Cell numbers match notebook indices (often starting at 0).</p>
                 </div>
             </div>
+
+            <div id="settings-tab" class="tab-content">
+                <div class="settings-panel">
+                    <div class="settings-card">
+                        <h3>Agentic mode</h3>
+                        <div class="settings-toggle-row">
+                            <label for="agentic-dashboard-toggle">Enable Agentic mode</label>
+                            <input type="checkbox" id="agentic-dashboard-toggle" />
+                        </div>
+                        <p class="settings-hint">
+                            When on, select <strong>Agentic</strong> in the chat footer to let the LLM call atomic browser tools
+                            (insert, edit, run, delete). Ask and Code modes stay read-only / advisory.
+                        </p>
+                        <div id="agentic-settings-status" class="settings-status">Loading settings…</div>
+                    </div>
+                </div>
+            </div>
         </main>
 
         <!-- Footer / Input -->
         <footer class="copilot-footer">
             <div class="mode-row">
                 <label for="chat-mode">Mode</label>
-                <select id="chat-mode" class="mode-select" title="Ask = explain/debug/placement; Code = generate cells">
+                <select id="chat-mode" class="mode-select" title="Ask = explain; Code = generate; Agentic = browser tools (Settings)">
                     <option value="ask" selected>Ask</option>
                     <option value="code">Code</option>
+                    <option value="agentic" id="chat-mode-agentic" disabled hidden>Agentic</option>
                 </select>
             </div>
             <div class="input-wrapper">
@@ -820,7 +875,11 @@
     // 3. Logic
     let activeTab = 'chat-tab';
     const tabItems = wrapper.querySelectorAll('.tab-item');
-    const panes = { 'chat-tab': wrapper.querySelector('#chat-tab'), 'debug-tab': wrapper.querySelector('#debug-tab') };
+    const panes = {
+        'chat-tab': wrapper.querySelector('#chat-tab'),
+        'debug-tab': wrapper.querySelector('#debug-tab'),
+        'settings-tab': wrapper.querySelector('#settings-tab'),
+    };
 
     tabItems.forEach(tab => {
         tab.addEventListener('click', () => {
@@ -1038,6 +1097,58 @@
 
     const input = wrapper.querySelector('#chat-input');
     const modeSelect = wrapper.querySelector('#chat-mode');
+    const agenticModeOption = wrapper.querySelector('#chat-mode-agentic');
+    const agenticToggle = wrapper.querySelector('#agentic-dashboard-toggle');
+    const agenticStatus = wrapper.querySelector('#agentic-settings-status');
+    let agenticDashboardEnabled = false;
+    let agenticServerAllowed = false;
+
+    function syncAgenticModeUi() {
+        const ready = agenticServerAllowed && agenticDashboardEnabled;
+        if (agenticModeOption) {
+            agenticModeOption.hidden = !agenticServerAllowed;
+            agenticModeOption.disabled = !ready;
+        }
+        if (agenticStatus) {
+            if (!agenticServerAllowed) {
+                agenticStatus.className = 'settings-status warn';
+                agenticStatus.textContent = 'Host has Agentic disabled (set LLM_AGENTIC_ENABLED=1 in .env and restart host.py).';
+            } else if (!agenticDashboardEnabled) {
+                agenticStatus.className = 'settings-status';
+                agenticStatus.textContent = 'Toggle on to unlock the Agentic mode in the chat footer.';
+            } else {
+                agenticStatus.className = 'settings-status ok';
+                agenticStatus.textContent = 'Agentic ready — select Agentic mode below the chat input.';
+            }
+        }
+        if (modeSelect && modeSelect.value === 'agentic' && !ready) {
+            modeSelect.value = 'code';
+        }
+    }
+
+    function applyAgenticSettings(payload) {
+        if (!payload || typeof payload !== 'object') return;
+        agenticServerAllowed = Boolean(payload.server_allowed);
+        agenticDashboardEnabled = Boolean(payload.dashboard_enabled);
+        if (agenticToggle) agenticToggle.checked = agenticDashboardEnabled;
+        syncAgenticModeUi();
+    }
+
+    function requestAgenticSettings() {
+        chrome.runtime.sendMessage({ type: 'GET_AGENTIC_SETTINGS' });
+    }
+
+    if (agenticToggle) {
+        agenticToggle.addEventListener('change', () => {
+            const enabled = Boolean(agenticToggle.checked);
+            chrome.runtime.sendMessage({
+                type: 'SET_AGENTIC_SETTINGS',
+                dashboard_enabled: enabled,
+            });
+        });
+    }
+
+    requestAgenticSettings();
     const sendBtn = wrapper.querySelector('#chat-send');
     const stopBtn = wrapper.querySelector('#chat-stop');
     const chatHistory = wrapper.querySelector('#chat-history');
@@ -1593,6 +1704,12 @@
         setStreamingState(true);
         ensureStreamMessage();
         
+        const mode = modeSelect ? String(modeSelect.value || 'ask') : 'ask';
+        if (mode === 'agentic' && !(agenticServerAllowed && agenticDashboardEnabled)) {
+            finalizeStream({ error: 'Enable Agentic mode in Settings first.' });
+            return;
+        }
+
         chrome.runtime.sendMessage({
             type: 'CHAT_REQUEST',
             url: currentNotebookUrl(),
@@ -1600,7 +1717,7 @@
             notebookKey: currentNotebookKey(),
             sessionId: sid,
             prompt: text,
-            mode: modeSelect ? String(modeSelect.value || 'ask') : 'ask',
+            mode: mode,
         }, (response) => {
             if (response?.error) {
                 finalizeStream({ error: response.error });
@@ -1686,6 +1803,11 @@
                 resetChatToDefault();
             }
             requestHistory(getCurrentSessionId());
+            return;
+        }
+
+        if (msg.type === 'AGENTIC_SETTINGS') {
+            applyAgenticSettings(msg);
             return;
         }
 

@@ -48,8 +48,13 @@ def execute_bot_command_queued(cmd: dict, timeout: float = 12.0) -> dict:
     """
     Append command to bot_commands.jsonl and wait for matching bot_results.jsonl line.
 
-    Requires testing/host/host.py to be running (bot watcher thread).
+    Fire-and-forget by default: queue/dispatch and return immediately unless waitForResult is set.
     """
+    try:
+        from .bot_command import _is_fire_and_forget
+    except Exception:
+        from bot_command import _is_fire_and_forget
+
     request_id = str(cmd.get("requestId") or uuid.uuid4())
     queued = dict(cmd)
     queued["requestId"] = request_id
@@ -60,8 +65,39 @@ def execute_bot_command_queued(cmd: dict, timeout: float = 12.0) -> dict:
     BOT_RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
     BOT_RESULTS_PATH.touch(exist_ok=True)
 
-    results_offset = BOT_RESULTS_PATH.stat().st_size
     _append_jsonl(BOT_COMMANDS_PATH, queued)
+
+    if _is_fire_and_forget(queued):
+        action = str(queued.get("action") or "unknown").strip().lower()
+        try:
+            from .bot_command import _dom_index_from_cmd
+            from .cell_index import dom_to_app
+        except Exception:
+            from bot_command import _dom_index_from_cmd
+            from cell_index import dom_to_app
+        dom_index = queued.get("dom_index")
+        if dom_index is None:
+            dom_index = _dom_index_from_cmd(queued, default_basis=queued.get("index_basis") or "app")
+        app_index = queued.get("app_index")
+        if app_index is None and isinstance(dom_index, int):
+            app_index = dom_to_app(dom_index)
+        return {
+            "ok": True,
+            "requestId": request_id,
+            "type": action.upper(),
+            "url": queued.get("url"),
+            "result": {
+                "ok": True,
+                "dispatched": True,
+                "phase": "dispatched",
+                "domIndex": dom_index,
+                "appIndex": app_index,
+                "cellIndex": app_index,
+            },
+            "transport": "jsonl_queue",
+        }
+
+    results_offset = BOT_RESULTS_PATH.stat().st_size
 
     action = str(queued.get("action") or "").strip().lower()
     composite_actions = {
@@ -72,7 +108,6 @@ def execute_bot_command_queued(cmd: dict, timeout: float = 12.0) -> dict:
         "creating_markdown_by_index",
         "creating_markdown",
         "insert_cell",
-        "delete_by_index",
     }
     cushion = 2.5 if action in composite_actions else 0.75
     deadline = time.monotonic() + max(0.5, float(timeout)) + cushion

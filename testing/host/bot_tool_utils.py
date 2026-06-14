@@ -4,16 +4,16 @@ from __future__ import annotations
 
 from typing import Any
 
-# Shared browser timing — background /edit tabs (not focused) need slightly longer budgets.
-BROWSER_CLICK_TIMEOUT_SEC = 4.0
-BROWSER_CLICK_MAX_WAIT_MS = 160
-BROWSER_EDIT_TIMEOUT_SEC = 5.0
-BROWSER_EDIT_MAX_WAIT_MS = 160
-BROWSER_INSERT_TIMEOUT_SEC = 4.0
-BROWSER_INSERT_MAX_WAIT_MS = 160
+# Shared browser timing — background /edit tabs need longer budgets (agentic ReAct chain).
+BROWSER_CLICK_TIMEOUT_SEC = 6.0
+BROWSER_CLICK_MAX_WAIT_MS = 400
+BROWSER_EDIT_TIMEOUT_SEC = 12.0
+BROWSER_EDIT_MAX_WAIT_MS = 600
+BROWSER_INSERT_TIMEOUT_SEC = 8.0
+BROWSER_INSERT_MAX_WAIT_MS = 400
 BROWSER_DELETE_TIMEOUT_SEC = 8.0
 BROWSER_SELECT_TIMEOUT_SEC = 4.0
-BROWSER_SELECT_MAX_WAIT_MS = 160
+BROWSER_SELECT_MAX_WAIT_MS = 400
 BROWSER_MARKDOWN_TIMEOUT_SEC = 14.0
 BROWSER_RUN_TIMEOUT_SEC = 6.0
 BROWSER_RUN_MAX_WAIT_MS = 240
@@ -446,6 +446,8 @@ def normalize_delete_cell_args(args: dict) -> tuple[dict | None, dict | None]:
         "dom_index": dom_index,
         "app_index": app_index,
         "index_basis": "dom",
+        "scrollIntoView": args.get("scroll_into_view", args.get("scrollIntoView", True)) is not False,
+        "maxWaitMs": args.get("maxWaitMs", args.get("max_wait_ms", 600)),
     }
     tab_id = pick_tab_id(args)
     if tab_id is not None:

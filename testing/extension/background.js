@@ -857,6 +857,8 @@ const NOTEBOOK_SCOPED_MSG_TYPES = new Set([
   "GET_HISTORY",
   "CLEAR_HISTORY",
   "GET_GRAPH",
+  "GET_AGENTIC_SETTINGS",
+  "SET_AGENTIC_SETTINGS",
 ]);
 
 const TAB_BROADCAST_TYPES = new Set([
@@ -866,6 +868,7 @@ const TAB_BROADCAST_TYPES = new Set([
   "HISTORY_DATA",
   "HISTORY_CLEARED",
   "NOTEBOOK_IDENTITY_UPDATED",
+  "AGENTIC_SETTINGS",
 ]);
 
 function broadcastToTabFrames(tabId, payload) {
@@ -934,8 +937,10 @@ function getPort() {
         }
 
         const isBackground = !tabInfo.active;
-        const backgroundBoostMs = isBackground ? 320 : 0;
+        const backgroundBoostMs = isBackground ? 600 : 0;
+        const isEditOp = payload?.type === 'SET_CELL_CONTENT';
 
+        const runDispatch = () => {
         chrome.webNavigation.getAllFrames({ tabId }, async (frames) => {
         if (chrome.runtime.lastError) {
           chrome.tabs.sendMessage(tabId, payload, (response) => {
@@ -953,25 +958,29 @@ function getPort() {
         let lastFailure = null;
         const frameAttempts = [];
 
+        const isDeleteOp = payload?.type === 'DELETE_CELL';
+        const isSelectOp = payload?.type === 'SELECT_CELL_BY_INDEX';
+        const isClickEditOp =
+          payload?.type === 'CLICK_CELL_BY_INDEX' && payload?.runCell !== true;
         const isFastCellOp =
           payload?.type === 'CLICK_CELL_BY_INDEX'
-          || payload?.type === 'SELECT_CELL_BY_INDEX'
+          && payload?.runCell === true
           || payload?.type === 'INSERT_CELL'
           || payload?.type === 'RUN_CELL_BY_INDEX'
-          || payload?.type === 'DELETE_CELL'
           || payload?.type === 'CREATING_MARKDOWN_BY_INDEX';
-        const isEditOp = payload?.type === 'SET_CELL_CONTENT';
         const isRunOp =
           payload?.type === 'RUN_CELL_BY_INDEX'
           || (payload?.type === 'CLICK_CELL_BY_INDEX' && payload?.runCell === true);
-        const frameTimeoutMs = isFastCellOp
-          ? Math.max(160, Number(payload?.maxWaitMs) || 160) + 80 + backgroundBoostMs
-          : isEditOp
-            ? Math.max(900, Number(payload?.maxWaitMs) || 160) + 700 + backgroundBoostMs
-            : isRunOp
-              ? Math.max(600, Number(payload?.maxWaitMs) || 240) + 500 + backgroundBoostMs
-              : 12000;
-        const useFrameRace = (isFastCellOp || isEditOp || isRunOp) && orderedFrames.length > 0;
+        const frameTimeoutMs = isDeleteOp || isSelectOp || isClickEditOp
+          ? Math.max(800, Number(payload?.maxWaitMs) || 400) + 400 + backgroundBoostMs
+          : isFastCellOp
+            ? Math.max(160, Number(payload?.maxWaitMs) || 160) + 80 + backgroundBoostMs
+            : isEditOp
+              ? Math.max(4500, Number(payload?.maxWaitMs) || 400) + 1200 + backgroundBoostMs
+              : isRunOp
+                ? Math.max(600, Number(payload?.maxWaitMs) || 240) + 500 + backgroundBoostMs
+                : 12000;
+        const useFrameRace = (isFastCellOp || isEditOp || isRunOp || isDeleteOp || isSelectOp || isClickEditOp) && orderedFrames.length > 0;
 
         const raceFramesForSuccess = (frames) =>
           new Promise((resolve) => {
@@ -1097,6 +1106,15 @@ function getPort() {
         if (lastFailure) lastFailure.diagnostics = { frames: frameAttempts };
         onResult(lastFailure || { ok: false, error: "No frame accepted the command.", diagnostics: { frames: frameAttempts } });
       });
+        };
+
+        if (isBackground && isEditOp) {
+          chrome.tabs.update(tabId, { active: true }, () => {
+            setTimeout(runDispatch, 400);
+          });
+        } else {
+          runDispatch();
+        }
       });
     };
 
@@ -1220,11 +1238,12 @@ function getPort() {
 
         dispatchToFrames(tabId, payload, (result) => {
           getPort().postMessage({
-            type: result.ok ? "INSERT_CELL_RESULT" : "INSERT_CELL_ERROR",
+            type: botResultMessageType(payload.type, Boolean(result?.ok)),
             tabId,
             url: effectiveUrl,
             requestId: msg.requestId,
             direction: msg.direction,
+            cellIndex: msg.cellIndex,
             tunnel: payload.type,
             diagnostics: result?.diagnostics || null,
             result,
@@ -1249,7 +1268,7 @@ function getPort() {
         dispatchToFrames(tabId, payload, (result) => {
           maybeScheduleScrapeAfterRun(payload, result);
           getPort().postMessage({
-            type: result.ok ? "CLICK_CELL_RESULT" : "CLICK_CELL_ERROR",
+            type: botResultMessageType(payload.type, Boolean(result?.ok)),
             tabId,
             url: effectiveUrl,
             requestId: msg.requestId,
@@ -1292,16 +1311,20 @@ function getPort() {
       withResolvedHostTab(msg, (tabId, effectiveUrl) => {
         const payload = {
           type: "DELETE_CELL",
+          cellIndex: msg.cellIndex,
+          scrollIntoView: msg.scrollIntoView,
+          maxWaitMs: msg.maxWaitMs,
           requestId: msg.requestId,
           url: effectiveUrl,
         };
 
         dispatchToFrames(tabId, payload, (result) => {
           getPort().postMessage({
-            type: result.ok ? "DELETE_CELL_RESULT" : "DELETE_CELL_ERROR",
+            type: botResultMessageType(payload.type, Boolean(result?.ok)),
             tabId,
             url: effectiveUrl,
             requestId: msg.requestId,
+            cellIndex: msg.cellIndex,
             tunnel: payload.type,
             diagnostics: result?.diagnostics || null,
             result,
@@ -1412,9 +1435,11 @@ function getPort() {
     const tabTargetTypes = new Set([
       "CLICK_CELL_BY_INDEX",
       "SELECT_CELL_BY_INDEX",
+      "RUN_CELL_BY_INDEX",
       "INSERT_CELL",
       "CLICK_SELECTOR",
       "DELETE_CELL",
+      "CREATING_MARKDOWN_BY_INDEX",
       "SEND_KEY",
       "SEND_KEYS",
       "SET_CELL_CONTENT",
@@ -1626,7 +1651,10 @@ function scheduleNotebookScrape(delayMs = 2000) {
 }
 
 function maybeScheduleScrapeAfterRun(payload, result) {
-  if (result?.ok && payload?.runCell === true) {
+  if (
+    result?.ok
+    && (payload?.type === "RUN_CELL_BY_INDEX" || payload?.runCell === true)
+  ) {
     scheduleNotebookScrape(2000);
   }
 }

@@ -27,6 +27,12 @@ class ToolRegistry:
         return self._tools.get(name)
 
     def call(self, name: str, args: dict, timeout: float = 12.0) -> dict:
+        aliases = {
+            "notebook_get_cell_by_index": "notebook_get_cell",
+            "get_cell": "notebook_get_cell",
+            "notebook_get_cell_by_id": "notebook_get_cell",
+        }
+        name = aliases.get(str(name or "").strip(), name)
         entry = self.get(name)
         if not entry:
             raise KeyError(f"Tool not found: {name}")
@@ -47,6 +53,16 @@ class ToolRegistry:
 
 
 _REGISTRY = ToolRegistry()
+
+BROWSER_TOOL_NAMES = frozenset({
+    "click_cell",
+    "select_cell_by_index",
+    "insert_cell",
+    "edit_cell_by_index",
+    "run_cell",
+    "delete_by_index",
+    "creating_markdown_by_index",
+})
 
 
 def registry() -> ToolRegistry:
@@ -158,12 +174,11 @@ def _register_default_tools():
                     "url": url_schema,
                     "tab_id": {"type": "integer"},
                     "index_basis": {"type": "string", "enum": ["dom", "app"]},
-                    "run_cell": {"type": "boolean"},
                     "scroll_into_view": {"type": "boolean"},
                 },
                 "required": ["url"],
             },
-            "Focus or run a notebook cell by 1-based cell label (first cell is 1; converted to DOM index internally)",
+            "Focus a notebook cell by 1-based cell label (first cell is 1; converted to DOM index internally)",
         ),
         (
             "select_cell_by_index",
@@ -219,25 +234,6 @@ def _register_default_tools():
             "Replace a notebook cell's source by 1-based cell label (select + paste content)",
         ),
         (
-            "insert_and_edit_cell",
-            {
-                "type": "object",
-                "properties": {
-                    "cell_index": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "description": "1-based anchor cell (new cell inserted below this label)",
-                    },
-                    "content": {"type": "string"},
-                    "url": url_schema,
-                    "tab_id": {"type": "integer"},
-                    "direction": {"type": "string", "enum": ["below", "above"]},
-                },
-                "required": ["cell_index", "url", "content"],
-            },
-            "Insert a new code cell below a 1-based anchor cell and paste content into it",
-        ),
-        (
             "run_cell",
             {
                 "type": "object",
@@ -254,24 +250,6 @@ def _register_default_tools():
                 "required": ["cell_index", "url"],
             },
             "Execute a notebook code cell by 1-based cell label (select cell and run in kernel)",
-        ),
-        (
-            "edit_and_run_cell",
-            {
-                "type": "object",
-                "properties": {
-                    "cell_index": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "description": "1-based cell label to edit and execute",
-                    },
-                    "content": {"type": "string"},
-                    "url": url_schema,
-                    "tab_id": {"type": "integer"},
-                },
-                "required": ["cell_index", "url", "content"],
-            },
-            "Replace a cell's source by 1-based label, then run it in the kernel (edit + execute)",
         ),
         (
             "delete_by_index",
@@ -314,9 +292,7 @@ def _register_default_tools():
         "select_cell_by_index": ("select_cell_tool", "run_select_cell"),
         "insert_cell": ("insert_cell_tool", "run_insert_cell"),
         "edit_cell_by_index": ("edit_cell_tool", "run_edit_cell"),
-        "insert_and_edit_cell": ("insert_and_edit_cell_tool", "run_insert_and_edit_cell"),
         "run_cell": ("run_cell_tool", "run_run_cell"),
-        "edit_and_run_cell": ("edit_and_run_cell_tool", "run_edit_and_run_cell"),
         "delete_by_index": ("delete_cell_tool", "run_delete_cell"),
         "creating_markdown_by_index": ("creating_markdown_tool", "run_creating_markdown"),
     }
@@ -356,27 +332,75 @@ def build_local_tool_descriptions() -> str:
     return "\n".join(lines)
 
 
-def build_cerebras_tools(*, local_only: bool = True):
-    """Expose tools to the LLM. Default: local JSON read tools only (no browser)."""
+def build_browser_tool_descriptions() -> str:
+    lines = []
+    for name in sorted(BROWSER_TOOL_NAMES):
+        entry = _REGISTRY.get(name)
+        if not entry:
+            continue
+        schema = entry.get("schema") or {}
+        desc = entry.get("description") or ""
+        lines.append(f"{name}: {desc} Args schema: {json.dumps(schema)}")
+    return "\n".join(lines)
+
+
+def _strict_schema_for_cerebras(schema: dict) -> dict:
+    """Prepare JSON schema for Cerebras strict tool calling (api/tool_calling.txt)."""
+    import copy
+
+    def _walk(node):
+        if not isinstance(node, dict):
+            return node
+        out = copy.deepcopy(node)
+        if out.get("type") == "object":
+            out["additionalProperties"] = False
+            props = out.get("properties")
+            if isinstance(props, dict):
+                out["properties"] = {k: _walk(v) for k, v in props.items()}
+        if out.get("type") == "array" and isinstance(out.get("items"), dict):
+            out["items"] = _walk(out["items"])
+        return out
+
+    return _walk(schema)
+
+
+def build_cerebras_tools(*, local_only: bool = True, include_browser: bool = False, strict: bool = True):
+    """Expose tools to the LLM.
+
+    - local_only=True (default): notebook read tools only.
+    - include_browser=True: read tools + atomic browser tools (ReAct Code mode).
+    - local_only=False, include_browser=False: every registered tool.
+    """
     try:
         from .local_notebook_tools import LOCAL_TOOL_NAMES
     except Exception:
         from local_notebook_tools import LOCAL_TOOL_NAMES
 
+    if include_browser:
+        allowed = set(LOCAL_TOOL_NAMES) | set(BROWSER_TOOL_NAMES)
+    elif local_only:
+        allowed = set(LOCAL_TOOL_NAMES)
+    else:
+        allowed = None
+
     tools = []
     for name, entry in _REGISTRY._tools.items():
-        if local_only and name not in LOCAL_TOOL_NAMES:
+        if allowed is not None and name not in allowed:
             continue
         schema = entry.get("schema")
         if not isinstance(schema, dict):
             continue
+        params = _strict_schema_for_cerebras(schema) if strict else schema
+        fn: dict = {
+            "name": name,
+            "description": entry.get("description") or name,
+            "parameters": params,
+        }
+        if strict:
+            fn["strict"] = True
         tools.append({
             "type": "function",
-            "function": {
-                "name": name,
-                "description": entry.get("description") or name,
-                "parameters": schema,
-            },
+            "function": fn,
         })
     return tools
 
@@ -394,21 +418,37 @@ def generate_prompt_autogen():
         out_path.write_text("\n".join(lines), encoding="utf-8")
         local_path = prompt_dir / "local_tool_descriptions_autogen.txt"
         local_path.write_text(build_local_tool_descriptions(), encoding="utf-8")
+        browser_path = prompt_dir / "browser_tool_descriptions_autogen.txt"
+        browser_path.write_text(build_browser_tool_descriptions(), encoding="utf-8")
 
+        session_url = "https://www.kaggle.com/code/alice/sample-notebook/edit"
         examples_path = prompt_dir / "tool_examples_autogen.txt"
         ex_lines = []
         curated = {
-            "notebook_snapshot_status": {"url": "https://www.kaggle.com/code/alice/sample-notebook"},
-            "notebook_list_cells": {"url": "https://www.kaggle.com/code/alice/sample-notebook"},
-            "notebook_graph_query": {"url": "https://www.kaggle.com/code/alice/sample-notebook"},
-            "notebook_get_cell": {"url": "https://www.kaggle.com/code/alice/sample-notebook", "cell_index": 3},
-            "notebook_find_symbol": {"url": "https://www.kaggle.com/code/alice/sample-notebook", "symbol": "model_df"},
-            "notebook_search": {"url": "https://www.kaggle.com/code/alice/sample-notebook", "query": "read_csv"},
-            "notebook_cell_neighbors": {"url": "https://www.kaggle.com/code/alice/sample-notebook", "cell_index": 4},
+            "notebook_snapshot_status": {"url": session_url},
+            "notebook_list_cells": {"url": session_url},
+            "notebook_graph_query": {"url": session_url},
+            "notebook_get_cell": {"url": session_url, "cell_index": 3},
+            "notebook_find_symbol": {"url": session_url, "symbol": "model_df"},
+            "notebook_search": {"url": session_url, "query": "read_csv"},
+            "notebook_cell_neighbors": {"url": session_url, "cell_index": 4},
+            "notebook_overview": {"url": session_url, "search_terms": ["read_csv"]},
+            "notebook_executed_cells": {"url": session_url},
             "notebook_recommend_placement": {
-                "url": "https://www.kaggle.com/code/alice/sample-notebook",
+                "url": session_url,
                 "symbols": ["model_df"],
             },
+            "click_cell": {"url": session_url, "cell_index": 1},
+            "select_cell_by_index": {"url": session_url, "cell_index": 1},
+            "insert_cell": {"url": session_url, "index": 2, "direction": "below"},
+            "edit_cell_by_index": {
+                "url": session_url,
+                "cell_index": 3,
+                "content": "print('hello')",
+            },
+            "run_cell": {"url": session_url, "cell_index": 3},
+            "delete_by_index": {"url": session_url, "cell_index": 5},
+            "creating_markdown_by_index": {"url": session_url, "index": 2},
         }
 
         for k, v in _REGISTRY._tools.items():
@@ -426,8 +466,14 @@ def generate_prompt_autogen():
                         example[pname] = 1.0
                     elif ptype == "boolean":
                         example[pname] = True
+                    elif pname == "content":
+                        example[pname] = "print('hello')"
+                    elif pname == "direction":
+                        example[pname] = "below"
+                    elif pname in {"url"}:
+                        example[pname] = session_url
                     else:
-                        example[pname] = "https://www.kaggle.com/code/alice/sample-notebook"
+                        example[pname] = session_url
             ex_lines.append(f"{k} example args: {json.dumps(example, ensure_ascii=False)}")
         examples_path.write_text("\n".join(ex_lines), encoding="utf-8")
     except Exception:

@@ -41,8 +41,9 @@ def run_delete_cell(args: dict) -> dict:
             cell_index=app_index,
             dom_index=dom_index,
             app_index=app_index,
-            phase=inner.get("phase") or "deleted",
+            phase=inner.get("phase") or ("dispatched" if inner.get("dispatched") else "deleted"),
             strategy=inner.get("strategy"),
+            dispatched=inner.get("dispatched"),
         )
 
     return tool_failure(

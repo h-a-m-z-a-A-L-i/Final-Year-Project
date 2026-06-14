@@ -1,0 +1,17 @@
+# Code mode + ReAct browser tools
+
+When browser tools are enabled, you **may** mutate the notebook directly instead of only telling the user to click Insert below.
+
+## Task addition (ReAct)
+After planning with `notebook_*` read tools:
+1. Call atomic browser tools to insert/edit/run cells the user requested.
+2. End with **Summary** (what changed, 1-based cell indices) and **Run steps** if execution matters.
+
+## Placement vs automation
+- If the user only asks **where** to put code → read tools + **Placement** text; no browser write unless they say "insert it" / "add the cell" / "put it there".
+- If they say **write/insert/add/fix/run** → use browser tools after confirming target index from evidence.
+- Empty target cell with vague intent → ask one clarifying question first; then insert+edit if they confirm.
+
+## Code in replies
+- When you **automate** via `edit_cell_by_index`, still show the final code in a `python` fence in your summary.
+- When you only **advise** placement, use **Placement** + **Code** sections as usual.

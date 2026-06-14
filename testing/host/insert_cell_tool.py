@@ -6,8 +6,6 @@ import uuid
 
 try:
     from .bot_tool_utils import (
-        BROWSER_CLICK_MAX_WAIT_MS,
-        BROWSER_CLICK_TIMEOUT_SEC,
         BROWSER_INSERT_MAX_WAIT_MS,
         BROWSER_INSERT_TIMEOUT_SEC,
         normalize_insert_cell_args,
@@ -16,8 +14,6 @@ try:
     from .cell_index import dom_to_app
 except Exception:
     from bot_tool_utils import (
-        BROWSER_CLICK_MAX_WAIT_MS,
-        BROWSER_CLICK_TIMEOUT_SEC,
         BROWSER_INSERT_MAX_WAIT_MS,
         BROWSER_INSERT_TIMEOUT_SEC,
         normalize_insert_cell_args,
@@ -40,12 +36,10 @@ def run_insert_cell(args: dict) -> dict:
 
     attempt_cmd = dict(cmd)
     attempt_cmd["requestId"] = str(uuid.uuid4())
-    attempt_cmd["timeout"] = BROWSER_CLICK_TIMEOUT_SEC + BROWSER_INSERT_TIMEOUT_SEC
+    attempt_cmd["timeout"] = BROWSER_INSERT_TIMEOUT_SEC
     attempt_cmd["maxWaitMs"] = BROWSER_INSERT_MAX_WAIT_MS
-    attempt_cmd["click_timeout"] = BROWSER_CLICK_TIMEOUT_SEC
-    attempt_cmd["insert_timeout"] = BROWSER_INSERT_TIMEOUT_SEC
 
-    event = execute_bot_command(attempt_cmd, timeout=attempt_cmd["timeout"])
+    event = execute_bot_command(attempt_cmd, timeout=BROWSER_INSERT_TIMEOUT_SEC)
 
     if event.get("ok"):
         inner = event.get("result") if isinstance(event.get("result"), dict) else {}

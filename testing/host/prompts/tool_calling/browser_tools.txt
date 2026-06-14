@@ -1,0 +1,38 @@
+# Atomic browser tools (live notebook UI)
+
+Each tool performs **one** browser operation. Multi-step workflows use multiple rounds (see ReAct workflows).
+
+| Tool | Purpose | Key args |
+|------|---------|----------|
+| `select_cell_by_index` | Focus cell without running | `cell_index`, `url` |
+| `click_cell` | Click/focus cell (same as select for agents) | `cell_index`, `url` |
+| `insert_cell` | Insert empty **code** cell above/below anchor | `index` (anchor), `direction` (`below`\|`above`), `url` |
+| `edit_cell_by_index` | Replace cell source | `cell_index`, `content`, `url` |
+| `run_cell` | Execute code cell in kernel | `cell_index`, `url` |
+| `creating_markdown_by_index` | Insert **markdown** cell above anchor | `index`, `url` |
+| `delete_by_index` | Delete cell | `cell_index`, `url` |
+
+## Index conventions
+- **`cell_index`**: 1-based label (Cell 1 = first cell). Used by select, click, edit, run, delete.
+- **`index`**: 1-based anchor for `insert_cell` and `creating_markdown_by_index`.
+- Tool results may include `new_cell_index` after insert — use that for the next edit.
+
+## When to use which tool
+- User wants **new code below Cell M** → `insert_cell` then `edit_cell_by_index` on `new_cell_index`.
+- User wants **change existing Cell N** → `edit_cell_by_index` only.
+- User wants **run Cell N** → `run_cell` (after edit if source changed).
+- User wants **markdown above M** → `creating_markdown_by_index`.
+- User wants **delete Cell N** → `delete_by_index` (destructive).
+- Planning only → use `notebook_*` read tools first; do not click the browser until you know the target index.
+
+## Argument checklist
+Every browser tool call must include:
+```json
+{"url": "<exact session notebook /edit URL>"}
+```
+Optional: `tab_id` (integer) if multiple tabs — usually omit and let the host match by URL.
+
+## Error handling
+- `timeout waiting for extension` → notebook tab may be closed or URL mismatch; ask user to open exact `/edit` URL and retry once.
+- `cell_index ... out of range` → call `notebook_list_cells` or `notebook_snapshot_status`, then pick a valid index.
+- Tool `ok: false` → explain the `error` field; do not claim the UI changed.

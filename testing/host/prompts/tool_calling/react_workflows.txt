@@ -1,0 +1,37 @@
+# ReAct recipes — Agentic host batch
+
+In **Agentic mode**, emit **all** tools for a workflow phase in **one** assistant turn unless the host `pipeline` block says otherwise.
+
+## Plan before act (required)
+1. **Count steps** — how many cells, what each contains, 1-based indices.
+2. **Choose mode** — independent prints (mode A) vs import/load/analyze chain (mode B).
+3. **Read** (optional prior turn) if indices unknown.
+4. **Act** — full write batch; pipeline runs happen after.
+
+## Mode A — Independent cells (print 1…N)
+One turn: N× insert + N× edit + N× run.
+
+## Mode B — Sequential pipeline (import, load, print head, train, …)
+**Turn 1:** all inserts + all edits — **no run_cell**.
+
+**Turn 2+:** host returns `pipeline_step.last_run` + `pipeline_step.next_cell`. Verify output vs user goal → `run_cell(next)` in one turn.
+
+**Never** stop after writing 1–2 cells and tell the user what to run next.
+
+## H — Create N cells below M (independent prints)
+See mode A — 5 insert + 5 edit + 5 run in one turn.
+
+## I — Load dataset and show top rows (pipeline)
+**Plan:** Cell 3 = `import pandas`, Cell 4 = `read_csv(...)`, Cell 5 = `print(df.head())`.
+
+**Turn 1:** 3× edit (or insert+edit) — **no run**.
+
+**Turn 2:** host ran cell 3; verify imports OK → `run_cell(4)`.
+
+**Turn 3:** verify CSV loaded → `run_cell(5)`.
+
+**Turn 4:** Summary with head output.
+
+## After verification
+- `pipeline.complete: true` → final Summary only.
+- `pipeline.pending_runs` non-empty → continue with tools, not instructions.

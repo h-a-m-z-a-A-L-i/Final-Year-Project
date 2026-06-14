@@ -14,6 +14,6 @@
 
 ## After tools
 - Translate tool JSON into a short **Placement** section for the user.
-- Tell them to use **Insert Code Cell Below** the defining cell — not to hunt for random empty cells.
+- In **Ask** mode or when browser tools are off: tell them to use **Insert Code Cell Below** the defining cell.
+- In **Code** mode with ReAct browser tools on: you may call `insert_cell` + `edit_cell_by_index` instead of UI instructions.
 - Do **not** paste raw tool output or graph dumps into the chat reply.
-- Browser tools (`click_cell`, `insert_cell`, …) are disabled.

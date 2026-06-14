@@ -18,6 +18,35 @@ def _send_msg(obj: dict) -> None:
 _PENDING_LOCK = threading.Lock()
 _PENDING: dict[str, dict[str, Any]] = {}
 
+# Browser commands dispatch to the extension without waiting unless waitForResult is set.
+def _is_fire_and_forget(cmd: dict) -> bool:
+    if cmd.get("waitForResult") is True or cmd.get("wait_for_result") is True:
+        return False
+    return True
+
+
+def _build_dispatched_result(cmd: dict, mapped: dict) -> dict:
+    dom_index = mapped.get("cellIndex")
+    if dom_index is None:
+        dom_index = cmd.get("dom_index")
+    app_index = None
+    if isinstance(dom_index, int):
+        try:
+            from .cell_index import dom_to_app
+        except Exception:
+            from cell_index import dom_to_app
+        app_index = dom_to_app(dom_index)
+    elif cmd.get("app_index") is not None:
+        app_index = cmd.get("app_index")
+    return {
+        "ok": True,
+        "dispatched": True,
+        "phase": "dispatched",
+        "domIndex": dom_index,
+        "appIndex": app_index,
+        "cellIndex": app_index,
+    }
+
 
 def _pick_url(cmd: dict) -> str:
     return str(cmd.get("url") or cmd.get("tabUrl") or cmd.get("tab_url") or "").strip()
@@ -78,7 +107,12 @@ def _normalize_action(cmd: dict) -> str:
     action = str(cmd.get("action") or cmd.get("type") or "").strip().lower()
     if action not in {"click_selector", "click-selector", "clickselector"} and cmd.get("selector"):
         return "click_selector"
-    return action
+    aliases = {
+        "delete_cell": "delete_by_index",
+        "deletecell": "delete_by_index",
+        "delete_cell_by_index": "delete_by_index",
+    }
+    return aliases.get(action, action)
 
 
 def _inner_ok(result: dict | None) -> bool:
@@ -180,12 +214,12 @@ def map_command_to_native(cmd: dict) -> dict | None:
         mapped["runCell"] = False
         wait_ms = cmd.get("maxWaitMs") if cmd.get("maxWaitMs") is not None else cmd.get("max_wait_ms")
         if wait_ms is None:
-            mapped["maxWaitMs"] = 160
+            mapped["maxWaitMs"] = 400
         else:
             try:
                 mapped["maxWaitMs"] = int(wait_ms)
             except Exception:
-                mapped["maxWaitMs"] = 160
+                mapped["maxWaitMs"] = 400
         return mapped
 
     if action in {"select_cell_by_index", "selectcellbyindex"}:
@@ -200,12 +234,12 @@ def map_command_to_native(cmd: dict) -> dict | None:
         mapped["runCell"] = False
         wait_ms = cmd.get("maxWaitMs") if cmd.get("maxWaitMs") is not None else cmd.get("max_wait_ms")
         if wait_ms is None:
-            mapped["maxWaitMs"] = 160
+            mapped["maxWaitMs"] = 400
         else:
             try:
                 mapped["maxWaitMs"] = int(wait_ms)
             except Exception:
-                mapped["maxWaitMs"] = 160
+                mapped["maxWaitMs"] = 400
         return mapped
 
     if action in {"run_cell", "run_cell_by_index"}:
@@ -292,6 +326,15 @@ def map_command_to_native(cmd: dict) -> dict | None:
             return None
         mapped["cellIndex"] = dom_index
         mapped["dom_index"] = dom_index
+        mapped["scrollIntoView"] = cmd.get("scrollIntoView", True)
+        wait_ms = cmd.get("maxWaitMs") if cmd.get("maxWaitMs") is not None else cmd.get("max_wait_ms")
+        if wait_ms is None:
+            mapped["maxWaitMs"] = 600
+        else:
+            try:
+                mapped["maxWaitMs"] = int(wait_ms)
+            except Exception:
+                mapped["maxWaitMs"] = 600
         return mapped
 
     return None
@@ -363,6 +406,11 @@ def _execute_browser_command(cmd: dict, timeout: float = 12.0) -> dict:
             _PENDING.pop(request_id, None)
         return build_result_event(cmd, False, {"ok": False, "error": str(exc)}, str(exc))
 
+    if _is_fire_and_forget(cmd):
+        with _PENDING_LOCK:
+            _PENDING.pop(request_id, None)
+        return build_result_event(cmd, True, _build_dispatched_result(cmd, mapped))
+
     if not waiter.wait(max(0.5, float(timeout))):
         with _PENDING_LOCK:
             _PENDING.pop(request_id, None)
@@ -399,6 +447,9 @@ def execute_bot_command_sync(cmd: dict, timeout: float = 12.0) -> dict:
 
     if action in {"set_cell_content", "set_cell_content_by_index"}:
         return run_set_cell_content_flow(cmd, timeout=timeout)
+
+    if action == "delete_by_index":
+        return run_delete_cell_flow(cmd, timeout=timeout)
 
     return _execute_browser_command(cmd, timeout=timeout)
 
@@ -545,7 +596,7 @@ def run_set_cell_content_flow(cmd: dict, timeout: float = 12.0) -> dict:
         "index_basis": "dom",
         "content": content,
         "url": url,
-        "maxWaitMs": cmd.get("maxWaitMs", 160),
+        "maxWaitMs": cmd.get("maxWaitMs", 600),
         "timeout": cmd.get("timeout", timeout),
     }
     if isinstance(tab_id, int):
@@ -685,66 +736,12 @@ def run_insert_code_below_flow(cmd: dict, timeout: float = 12.0) -> dict:
 
 
 def run_delete_cell_flow(cmd: dict, timeout: float = 12.0) -> dict:
-    dom_idx = _dom_index_from_cmd(cmd, default_basis="app")
-    if dom_idx is None:
-        return build_result_event(cmd, False, {"ok": False, "error": "cell_index is required"}, "cell_index is required")
-
-    click_cmd = dict(cmd)
-    click_cmd["action"] = "click"
-    click_cmd["index_basis"] = "dom"
-    click_cmd["cellIndex"] = dom_idx
-    click_cmd["dom_index"] = dom_idx
-    click_cmd["requestId"] = str(uuid.uuid4())
-    click_event = execute_bot_command_sync(click_cmd, timeout=timeout)
-    if not _result_ok(click_event):
-        return click_event
-
-    url = _pick_url(cmd)
-    tab_id = _pick_tab_id(cmd) or (click_event.get("result") or {}).get("tabId") or click_event.get("tabId")
-
-    candidates = [
-        f'[data-windowed-list-index="{dom_idx}"] div > div > div > button.cell-context-menu-icon-button.delete',
-        f'[data-windowed-list-index="{dom_idx}"] button[aria-label*="Delete"]',
-        f'[data-windowed-list-index="{dom_idx}"] .cell-context-menu-icon-button.delete',
-        "button.cell-context-menu-icon-button.delete",
-        'button[aria-label*="Delete"]',
-    ]
-    for selector in candidates:
-        sel_cmd = {
-            "action": "click_selector",
-            "requestId": str(uuid.uuid4()),
-            "selector": selector,
-            "url": url,
-        }
-        if isinstance(tab_id, int):
-            sel_cmd["tabId"] = tab_id
-        sel_event = execute_bot_command_sync(sel_cmd, timeout=timeout)
-        if _result_ok(sel_event):
-            return build_result_event(
-                cmd,
-                True,
-                {"ok": True, "phase": "deleted", "domIndex": dom_idx, "cellIndex": dom_idx, "strategy": "selector"},
-            )
-
-    for key in ("d", "d"):
-        key_cmd = {
-            "action": "send_key",
-            "requestId": str(uuid.uuid4()),
-            "key": key,
-            "url": url,
-        }
-        if isinstance(tab_id, int):
-            key_cmd["tabId"] = tab_id
-        key_event = execute_bot_command_sync(key_cmd, timeout=timeout)
-        if not _result_ok(key_event):
-            return key_event
-        time.sleep(0.06)
-
-    return build_result_event(
-        cmd,
-        True,
-        {"ok": True, "phase": "deleted", "domIndex": dom_idx, "cellIndex": dom_idx, "strategy": "dd_keys"},
-    )
+    """Select cell (same as select_cell_by_index), then click the delete toolbar button."""
+    delete_cmd = dict(cmd)
+    delete_cmd.setdefault("maxWaitMs", 600)
+    delete_timeout = float(cmd.get("delete_timeout") or timeout)
+    delete_event = _execute_browser_command(delete_cmd, timeout=delete_timeout)
+    return _finalize_flow_result(cmd, delete_event)
 
 
 def run_creating_markdown_flow(cmd: dict, timeout: float = 12.0) -> dict:
@@ -928,7 +925,26 @@ def run_edit_cell_flow(cmd: dict, timeout: float = 12.0) -> dict:
     set_cmd["content"] = content
     if not str(content or "").strip():
         set_cmd["content"] = ""
-    return run_set_cell_content_flow(set_cmd, timeout=timeout)
+
+    try:
+        from .bot_tool_utils import is_retriable_browser_error
+    except Exception:
+        from bot_tool_utils import is_retriable_browser_error
+
+    last_event = None
+    for attempt in range(2):
+        last_event = run_set_cell_content_flow(set_cmd, timeout=timeout)
+        if _result_ok(last_event):
+            return last_event
+        err = ""
+        if isinstance(last_event, dict):
+            inner = last_event.get("result") if isinstance(last_event.get("result"), dict) else {}
+            err = str(last_event.get("error") or inner.get("error") or "")
+        if attempt == 0 and is_retriable_browser_error(err):
+            time.sleep(0.6)
+            continue
+        break
+    return last_event or build_result_event(cmd, False, {"ok": False, "error": "edit failed"}, "edit failed")
 
 
 def execute_bot_command(cmd: dict, timeout: float = 12.0) -> dict:

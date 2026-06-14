@@ -1,0 +1,7 @@
+# Notebook query tools — Agentic mode
+
+Use read tools only when a cell index is unknown.
+
+**Single response:** emit every browser tool (writes + all `run_cell`) in one assistant message.
+
+After host queue completes, verify `queue_cell_evidence` and summarize.

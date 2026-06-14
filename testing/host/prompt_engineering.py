@@ -7,9 +7,26 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from .config import ALLOWED_MODES, MAX_CONTEXT_CHARS, MAX_NOTEBOOK_CONTEXT_CHARS
+    from .config import (
+        ALLOWED_MODES,
+        MAX_CONTEXT_CHARS,
+        MAX_NOTEBOOK_CONTEXT_CHARS,
+        LLM_AGENTIC_ENABLED,
+        LLM_PROVIDER,
+    )
 except Exception:
-    from config import ALLOWED_MODES, MAX_CONTEXT_CHARS, MAX_NOTEBOOK_CONTEXT_CHARS
+    from config import (
+        ALLOWED_MODES,
+        MAX_CONTEXT_CHARS,
+        MAX_NOTEBOOK_CONTEXT_CHARS,
+        LLM_AGENTIC_ENABLED,
+        LLM_PROVIDER,
+    )
+
+try:
+    from .agentic_mode import AGENTIC_MODE_ID, agentic_session_active
+except Exception:
+    from agentic_mode import AGENTIC_MODE_ID, agentic_session_active
 
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 TOOL_PROMPTS_DIR = PROMPTS_DIR / "tool_calling"
@@ -19,11 +36,13 @@ JUPYTER_STRUCTURE_FILE = PROMPTS_DIR / "jupyter_structure.txt"
 _MODE_FILE_MAP = {
     "ask": PROMPTS_DIR / "ask.txt",
     "code": PROMPTS_DIR / "code.txt",
+    "agentic": PROMPTS_DIR / "agentic.txt",
 }
 
 _MODE_LABELS = {
     "ask": "Ask",
     "code": "Code",
+    "agentic": "Agentic",
 }
 
 _LEGACY_MODE_ALIASES = {
@@ -90,13 +109,55 @@ _SYSTEM_NOTES_CODE = """\
 - If `coverage` is none or partial and tools lack data, start with **INSUFFICIENT_CONTEXT**.
 - When calling tools, pass the exact session notebook URL from Context."""
 
+_SYSTEM_NOTES_CODE_REACT = """\
+- Read CONTEXT_MANIFEST and TARGET_CELL_STATUS before citing any cell.
+- Only cite cells in `listed_cells` or tool results — never invent cell contents.
+- **ReAct:** one atomic browser tool per round; chain insert → edit → run across rounds.
+- Use `notebook_*` read tools before writes when the target cell index is unclear.
+- After `insert_cell`, use `new_cell_index` from the tool result for `edit_cell_by_index`.
+- Do not claim a cell changed unless a write tool returned `ok: true`.
+- Final reply: **Summary** (cells touched, 1-based indices) + code fence if you edited source.
+- If `coverage` is none or partial and tools lack data, start with **INSUFFICIENT_CONTEXT**.
+- When calling tools, pass the exact session notebook URL from Context."""
 
-def _system_notes_tail(mode: str) -> str:
-    return _SYSTEM_NOTES_CODE if normalize_mode(mode) == "code" else _SYSTEM_NOTES_ASK
+
+_SYSTEM_NOTES_AGENTIC = """\
+- **One assistant message = all tool_calls** for the task (every read, write, and run_cell). Never one tool per round.
+- Pass the exact session notebook URL on every tool call.
+- No Placement / Run order / manual UI instructions — tool_calls only until the host queue completes.
+- Summarize only after `tool_queue_status` is `complete`.
+- Skip redundant reads when cell indices are in Context or the user message."""
 
 
-def list_chat_modes() -> list[dict[str, str]]:
-    return [{"id": m, "label": _MODE_LABELS.get(m, m)} for m in sorted(ALLOWED_MODES)]
+def _system_notes_tail(mode: str, *, react_browser: bool = False) -> str:
+    m = normalize_mode(mode)
+    if m == "agentic" and react_browser:
+        return _SYSTEM_NOTES_AGENTIC
+    if m == "code":
+        return _SYSTEM_NOTES_CODE_REACT if react_browser else _SYSTEM_NOTES_CODE
+    return _SYSTEM_NOTES_ASK
+
+
+def agentic_runtime_enabled(mode: str) -> bool:
+    """Browser tools + ReAct prompts only in Agentic chat mode with dashboard toggle on."""
+    return agentic_session_active(mode)
+
+
+# Back-compat alias
+def react_browser_tools_enabled(mode: str) -> bool:
+    return agentic_runtime_enabled(mode)
+
+
+def list_chat_modes(*, include_agentic: bool | None = None) -> list[dict[str, str]]:
+    modes = []
+    for m in sorted(ALLOWED_MODES):
+        if m == AGENTIC_MODE_ID:
+            if include_agentic is False:
+                continue
+            if include_agentic is None and not LLM_AGENTIC_ENABLED:
+                continue
+        modes.append({"id": m, "label": _MODE_LABELS.get(m, m)})
+    return modes
 
 
 def _read_text(path: Path) -> str:
@@ -143,10 +204,40 @@ def load_base_sections() -> dict[str, str]:
     return parse_prompt_sections(_read_text(BASE_PROMPT_FILE))
 
 
-def load_tool_prompt_sections(*, include_examples: bool = True) -> tuple[str, str, str]:
-    system_tool = _read_text(TOOL_PROMPTS_DIR / "local_read_tools.txt")
-    if not system_tool:
-        system_tool = _read_text(TOOL_PROMPTS_DIR / "system_prompt.txt")
+def load_tool_prompt_sections(
+    *,
+    include_examples: bool = True,
+    react_browser: bool = False,
+    mode: str = "ask",
+) -> tuple[str, str, str]:
+    mode = normalize_mode(mode)
+    mode_query = _read_text(TOOL_PROMPTS_DIR / f"query_tools_{mode}.txt")
+    local_tool = _read_text(TOOL_PROMPTS_DIR / "local_read_tools.txt")
+    if not local_tool:
+        local_tool = _read_text(TOOL_PROMPTS_DIR / "system_prompt.txt")
+
+    react_tool = ""
+    browser_tool = ""
+    workflows = ""
+    if react_browser:
+        react_tool = _read_text(TOOL_PROMPTS_DIR / "react_agent.txt")
+        host_batch = _read_text(TOOL_PROMPTS_DIR / "react_agent_host_batch.txt")
+        if host_batch:
+            react_tool = (react_tool + "\n\n" + host_batch).strip()
+        if str(LLM_PROVIDER or "").lower() == "google":
+            gemini_addon = _read_text(TOOL_PROMPTS_DIR / "react_agent_gemini.txt")
+            if gemini_addon:
+                react_tool = (react_tool + "\n\n" + gemini_addon).strip()
+        elif str(LLM_PROVIDER or "").lower() == "cerebras" and mode == "agentic":
+            cerebras_addon = _read_text(TOOL_PROMPTS_DIR / "react_agent_cerebras.txt")
+            if cerebras_addon:
+                react_tool = (react_tool + "\n\n" + cerebras_addon).strip()
+        browser_tool = _read_text(TOOL_PROMPTS_DIR / "browser_tools.txt")
+        if mode != "agentic":
+            workflows = _read_text(TOOL_PROMPTS_DIR / "react_workflows.txt")
+
+    system_parts = [p for p in (mode_query, local_tool, react_tool, browser_tool, workflows) if p]
+    system_tool = "\n\n".join(system_parts)
 
     descriptions = _read_text(TOOL_PROMPTS_DIR / "local_tool_descriptions_autogen.txt")
     if not descriptions:
@@ -156,6 +247,17 @@ def load_tool_prompt_sections(*, include_examples: bool = True) -> tuple[str, st
             from tool_registry import build_local_tool_descriptions
         descriptions = build_local_tool_descriptions()
 
+    if react_browser:
+        browser_desc = _read_text(TOOL_PROMPTS_DIR / "browser_tool_descriptions_autogen.txt")
+        if not browser_desc:
+            try:
+                from .tool_registry import build_browser_tool_descriptions
+            except Exception:
+                from tool_registry import build_browser_tool_descriptions
+            browser_desc = build_browser_tool_descriptions()
+        if browser_desc:
+            descriptions = (descriptions + "\n" + browser_desc).strip()
+
     examples = ""
     if include_examples:
         examples = _read_text(TOOL_PROMPTS_DIR / "tool_examples_autogen.txt")
@@ -164,10 +266,17 @@ def load_tool_prompt_sections(*, include_examples: bool = True) -> tuple[str, st
                 from .local_notebook_tools import LOCAL_TOOL_NAMES
             except Exception:
                 from local_notebook_tools import LOCAL_TOOL_NAMES
+            try:
+                from .tool_registry import BROWSER_TOOL_NAMES
+            except Exception:
+                from tool_registry import BROWSER_TOOL_NAMES
+            allowed = set(LOCAL_TOOL_NAMES)
+            if react_browser:
+                allowed |= set(BROWSER_TOOL_NAMES)
             ex_lines = []
             for line in examples.splitlines():
                 name = line.split(" example args:", 1)[0].strip()
-                if name in LOCAL_TOOL_NAMES:
+                if name in allowed:
                     ex_lines.append(line)
             examples = "\n".join(ex_lines)
         if not examples:
@@ -248,6 +357,7 @@ def build_system_content(
     context: str = "",
     include_tools: bool = True,
     include_tool_examples: bool | None = None,
+    include_query_guidance: bool = False,
 ) -> str:
     """
     Assemble system prompt using the Role → Task → Specifics → Context → Examples → Notes schema.
@@ -256,6 +366,7 @@ def build_system_content(
     mode = normalize_mode(mode)
     base = load_base_sections()
     mode_secs = load_mode_sections(mode)
+    react_browser = agentic_runtime_enabled(mode) if include_tools else False
 
     notebook_len = len(context or "")
     if include_tool_examples is None:
@@ -264,8 +375,20 @@ def build_system_content(
     tool_system, tool_desc, tool_examples = ("", "", "")
     if include_tools:
         tool_system, tool_desc, tool_examples = load_tool_prompt_sections(
-            include_examples=include_tool_examples
+            include_examples=include_tool_examples,
+            react_browser=react_browser,
+            mode=mode,
         )
+
+    if react_browser:
+        react_code_addon = _read_text(PROMPTS_DIR / "react_code_addon.txt")
+        if react_code_addon and mode != "agentic":
+            addon_secs = parse_prompt_sections(react_code_addon)
+            for key in ("role", "task", "specifics", "notes"):
+                if addon_secs.get(key):
+                    mode_secs[key] = (
+                        (mode_secs.get(key) or "") + "\n\n" + addon_secs[key]
+                    ).strip()
 
     jupyter_model = _read_text(JUPYTER_STRUCTURE_FILE)
     if jupyter_model:
@@ -281,6 +404,14 @@ def build_system_content(
     context_parts: list[str] = []
     if jupyter_body:
         context_parts.append(f"### Jupyter notebook model\n{jupyter_body}")
+    if include_query_guidance or (not include_tools and normalize_mode(mode) in {"ask", "code"}):
+        try:
+            from .notebook_query import load_mode_query_prompt
+        except Exception:
+            from notebook_query import load_mode_query_prompt
+        query_guide = load_mode_query_prompt(mode)
+        if query_guide:
+            context_parts.append(f"### Notebook query guidance\n{query_guide}")
     if base.get("context"):
         context_parts.append(base["context"])
     if notebook_url:
@@ -289,6 +420,10 @@ def build_system_content(
         context_parts.append(
             "When calling tools, always pass this exact notebook URL in the `url` argument."
         )
+        if react_browser:
+            context_parts.append(
+                "Agentic mode is **active** — atomic browser write tools are enabled (dashboard toggle on)."
+            )
     context_parts.append(
         "Ground answers only in CONTEXT_MANIFEST, notebook evidence below, and tool/prefetched results."
     )
@@ -310,7 +445,7 @@ def build_system_content(
         notes_parts.append(mode_secs["notes"])
     if base.get("notes"):
         notes_parts.append(base["notes"])
-    notes_parts.append(_system_notes_tail(mode))
+    notes_parts.append(_system_notes_tail(mode, react_browser=react_browser))
 
     ordered_blocks = [
         _section_block(
@@ -337,6 +472,8 @@ def build_chat_messages(
     context: str = "",
     notebook_url: str = "",
     include_tools: bool = True,
+    turn_tail: str = "",
+    static_cache: bool = False,
 ) -> list[dict[str, Any]]:
     try:
         from .context_budget import trim_history_for_api
@@ -345,6 +482,7 @@ def build_chat_messages(
 
     mode = normalize_mode(mode)
     api_history = trim_history_for_api(history)
+    include_query_guidance = not include_tools
     messages: list[dict[str, Any]] = [
         {
             "role": "system",
@@ -353,6 +491,8 @@ def build_chat_messages(
                 notebook_url=notebook_url,
                 context=context,
                 include_tools=include_tools,
+                include_tool_examples=False if static_cache else None,
+                include_query_guidance=include_query_guidance,
             ),
         }
     ]
@@ -361,5 +501,9 @@ def build_chat_messages(
         content = str(h.get("content", ""))
         if role in {"user", "assistant", "system"} and content:
             messages.append({"role": role, "content": content})
-    messages.append({"role": "user", "content": str(user_prompt or "")})
+    user_body = str(user_prompt or "")
+    tail = str(turn_tail or "").strip()
+    if tail:
+        user_body = f"{tail}\n\n---\n\n{user_body}" if user_body else tail
+    messages.append({"role": "user", "content": user_body})
     return messages

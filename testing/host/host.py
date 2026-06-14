@@ -225,6 +225,13 @@ def main():
                 from notebook_context import pack_context
 
             ui_mode = str(msg.get("mode") or "ask").strip().lower()
+            try:
+                from .agentic_mode import resolve_effective_chat_mode
+            except Exception:
+                from agentic_mode import resolve_effective_chat_mode
+            ui_mode, agentic_warn = resolve_effective_chat_mode(ui_mode)
+            if agentic_warn:
+                log(agentic_warn)
             raw_cell = msg.get("cellIndex")
             if raw_cell is not None and str(raw_cell).strip() != "":
                 try:
@@ -257,19 +264,41 @@ def main():
                 f"snapshot={ctx_pack.snapshot} cell={ctx_pack.cell_index}"
             )
 
+            try:
+                from .prompt_cache_baseline import (
+                    cerebras_static_cache_enabled,
+                    effective_session_id,
+                    prepare_static_cache_context,
+                )
+            except Exception:
+                from prompt_cache_baseline import (
+                    cerebras_static_cache_enabled,
+                    effective_session_id,
+                    prepare_static_cache_context,
+                )
+
+            memory_session_id = effective_session_id(session_id, mode)
+            static_cache = cerebras_static_cache_enabled()
+
             extracted_facts = _extract_user_profile_facts(prompt)
             for fact_key, fact_value in extracted_facts.items():
-                memory_store.upsert_fact(history_key, fact_key, fact_value, session_id=session_id)
+                memory_store.upsert_fact(
+                    history_key, fact_key, fact_value, session_id=memory_session_id
+                )
 
-            facts = memory_store.get_facts(history_key, session_id=session_id)
+            facts = memory_store.get_facts(history_key, session_id=memory_session_id)
             profile_context = _build_profile_memory_context(facts)
 
             if re.search(r"\b(what\s+is|tell\s+me)\s+my\s+name\b", prompt, re.IGNORECASE):
                 known_name = (facts.get("name") or "").strip()
                 if known_name:
-                    memory_store.append(history_key, "user", prompt, session_id=session_id)
+                    memory_store.append(
+                        history_key, "user", prompt, session_id=memory_session_id
+                    )
                     response = f"Your name is {known_name}."
-                    memory_store.append(history_key, "assistant", response, session_id=session_id)
+                    memory_store.append(
+                        history_key, "assistant", response, session_id=memory_session_id
+                    )
                     send_msg({
                         "type": "CHAT_RESPONSE",
                         "response": response,
@@ -280,27 +309,48 @@ def main():
                     })
                     continue
 
-            context = merge_context_with_profile(ctx_pack.text, profile_context)
+            turn_tail = ""
+            if static_cache:
+                baseline_context, turn_tail = prepare_static_cache_context(
+                    history_key=history_key,
+                    session_id=memory_session_id,
+                    mode=mode,
+                    url=snapshot_url,
+                    profile_context=profile_context,
+                )
+                context = baseline_context
+                pack_coverage = "baseline"
+                log(
+                    f"Static notebook cache: baseline in system, delta on current turn "
+                    f"(session={memory_session_id}, mode={mode})"
+                )
+            else:
+                context = merge_context_with_profile(ctx_pack.text, profile_context)
+                pack_coverage = ctx_pack.coverage
 
             if is_stream_stopped(active_key, session_id):
                 send_stream_end(history_key, tab_id, session_id, stopped=True)
                 continue
 
-            history = memory_store.get_history(history_key, session_id=session_id)
-            memory_store.append(history_key, "user", prompt, session_id=session_id)
+            history = memory_store.get_history(history_key, session_id=memory_session_id)
+            memory_store.append(history_key, "user", prompt, session_id=memory_session_id)
 
             if is_stream_stopped(active_key, session_id):
                 send_stream_end(history_key, tab_id, session_id, stopped=True)
                 continue
 
             context_meta = {
-                "coverage": ctx_pack.coverage,
+                "coverage": pack_coverage,
                 "cell_index": ctx_pack.cell_index,
                 "snapshot": ctx_pack.snapshot,
                 "active_key": active_key,
                 "stream_channel": stream_channel,
                 "snapshot_url": snapshot_url,
                 "history_key": history_key,
+                "agentic_warn": agentic_warn,
+                "static_cache": static_cache,
+                "turn_tail": turn_tail,
+                "cache_session_id": memory_session_id,
             }
 
             worker = threading.Thread(
@@ -384,6 +434,34 @@ def main():
                 f"NOTEBOOK_URL_CHANGED {info.get('url')} key={info.get('notebookKey')} "
                 f"migrated={info.get('migratedRows', 0)}"
             )
+            continue
+
+        if m_type == "GET_AGENTIC_SETTINGS":
+            try:
+                from .agentic_mode import get_agentic_settings
+            except Exception:
+                from agentic_mode import get_agentic_settings
+            send_msg({
+                "type": "AGENTIC_SETTINGS",
+                "tabId": msg.get("tabId"),
+                **get_agentic_settings(),
+            })
+            continue
+
+        if m_type == "SET_AGENTIC_SETTINGS":
+            try:
+                from .agentic_mode import get_agentic_settings, set_dashboard_agentic_enabled
+            except Exception:
+                from agentic_mode import get_agentic_settings, set_dashboard_agentic_enabled
+            enabled = msg.get("dashboard_enabled")
+            if enabled is None:
+                enabled = msg.get("enabled")
+            set_dashboard_agentic_enabled(bool(enabled))
+            send_msg({
+                "type": "AGENTIC_SETTINGS",
+                "tabId": msg.get("tabId"),
+                **get_agentic_settings(),
+            })
             continue
 
         if m_type == "GET_GRAPH":

@@ -36,6 +36,26 @@ DEFAULT_MAX_INPUT_CHARS = 6000
 DEFAULT_MAX_OUTPUT_CHARS = int(MAX_CELL_OUTPUT_CHARS)
 MAX_SEARCH_HITS = 20
 MAX_BATCH_CELLS = 10
+MAX_EXECUTED_CELLS = 15
+
+try:
+    from .config import QUERY_TOOL_MAX_INPUT_CHARS, QUERY_TOOL_MAX_OUTPUT_CHARS
+except Exception:
+    try:
+        from config import QUERY_TOOL_MAX_INPUT_CHARS, QUERY_TOOL_MAX_OUTPUT_CHARS
+    except Exception:
+        QUERY_TOOL_MAX_INPUT_CHARS = 8000
+        QUERY_TOOL_MAX_OUTPUT_CHARS = 6000
+
+_PREVIEW_INPUT_HINT = re.compile(
+    r"\b(head\s*\(|tail\s*\(|\.info\s*\(|describe\s*\(|\.shape|columns|dtypes|sample\s*\(|value_counts)",
+    re.IGNORECASE,
+)
+
+_LOAD_CODE_HINT = re.compile(
+    r"\b(read_csv|read_parquet|read_json|pd\.read_|load_dataset|/kaggle/input/)\b",
+    re.IGNORECASE,
+)
 
 
 def _notebook_url(args: dict) -> str:
@@ -66,19 +86,51 @@ def _truncate(text: str, max_chars: int, suffix: str = "\n...[truncated]") -> st
     return s[:keep] + suffix
 
 
+def _query_output_cap(args: dict) -> int:
+    return int(args.get("max_output_chars") or QUERY_TOOL_MAX_OUTPUT_CHARS)
+
+
+def _query_input_cap(args: dict) -> int:
+    return int(args.get("max_input_chars") or QUERY_TOOL_MAX_INPUT_CHARS)
+
+
+def _cell_has_output(cell: dict) -> bool:
+    return bool(str(cell.get("output") or "").strip())
+
+
+def _is_data_preview_cell(cell: dict) -> bool:
+    """Cell likely shows dataset contents (head/info) or has tabular output."""
+    if str(cell.get("type") or "code") != "code":
+        return False
+    inp = str(cell.get("input") or "")
+    out = str(cell.get("output") or "").strip()
+    if not out:
+        return False
+    if _LOAD_CODE_HINT.search(inp) or _PREVIEW_INPUT_HINT.search(inp):
+        return True
+    if "|" in out[:500] and out.count("|") >= 3:
+        return True
+    if re.search(r"\b(columns|dtype|Non-Null|RangeIndex)\b", out, re.I):
+        return True
+    return False
+
+
 def _cell_payload(cell: dict, *, include_output: bool, max_input: int, max_output: int) -> dict:
     inp = _truncate(cell.get("input") or "", max_input)
     out = ""
+    raw_out = str(cell.get("output") or "")
     if include_output and str(cell.get("type") or "code") == "code":
-        out = _truncate(cell.get("output") or "", max_output)
+        out = _truncate(raw_out, max_output)
     return {
         "index": cell.get("index"),
         "type": cell.get("type"),
         "input": inp,
         "output": out if include_output else None,
+        "output_chars": len(raw_out) if include_output else 0,
+        "output_truncated": include_output and len(raw_out) > max_output > 0,
         "execution_order": cell.get("execution_order"),
         "execution_title": cell.get("execution_title"),
-        "has_output": bool(str(cell.get("output") or "").strip()),
+        "has_output": _cell_has_output(cell),
     }
 
 
@@ -131,8 +183,8 @@ def notebook_get_cell(args: dict) -> dict:
         return _err(f"Cell {cell_index} not in snapshot", url=url, snapshot=source)
 
     include_output = bool(args.get("include_output", True))
-    max_in = int(args.get("max_input_chars") or DEFAULT_MAX_INPUT_CHARS)
-    max_out = int(args.get("max_output_chars") or DEFAULT_MAX_OUTPUT_CHARS)
+    max_in = _query_input_cap(args)
+    max_out = _query_output_cap(args)
     return _ok(
         url=url,
         snapshot=source,
@@ -243,11 +295,15 @@ def notebook_search(args: dict) -> dict:
             if not matched:
                 continue
             line = text.splitlines()[0] if text else ""
-            hits.append({
+            hit: dict = {
                 "cell_index": idx,
                 "field": field,
                 "line_preview": _truncate(line, 160, suffix="..."),
-            })
+            }
+            if bool(args.get("include_field_text", search_output)):
+                cap = int(args.get("max_field_chars") or _query_output_cap(args))
+                hit["field_text"] = _truncate(text, cap)
+            hits.append(hit)
             break
         if len(hits) >= limit:
             break
@@ -388,6 +444,116 @@ def notebook_recommend_placement(args: dict) -> dict:
     )
 
 
+def notebook_overview(args: dict) -> dict:
+    """Structured notebook overview: markdown intros, data-load cells, optional search hits."""
+    url = _notebook_url(args)
+    if not url:
+        return _err("url is required")
+
+    _, source, cells = _load(url)
+    if not cells:
+        return _err("No notebook snapshot found", url=url, snapshot=source)
+
+    include_markdown = bool(args.get("include_markdown", True))
+    max_md = int(args.get("max_markdown_chars") or 1200)
+    max_in = _query_input_cap(args)
+    max_out = _query_output_cap(args)
+
+    markdown_cells: list[dict] = []
+    data_load_cells: list[dict] = []
+    preview_cells: list[dict] = []
+    seen_indices: set[int] = set()
+    for cell in sorted(cells, key=lambda c: int(c.get("index", 0))):
+        ctype = str(cell.get("type") or "code")
+        inp = str(cell.get("input") or "")
+        try:
+            idx = int(cell.get("index", 0))
+        except Exception:
+            idx = 0
+        if include_markdown and ctype == "markdown" and inp.strip():
+            markdown_cells.append({
+                "index": idx,
+                "text": _truncate(inp, max_md),
+            })
+        if ctype == "code" and (_LOAD_CODE_HINT.search(inp) or "dataset" in inp.lower()):
+            payload = _cell_payload(cell, include_output=True, max_input=max_in, max_output=max_out)
+            data_load_cells.append(payload)
+            seen_indices.add(idx)
+        if _is_data_preview_cell(cell) and idx not in seen_indices:
+            preview_cells.append(
+                _cell_payload(cell, include_output=True, max_input=max_in, max_output=max_out)
+            )
+            seen_indices.add(idx)
+
+    search_terms = args.get("search_terms") or []
+    search_hits: list[dict] = []
+    if isinstance(search_terms, list):
+        for term in search_terms[:4]:
+            term = str(term or "").strip()
+            if not term:
+                continue
+            hit = notebook_search({"url": url, "query": term, "limit": 6})
+            if hit.get("ok"):
+                search_hits.append({"query": term, "hits": hit.get("hits") or []})
+
+    code_count = sum(1 for c in cells if str(c.get("type") or "code") == "code")
+    with_output = sum(1 for c in cells if str(c.get("output") or "").strip())
+
+    return _ok(
+        url=url,
+        snapshot=source,
+        summary={
+            "cell_count": len(cells),
+            "code_cells": code_count,
+            "cells_with_output": with_output,
+            "markdown_cells": len(markdown_cells),
+            "data_load_cells": len(data_load_cells),
+        },
+        markdown_cells=markdown_cells[:8],
+        data_load_cells=data_load_cells[:6],
+        preview_cells=preview_cells[:10],
+        search_hits=search_hits or None,
+    )
+
+
+def notebook_executed_cells(args: dict) -> dict:
+    """Code cells with non-empty output: index, full input, and full output (for LLM evidence)."""
+    url = _notebook_url(args)
+    if not url:
+        return _err("url is required")
+
+    _, source, cells = _load(url)
+    if not cells:
+        return _err("No notebook snapshot found", url=url, snapshot=source)
+
+    max_cells = min(int(args.get("max_cells") or MAX_EXECUTED_CELLS), MAX_EXECUTED_CELLS)
+    max_in = _query_input_cap(args)
+    max_out = _query_output_cap(args)
+    preview_only = bool(args.get("preview_only", False))
+
+    executed: list[dict] = []
+    for cell in sorted(cells, key=lambda c: int(c.get("index", 0))):
+        if str(cell.get("type") or "code") != "code" or not _cell_has_output(cell):
+            continue
+        if preview_only and not _is_data_preview_cell(cell):
+            continue
+        executed.append(
+            _cell_payload(cell, include_output=True, max_input=max_in, max_output=max_out)
+        )
+        if len(executed) >= max_cells:
+            break
+
+    if not executed:
+        return _ok(
+            url=url,
+            snapshot=source,
+            cell_count=0,
+            cells=[],
+            message="No executed code cells with output in snapshot.",
+        )
+    return _ok(url=url, snapshot=source, cell_count=len(executed), cells=executed)
+
+
 def notebook_snapshot_status(args: dict) -> dict:
     """Report whether live/persistent JSON exists and basic stats."""
     url = _notebook_url(args)
@@ -420,6 +586,8 @@ LOCAL_TOOL_HANDLERS: dict[str, Callable[[dict], dict]] = {
     "notebook_search": notebook_search,
     "notebook_cell_neighbors": notebook_cell_neighbors,
     "notebook_recommend_placement": notebook_recommend_placement,
+    "notebook_overview": notebook_overview,
+    "notebook_executed_cells": notebook_executed_cells,
     "notebook_snapshot_status": notebook_snapshot_status,
 }
 
@@ -526,6 +694,39 @@ LOCAL_TOOL_SPECS: list[dict[str, Any]] = [
         "description": (
             "Recommend inserting a NEW code cell below the cell where symbol(s) are defined; "
             "includes run order and what to avoid (distant empty cells)."
+        ),
+    },
+    {
+        "name": "notebook_overview",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "url": _URL_SCHEMA,
+                "include_markdown": {"type": "boolean"},
+                "search_terms": {"type": "array", "items": {"type": "string"}},
+                "max_markdown_chars": {"type": "integer"},
+            },
+            "required": ["url"],
+        },
+        "description": (
+            "Structured overview: markdown intro cells, data-loading code cells, and optional search hits."
+        ),
+    },
+    {
+        "name": "notebook_executed_cells",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "url": _URL_SCHEMA,
+                "max_cells": {"type": "integer"},
+                "preview_only": {"type": "boolean"},
+                "max_input_chars": {"type": "integer"},
+                "max_output_chars": {"type": "integer"},
+            },
+            "required": ["url"],
+        },
+        "description": (
+            "Return code cells that have execution output, each with index, input, and output text."
         ),
     },
 ]

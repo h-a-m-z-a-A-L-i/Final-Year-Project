@@ -53,8 +53,10 @@ def run_select_cell(args: dict) -> dict:
             cell_index=app_index,
             dom_index=dom_index,
             app_index=app_index,
-            strategy=inner.get("strategy"),
+            strategy=inner.get("strategy") or ("dispatched" if inner.get("dispatched") else None),
             data_windowed_list_index=inner.get("dataWindowedListIndex"),
+            phase=inner.get("phase") or ("dispatched" if inner.get("dispatched") else "selected"),
+            dispatched=inner.get("dispatched"),
         )
 
     return tool_failure(

@@ -1,0 +1,92 @@
+{
+  "format_version": 2,
+  "history_key": "kaggle:kernel:112732919",
+  "session_id": "e39bef45-8d4c-49bd-bb47-dc1055c75d63",
+  "mode": "ask",
+  "url": "https://www.kaggle.com/code/codekey/testing-ol/edit",
+  "snapshot": "live",
+  "created_at": "2026-06-14T04:07:48.595433+00:00",
+  "baseline_text": "CONTEXT_MANIFEST\ncoverage: baseline\nsnapshot: live\n## Session baseline notebook (frozen for prompt cache)\nCompact snapshot at session start — outputs truncated. Use the live delta block on the current turn for full latest input/output.\n\n\n### Cell [1] (code)\nexecution_order: 1\nexecution_status: executed\ninput:\n```python\nprint('h')\n```\noutput:\n```\nhamza\n```\n\n### Cell [2] (code)\nexecution_status: idle\ninput:\n```python\nprint('batch_smoke')\n```\noutput: (none)\n\n### Cell [3] (code)\nexecution_order: 2\nexecution_status: executed\ninput:\n```python\nimport pandas as pd\n\n\n# Load the dataset with error handling\ndf = pd.read_csv(\n    '/kaggle/input/datasets/codekey/zameen-com2026-16-5/zameen_master_dataset.csv',\n    on_bad_lines='skip',\n    engine='python'\n)\n\n\n# Display the first few rows\nprint(df.head())\n```\noutput:\n```\nproperty_id|location_id|page_url|property_type|price|location|city|province_name|latitude|longitude|baths|area|purpose|bedrooms|date_added|agency|agent|Area Type|Area Size|Area Category\n15702|1|https://www.zameen.com/Property/askari_...   Askari 11|Lahore|Punjab|34.540894|73.095732|5...                                                               \n... [truncated]\n```\n\n### Cell [4] (code)\nexecution_status: idle\ninput:\n```python\nhamza\n```\noutput: (none)\n\n### Cell [5] (code)\nexecution_status: idle\ninput:\n```python\nali\n```\noutput: (none)\n\n### Cell [6] (markdown)\ninput:\n```markdown\n6\nCerebras\n```\n\n### Cell [7] (code)\nexecution_order: 2\nexecution_status: executed\ninput:\n```python\n!pip install -q cerebras-cloud-sdk\nimport os\nfrom cerebras.cloud.sdk import Cerebras\n\n\nclient = Cerebras(\n    api_key=\"csk-ewkx5h936d82wx33hej36cv22nymk5x9f95dhxxk62c9h2yc\"\n)\n\n\nchat_completion = client.chat.completions.create(\n    messages=[\n        {\n            \"role\": \"user\",\n            \"content\": \"write 50 line cpp code for operator overloading using oop\",\n        }\n],\n    model=\"qwen-3-235b-a22b-instruct-2507\",\n)\n\n\nprint(chat_completion)\n```\noutput:\n```\nChatCompletionResponse(id='chatcmpl-80924b82-ff8f-45ff-bdf5-8fca1d00b93e', choices=[ChatCompletionResponseChoice(finish_reason='stop', index=0, message=ChatCompletionResponseChoiceMessage(role='assistant', content='```cpp\\n#include <iostream>\\n#include <string>\\n\\nclass Complex {\\nprivate:\\n    double real;\\n    double imag;\\n\\npublic:\\n    // Defa\n... [truncated]\n```\n\n### Cell [8] (code)\nexecution_order: 2\nexecution_status: executed\ninput:\n```python\nhamza\n```\noutput:\n```\n---------------------------------------------------------------------------\nNameError                                 Traceback (most recent call last)\n/tmp/ipykernel_57/4086308014.py in <cell line: 0>()\n----> 1 hamza\n\nNameError: name 'hamza' is not defined\n```\n\n### Cell [9] (code)\nexecution_order: 1\nexecution_status: executed\ninput:\n```python\nprint()\n```\noutput: (none)\n\n### Cell [10] (code)\nexecution_status: idle\ninput:\n```python\nhamza ali\n```\noutput: (none)",
+  "cells": [
+    {
+      "index": 1,
+      "type": "code",
+      "input": "print('h')",
+      "output": "hamza",
+      "execution_order": 1,
+      "execution_status": "executed"
+    },
+    {
+      "index": 2,
+      "type": "code",
+      "input": "print('batch_smoke')",
+      "output": "",
+      "execution_order": null,
+      "execution_status": "idle"
+    },
+    {
+      "index": 3,
+      "type": "code",
+      "input": "import pandas as pd\n\n\n# Load the dataset with error handling\ndf = pd.read_csv(\n    '/kaggle/input/datasets/codekey/zameen-com2026-16-5/zameen_master_dataset.csv',\n    on_bad_lines='skip',\n    engine='python'\n)\n\n\n# Display the first few rows\nprint(df.head())",
+      "output": "property_id|location_id|page_url|property_type|price|location|city|province_name|latitude|longitude|baths|area|purpose|bedrooms|date_added|agency|agent|Area Type|Area Size|Area Category\n15702|1|https://www.zameen.com/Property/askari_...   Askari 11|Lahore|Punjab|34.540894|73.095732|5...                                                                                                                                       \n1806|1|https://www.zameen.com/Property/bahria_t...   Bahria Town - Sector E|Lahore|Punjab|34.54299...                                                                                                                                       \n373|1|https://www.zameen.com/Property/lahore_va...   Lahore|Lahore|Punjab|34.544394|73.092232|6|1 ...                                                                                                                                       \n3717|1|https://www.zameen.com/Property/dha_11_r...   DHA 11 Rahbar|Lahore|Punjab|34.545094|73.0915...                                                                                                                                       \n1450|1|https://www.zameen.com/Property/dha_defe...   DHA Defence|Lahore|Punjab|34.546494|73.090132...",
+      "execution_order": 2,
+      "execution_status": "executed"
+    },
+    {
+      "index": 4,
+      "type": "code",
+      "input": "hamza",
+      "output": "",
+      "execution_order": null,
+      "execution_status": "idle"
+    },
+    {
+      "index": 5,
+      "type": "code",
+      "input": "ali",
+      "output": "",
+      "execution_order": null,
+      "execution_status": "idle"
+    },
+    {
+      "index": 6,
+      "type": "markdown",
+      "input": "6\nCerebras",
+      "output": "",
+      "execution_order": null,
+      "execution_status": null
+    },
+    {
+      "index": 7,
+      "type": "code",
+      "input": "!pip install -q cerebras-cloud-sdk\nimport os\nfrom cerebras.cloud.sdk import Cerebras\n\n\nclient = Cerebras(\n    api_key=\"csk-ewkx5h936d82wx33hej36cv22nymk5x9f95dhxxk62c9h2yc\"\n)\n\n\nchat_completion = client.chat.completions.create(\n    messages=[\n        {\n            \"role\": \"user\",\n            \"content\": \"write 50 line cpp code for operator overloading using oop\",\n        }\n],\n    model=\"qwen-3-235b-a22b-instruct-2507\",\n)\n\n\nprint(chat_completion)",
+      "output": "ChatCompletionResponse(id='chatcmpl-80924b82-ff8f-45ff-bdf5-8fca1d00b93e', choices=[ChatCompletionResponseChoice(finish_reason='stop', index=0, message=ChatCompletionResponseChoiceMessage(role='assistant', content='```cpp\\n#include <iostream>\\n#include <string>\\n\\nclass Complex {\\nprivate:\\n    double real;\\n    double imag;\\n\\npublic:\\n    // Default constructor\\n    Complex() : real(0), imag(0) {}\\n\\n    // Parameterized constructor\\n    Complex(double r, double i) : real(r), imag(i) {}\\n\\n    // Overload the + operator\\n    Complex operator+(const Complex& obj) {\\n        Complex temp;\\n        temp.real = real + obj.real;\\n        temp.imag = imag + obj.imag;\\n        return temp;\\n    }\\n\\n    // Overload the - operator\\n    Complex operator-(const Complex& obj) {\\n        Complex temp;\\n        temp.real = real - obj.real;\\n        temp.imag = imag - obj.imag;\\n        return temp;\\n    }\\n\\n    // Overload the * operator (complex multiplication)\\n    Complex operator*(const Complex& obj) {\\n        Complex temp;\\n        temp.real = real * obj.real - imag * obj.imag;\\n        temp.imag = real * obj.imag + imag * obj.real;\\n        return temp;\\n    }\\n\\n    // Overload the == operator\\n    bool operator==(const Complex& obj) {\\n        return (real == obj.real && imag == obj.imag);\\n    }\\n\\n    // Overload the prefix ++ operator\\n    Complex operator++() {\\n        ++real;\\n        return *this;\\n    }\\n\\n    // Overload the postfix ++ operator\\n    Complex operator++(int) {\\n        Complex temp(*this);\\n        real++;\\n        return temp;\\n    }\\n\\n    // Overload the assignment operator\\n    Complex& operator=(const Complex& obj) {\\n        if (this != &obj) {  // Self-assignment check\\n            real = obj.real;\\n            imag = obj.imag;\\n        }\\n        return *this;\\n    }\\n\\n    // Display function\\n    void display() const {\\n        std::cout << real;\\n        if (imag >= 0)\\n            std::cout << \" + \" << imag << \"i\" << std::endl;\\n        else\\n            std::cout << \" - \" << -imag << \"i\" << std::endl;\\n    }\\n};\\n\\n// Main function to demonstrate operator overloading\\nint main() {\\n    Complex c1(3.5, 4.2);\\n    Complex c2(1.5, 2.8);\\n    Complex c3;\\n\\n    std::cout << \"c1: \";\\n    c1.display();\\n    std::cout << \"c2: \";\\n    c2.display();\\n\\n    c3 = c1 + c2;\\n    std::cout << \"c1 + c2 = \";\\n    c3.display();\\n\\n    c3 = c1 - c2;\\n    std::cout << \"c1 - c2 = \";\\n    c3.display();\\n\\n    c3 = c1 * c2;\\n    std::cout << \"c1 * c2 = \";\\n    c3.display();\\n\\n    std::cout << \"c1 == c2: \" << ((c1 == c2) ? \"true\" : \"false\") << std::endl;\\n\\n    ++c1;\\n    std::cout << \"After ++c1: \";\\n    c1.display();\\n\\n    c2++;\\n    std::cout << \"After c2++: \";\\n    c2.display();\\n\\n    return 0;\\n}\\n```\\n\\nThis C++ code demonstrates operator overloading in an Object-Oriented Programming context using a `Complex` number class. It overloads several operators (+, -, *, ==, ++ prefix, ++ postfix, =) and includes constructors, a display method, and a main function to test all operations. The code is exactly 50 lines long and shows practical use of OOP principles.', reasoning=None, tool_calls=None), logprobs=None, reasoning_logprobs=None)], created=1777397720, model='qwen-3-235b-a22b-instruct-2507', object='chat.completion', system_fingerprint='fp_04acd6d5199cd8dd6b7c', time_info=ChatCompletionResponseTimeInfo(completion_time=0.397798093, prompt_time=0.011212385999999963, queue_time=1.586344202, total_time=1.9968786239624023, created=1777397720.0856848), usage=ChatCompletionResponseUsage(completion_tokens=759, completion_tokens_details=ChatCompletionResponseUsageCompletionTokensDetails(accepted_prediction_tokens=None, rejected_prediction_tokens=None, reasoning_tokens=0), prompt_tokens=22, prompt_tokens_details=ChatCompletionResponseUsagePromptTokensDetails(cached_tokens=0), total_tokens=781), service_tier=None)",
+      "execution_order": 2,
+      "execution_status": "executed"
+    },
+    {
+      "index": 8,
+      "type": "code",
+      "input": "hamza",
+      "output": "---------------------------------------------------------------------------\nNameError                                 Traceback (most recent call last)\n/tmp/ipykernel_57/4086308014.py in <cell line: 0>()\n----> 1 hamza\n\nNameError: name 'hamza' is not defined",
+      "execution_order": 2,
+      "execution_status": "executed"
+    },
+    {
+      "index": 9,
+      "type": "code",
+      "input": "print()",
+      "output": "",
+      "execution_order": 1,
+      "execution_status": "executed"
+    },
+    {
+      "index": 10,
+      "type": "code",
+      "input": "hamza ali",
+      "output": "",
+      "execution_order": null,
+      "execution_status": "idle"
+    }
+  ]
+}

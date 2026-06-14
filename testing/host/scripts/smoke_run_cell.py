@@ -17,6 +17,8 @@ import json
 import sys
 from pathlib import Path
 
+DEFAULT_URL = "https://www.kaggle.com/code/codekey/testing-ol/edit"
+
 HOST_DIR = Path(__file__).resolve().parent.parent
 REPO_ROOT = HOST_DIR.parent.parent
 if str(REPO_ROOT) not in sys.path:
@@ -28,7 +30,7 @@ from testing.host.tool_registry import registry  # noqa: E402
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Smoke test run_cell tool")
-    parser.add_argument("--url", required=True, help="Open notebook /edit URL")
+    parser.add_argument("--url", default=DEFAULT_URL, help="Open notebook /edit URL")
     parser.add_argument(
         "--cell-index",
         type=int,

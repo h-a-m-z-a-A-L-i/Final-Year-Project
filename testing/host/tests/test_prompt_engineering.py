@@ -63,6 +63,37 @@ def test_build_chat_messages_order():
     assert msgs[-1]["content"] == "hi"
 
 
+def test_react_browser_prompt_sections_when_enabled(monkeypatch):
+    monkeypatch.setattr(pe, "LLM_AGENTIC_ENABLED", True)
+    try:
+        from testing.host import agentic_mode as am
+        monkeypatch.setattr(am, "LLM_AGENTIC_ENABLED", True)
+        am.set_dashboard_agentic_enabled(True)
+    except Exception:
+        pass
+    content = pe.build_system_content(
+        "agentic",
+        notebook_url="https://www.kaggle.com/code/x/edit",
+        context="cell 1",
+    )
+    assert "Agentic" in content or "agentic" in content.lower()
+    assert "insert_cell" in content
+    assert "edit_cell_by_index" in content
+    assert "insert_and_edit_cell example" not in content
+
+
+def test_ask_mode_excludes_react_browser_even_when_flag_set(monkeypatch):
+    monkeypatch.setattr(pe, "LLM_AGENTIC_ENABLED", True)
+    content = pe.build_system_content("ask", notebook_url="https://example.com/x/edit")
+    assert "Observe → Think → Act" not in content
+
+
+def test_code_mode_excludes_browser_tools_when_agentic_flag_set(monkeypatch):
+    monkeypatch.setattr(pe, "LLM_AGENTIC_ENABLED", True)
+    content = pe.build_system_content("code", notebook_url="https://example.com/x/edit")
+    assert "Agentic mode is **active**" not in content
+
+
 def test_parse_prompt_sections():
     raw = "## Role\nYou are X.\n\n## Task\nStep 1.\n\n## Notes\nBe careful."
     secs = pe.parse_prompt_sections(raw)
