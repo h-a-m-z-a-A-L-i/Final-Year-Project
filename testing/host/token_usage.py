@@ -124,6 +124,7 @@ def record_token_event(
     label: str = "chat",
     usage: dict[str, int] | None = None,
     estimated_tokens: int = 0,
+    key_profile: str = "",
 ) -> None:
     """Append one API call to token_usage.jsonl."""
     row = {
@@ -133,6 +134,7 @@ def record_token_event(
         "history_key": history_key,
         "mode": mode,
         "label": label,
+        "key_profile": str(key_profile or "").strip(),
         "usage": usage or _zero_usage(),
         "estimated_tokens": int(estimated_tokens or 0),
         "billable_tokens": billable_tokens(usage, estimated_tokens),

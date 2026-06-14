@@ -36,6 +36,13 @@ _NAME_PATTERNS = [
 ]
 
 
+_LAST_CELL_HINT = re.compile(r"\b(last|final)\s+(?:code\s+)?cell\b", re.IGNORECASE)
+_ERROR_OUTPUT = re.compile(
+    r"\b(traceback|error:|exception|keyerror|nameerror|typeerror|valueerror|syntaxerror)\b",
+    re.IGNORECASE,
+)
+
+
 def _extract_cell_number(prompt: str):
     text = str(prompt or "")
     if not text.strip():
@@ -53,6 +60,41 @@ def _extract_cell_number(prompt: str):
             return _ORDINAL_CELL[word]
 
     return None
+
+
+def resolve_cell_index(prompt: str, cells: list | None) -> int | None:
+    """Resolve 1-based cell index from prompt + notebook cells (e.g. 'last cell' → last error cell)."""
+    explicit = _extract_cell_number(prompt)
+    if explicit is not None:
+        return explicit
+    if not cells or not _LAST_CELL_HINT.search(str(prompt or "")):
+        return None
+
+    code_rows: list[tuple[int, dict]] = []
+    for cell in cells:
+        if not isinstance(cell, dict) or str(cell.get("type") or "code") != "code":
+            continue
+        try:
+            idx = int(cell.get("index", 0))
+        except (TypeError, ValueError):
+            continue
+        if idx >= 1:
+            code_rows.append((idx, cell))
+    if not code_rows:
+        return None
+
+    with_error = [
+        idx
+        for idx, cell in code_rows
+        if _ERROR_OUTPUT.search(str(cell.get("output") or ""))
+    ]
+    if with_error:
+        return max(with_error)
+
+    nonempty = [idx for idx, cell in code_rows if str(cell.get("input") or "").strip()]
+    if nonempty:
+        return max(nonempty)
+    return max(idx for idx, _ in code_rows)
 
 
 def _extract_user_profile_facts(prompt: str) -> dict:

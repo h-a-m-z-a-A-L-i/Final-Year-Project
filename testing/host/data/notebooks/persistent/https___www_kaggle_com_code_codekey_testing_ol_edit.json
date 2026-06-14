@@ -1,7 +1,7 @@
 {
   "tabUrl": "https://www.kaggle.com/code/codekey/testing-ol/edit",
   "title": "__notebook_source__",
-  "lastUpdated": "2026-06-14T07:36:06.138930+00:00",
+  "lastUpdated": "2026-06-14T19:01:15.786751+00:00",
   "cells": [
     {
       "type": "code",
@@ -9,7 +9,7 @@
       "input": "print('h')",
       "output": "h",
       "execution_order": 9,
-      "execution_title": "Execution #9"
+      "execution_title": "Cell executed at 10:39pm"
     },
     {
       "type": "code",
@@ -25,7 +25,7 @@
       "input": "print(1)",
       "output": "1",
       "execution_order": 10,
-      "execution_title": "Cell executed at 11:49am"
+      "execution_title": "Execution #10"
     },
     {
       "type": "code",
@@ -33,7 +33,7 @@
       "input": "print(2)",
       "output": "2",
       "execution_order": 11,
-      "execution_title": "Cell executed at 10:50am"
+      "execution_title": "Cell executed at 10:39pm"
     },
     {
       "type": "code",
@@ -49,7 +49,7 @@
       "input": "print(4)",
       "output": "4",
       "execution_order": 13,
-      "execution_title": "Cell executed at 10:50am"
+      "execution_title": "Execution #13"
     },
     {
       "type": "code",
@@ -57,7 +57,7 @@
       "input": "print(5)",
       "output": "5",
       "execution_order": 14,
-      "execution_title": "Cell executed at 11:49am"
+      "execution_title": "Execution #14"
     },
     {
       "type": "code",
@@ -65,7 +65,7 @@
       "input": "print(1)",
       "output": "1",
       "execution_order": 4,
-      "execution_title": "Cell executed at 11:49am"
+      "execution_title": "Cell executed at 10:39pm"
     },
     {
       "type": "code",
@@ -105,7 +105,7 @@
       "input": "import pandas as pd\n\n\n# Load the dataset with error handling\ndf = pd.read_csv(\n    '/kaggle/input/datasets/codekey/zameen-com2026-16-5/zameen_master_dataset.csv',\n    on_bad_lines='skip',\n    engine='python'\n)\n\n\n# Display the first few rows\nprint(df.head())",
       "output": "property_id|location_id|page_url|property_type|price|location|city|province_name|latitude|longitude|baths|area|purpose|bedrooms|date_added|agency|agent|Area Type|Area Size|Area Category\n15702|1|https://www.zameen.com/Property/askari_...   Askari 11|Lahore|Punjab|34.540894|73.095732|5...                                                                                                                                       \n1806|1|https://www.zameen.com/Property/bahria_t...   Bahria Town - Sector E|Lahore|Punjab|34.54299...                                                                                                                                       \n373|1|https://www.zameen.com/Property/lahore_va...   Lahore|Lahore|Punjab|34.544394|73.092232|6|1 ...                                                                                                                                       \n3717|1|https://www.zameen.com/Property/dha_11_r...   DHA 11 Rahbar|Lahore|Punjab|34.545094|73.0915...                                                                                                                                       \n1450|1|https://www.zameen.com/Property/dha_defe...   DHA Defence|Lahore|Punjab|34.546494|73.090132...",
       "execution_order": 2,
-      "execution_title": "Execution #2"
+      "execution_title": "Cell executed at 10:39pm"
     },
     {
       "type": "code",
@@ -120,8 +120,8 @@
       "index": 15,
       "input": "",
       "output": "",
-      "execution_order": 1,
-      "execution_title": "Execution #1"
+      "execution_order": null,
+      "execution_title": ""
     },
     {
       "type": "code",
@@ -166,8 +166,8 @@
       "index": 21,
       "input": "print('smoke_test')",
       "output": "",
-      "execution_order": 2,
-      "execution_title": "Execution #2"
+      "execution_order": 1,
+      "execution_title": "Execution #1"
     },
     {
       "type": "code",
@@ -175,28 +175,84 @@
       "input": "print('hello')",
       "output": "hkolo",
       "execution_order": 17,
-      "execution_title": "Cell executed at 11:49am"
+      "execution_title": "Execution #17"
     },
     {
       "type": "code",
       "index": 23,
       "input": "import pandas as pd\n\n\ndf = pd.read_csv(\n    '/kaggle/input/datasets/codekey/zameen-com2026-16-5/zameen_master_dataset.csv',\n    on_bad_lines='skip',\n    engine='python'\n)\n\n\nprint(df.head())",
       "output": "property_id|location_id|page_url|property_type|price|location|city|province_name|latitude|longitude|baths|area|purpose|bedrooms|date_added|agency|agent|Area Type|Area Size|Area Category\n15702|1|https://www.zameen.com/Property/askari_...   Askari 11|Lahore|Punjab|34.540894|73.095732|5...                                                                                                                                       \n1806|1|https://www.zameen.com/Property/bahria_t...   Bahria Town - Sector E|Lahore|Punjab|34.54299...                                                                                                                                       \n373|1|https://www.zameen.com/Property/lahore_va...   Lahore|Lahore|Punjab|34.544394|73.092232|6|1 ...                                                                                                                                       \n3717|1|https://www.zameen.com/Property/dha_11_r...   DHA 11 Rahbar|Lahore|Punjab|34.545094|73.0915...                                                                                                                                       \n1450|1|https://www.zameen.com/Property/dha_defe...   DHA Defence|Lahore|Punjab|34.546494|73.090132...",
-      "execution_order": 22,
-      "execution_title": "Execution #22"
+      "execution_order": 6,
+      "execution_title": "Execution #6"
     },
     {
       "type": "code",
       "index": 24,
       "input": "df_clean = df.dropna()\nprint(f\"Rows after removing empty values: {len(df_clean)}\")\nprint(df_clean.head())",
-      "output": "",
-      "execution_order": null,
-      "execution_title": ""
+      "output": "Rows after removing empty values: 70045\n                                                   property_id|location_id|page_url|property_type|price|location|city|province_name|latitude|longitude|baths|area|purpose|bedrooms|date_added|agency|agent|Area Type|Area Size|Area Category\n15702|1|https://www.zameen.com/Property/askari_...   Askari 11|Lahore|Punjab|34.540894|73.095732|5...                                                                                                                                       \n1806|1|https://www.zameen.com/Property/bahria_t...   Bahria Town - Sector E|Lahore|Punjab|34.54299...                                                                                                                                       \n373|1|https://www.zameen.com/Property/lahore_va...   Lahore|Lahore|Punjab|34.544394|73.092232|6|1 ...                                                                                                                                       \n3717|1|https://www.zameen.com/Property/dha_11_r...   DHA 11 Rahbar|Lahore|Punjab|34.545094|73.0915...                                                                                                                                       \n1450|1|https://www.zameen.com/Property/dha_defe...   DHA Defence|Lahore|Punjab|34.546494|73.090132...",
+      "execution_order": 7,
+      "execution_title": "Execution #7"
     },
     {
       "type": "code",
       "index": 25,
-      "input": "top_by_city = (\n    df_clean.sort_values('price', ascending=False)\n    .groupby('city', as_index=False)\n    .head(5)\n)\nprint(top_by_city[['city', 'price', 'location', 'property_type']])",
+      "input": "price_col = [c for c in df_clean.columns if c.strip().lower() == 'price']\nif price_col:\n    price_col = price_col[0]\nelse:\n    raise KeyError('Price column not found in df_clean')\n\n\n# Use the detected price column name\ntop_by_city = (\n    df_clean.sort_values(price_col, ascending=False)\n    .groupby('city', as_index=False)\n    .head(5)\n)\n\n\nprint(top_by_city[['city', price_col, 'location', 'property_type']])",
+      "output": "---------------------------------------------------------------------------\nKeyError                                  Traceback (most recent call last)\n/tmp/ipykernel_57/4161071031.py in <cell line: 0>()\n      3     price_col = price_col[0]\n      4 else:\n----> 5     raise KeyError('Price column not found in df_clean')\n      6 \n      7 # Use the detected price column name\n\nKeyError: 'Price column not found in df_clean'",
+      "execution_order": 3,
+      "execution_title": "Execution #3"
+    },
+    {
+      "type": "code",
+      "index": 26,
+      "input": "import pandas as pd\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.metrics import accuracy_score\n\n\n# Load the dataset with correct separator\ncsv_path = '/kaggle/input/datasets/codekey/zameen-com2026-16-5/zameen_master_dataset.csv'\ndf = pd.read_csv(csv_path, sep='|', on_bad_lines='skip', engine='python')\nprint('Dataframe shape after load:', df.shape)\n\n\n# Basic preprocessing: drop rows with missing target or features\ndf = df.dropna()\nprint('Shape after dropna:', df.shape)\n\n\n# Encode categorical columns (simple label encoding)\nfor col in df.select_dtypes(include='object').columns:\n    df[col] = df[col].astype('category').cat.codes\n\n\n# Ensure 'price' column exists\nif 'price' not in df.columns:\n    raise KeyError(\"'price' column not found after preprocessing\")\n\n\n# Create binary target\nprice_threshold = df['price'].median()\ndf['high_price'] = (df['price'] > price_threshold).astype(int)\n\n\n# Features and target\ny = df['high_price']\nX = df.drop(columns=['high_price', 'price'])\n\n\n# Train‑test split\nX_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)\n\n\n# Train Logistic Regression\nmodel = LogisticRegression(max_iter=1000, n_jobs=5)\nmodel.fit(X_train, y_train)\n\n\n# Evaluate\nval_pred = model.predict(X_val)\nprint('Validation Accuracy:', accuracy_score(y_val, val_pred))\n\n\n# Generate predictions for the whole dataset\npreds = model.predict(X)\nsubmission = pd.DataFrame({'id': df.index, 'high_price_pred': preds})\nsubmission_path = '/kaggle/working/submission.csv'\nsubmission.to_csv(submission_path, index=False)\nprint('Submission saved to', submission_path)",
+      "output": "Dataframe shape after load: (70751, 20)\nShape after dropna: (70751, 20)\nValidation Accuracy: 0.8605752243657692\nSubmission saved to /kaggle/working/submission.csv\n\n/usr/local/lib/python3.12/dist-packages/sklearn/linear_model/_logistic.py:465: ConvergenceWarning: lbfgs failed to converge (status=1):\nSTOP: TOTAL NO. OF ITERATIONS REACHED LIMIT.\n\nIncrease the number of iterations (max_iter) or scale the data as shown in:\n    https://scikit-learn.org/stable/modules/preprocessing.html\nPlease also refer to the documentation for alternative solver options:\n    https://scikit-learn.org/stable/modules/linear_model.html#logistic-regression\n  n_iter_i = _check_optimize_result(",
+      "execution_order": 3,
+      "execution_title": "Cell executed at 10:40pm"
+    },
+    {
+      "type": "code",
+      "index": 27,
+      "input": "import pandas as pd\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.metrics import accuracy_score\n\n\n# Load the dataset with correct separator\ncsv_path = '/kaggle/input/datasets/codekey/zameen-com2026-16-5/zameen_master_dataset.csv'\ndf = pd.read_csv(csv_path, sep='|', on_bad_lines='skip', engine='python')\nprint('Dataframe shape after load:', df.shape)\n\n\n# Basic preprocessing: drop rows with missing target or features\ndf = df.dropna()\nprint('Shape after dropna:', df.shape)\n\n\n# Encode categorical columns (simple label encoding)\nfor col in df.select_dtypes(include='object').columns:\n    df[col] = df[col].astype('category').cat.codes\n\n\n# Ensure 'price' column exists\nif 'price' not in df.columns:\n    raise KeyError(\"'price' column not found after preprocessing\")\n\n\n# Create binary target\nprice_threshold = df['price'].median()\ndf['high_price'] = (df['price'] > price_threshold).astype(int)\n\n\n# Features and target\ny = df['high_price']\nX = df.drop(columns=['high_price', 'price'])\n\n\n# Train‑test split\nX_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)\n\n\n# Train Logistic Regression\nmodel = LogisticRegression(max_iter=1000, n_jobs=5)\nmodel.fit(X_train, y_train)\n\n\n# Evaluate\nval_pred = model.predict(X_val)\nprint('Validation Accuracy:', accuracy_score(y_val, val_pred))\n\n\n# Generate predictions for the whole dataset\npreds = model.predict(X)\nsubmission = pd.DataFrame({'id': df.index, 'high_price_pred': preds})\nsubmission_path = '/kaggle/working/submission.csv'\nsubmission.to_csv(submission_path, index=False)\nprint('Submission saved to', submission_path)",
+      "output": "Dataframe shape after load: (70751, 20)\nShape after dropna: (70751, 20)\nValidation Accuracy: 0.8605752243657692\nSubmission saved to /kaggle/working/submission.csv\n\n/usr/local/lib/python3.12/dist-packages/sklearn/linear_model/_logistic.py:465: ConvergenceWarning: lbfgs failed to converge (status=1):\nSTOP: TOTAL NO. OF ITERATIONS REACHED LIMIT.\n\nIncrease the number of iterations (max_iter) or scale the data as shown in:\n    https://scikit-learn.org/stable/modules/preprocessing.html\nPlease also refer to the documentation for alternative solver options:\n    https://scikit-learn.org/stable/modules/linear_model.html#logistic-regression\n  n_iter_i = _check_optimize_result(",
+      "execution_order": 4,
+      "execution_title": "Execution #4"
+    },
+    {
+      "type": "code",
+      "index": 28,
+      "input": "import matplotlib.pyplot as plt\nimport seaborn as sns\n\n\n# Assuming df_clean is available from previous cells\nif 'price' not in df_clean.columns:\n    raise KeyError('price column not found in df_clean')\n\n\nplt.figure(figsize=(10,6))\nsns.histplot(df_clean['price'], bins=50, kde=True)\nplt.title('Price Distribution')\nplt.xlabel('Price')\nplt.ylabel('Count')\nplt.show()",
+      "output": "---------------------------------------------------------------------------\nKeyError                                  Traceback (most recent call last)\n/tmp/ipykernel_57/3448517872.py in <cell line: 0>()\n      4 # Assuming df_clean is available from previous cells\n      5 if 'price' not in df_clean.columns:\n----> 6     raise KeyError('price column not found in df_clean')\n      7 \n      8 plt.figure(figsize=(10,6))\n\nKeyError: 'price column not found in df_clean'",
+      "execution_order": 8,
+      "execution_title": "Execution #8"
+    },
+    {
+      "type": "code",
+      "index": 29,
+      "input": "import matplotlib.pyplot as plt\nimport seaborn as sns\n\n\n# Assuming df_clean is available from previous cells\nif 'price' not in df_clean.columns:\n    raise KeyError('price column not found in df_clean')\n\n\nplt.figure(figsize=(10, 6))\nsns.histplot(df_clean['price'], bins=50, kde=True)\nplt.title('Price Distribution')\nplt.xlabel('Price')\nplt.ylabel('Count')\nplt.show()",
+      "output": "---------------------------------------------------------------------------\nKeyError                                  Traceback (most recent call last)\n/tmp/ipykernel_57/2255464104.py in <cell line: 0>()\n      4 # Assuming df_clean is available from previous cells\n      5 if 'price' not in df_clean.columns:\n----> 6     raise KeyError('price column not found in df_clean')\n      7 \n      8 plt.figure(figsize=(10, 6))\n\nKeyError: 'price column not found in df_clean'",
+      "execution_order": 9,
+      "execution_title": "Execution #9"
+    },
+    {
+      "type": "code",
+      "index": 30,
+      "input": "import matplotlib.pyplot as plt\nimport seaborn as sns\n\n\n# Plot price distribution from df_clean\nplt.figure(figsize=(10, 6))\nsns.histplot(df_clean['price'], bins=50, kde=True)\nplt.title('Price Distribution')\nplt.xlabel('Price')\nplt.ylabel('Count')\nplt.show()",
+      "output": "---------------------------------------------------------------------------\nKeyError                                  Traceback (most recent call last)\n/usr/local/lib/python3.12/dist-packages/pandas/core/indexes/base.py in get_loc(self, key)\n   3811         try:\n-> 3812             return self._engine.get_loc(casted_key)\n   3813         except KeyError as err:\n\npandas/_libs/index.pyx in pandas._libs.index.IndexEngine.get_loc()\n\npandas/_libs/index.pyx in pandas._libs.index.IndexEngine.get_loc()\n\npandas/_libs/hashtable_class_helper.pxi in pandas._libs.hashtable.PyObjectHashTable.get_item()\n\npandas/_libs/hashtable_class_helper.pxi in pandas._libs.hashtable.PyObjectHashTable.get_item()\n\nKeyError: 'price'\n\nThe above exception was the direct cause of the following exception:\n\nKeyError                                  Traceback (most recent call last)\n/tmp/ipykernel_57/1525100489.py in <cell line: 0>()\n      4 # Plot price distribution from df_clean\n      5 plt.figure(figsize=(10, 6))\n----> 6 sns.histplot(df_clean['price'], bins=50, kde=True)\n      7 plt.title('Price Distribution')\n      8 plt.xlabel('Price')\n\n/usr/local/lib/python3.12/dist-packages/pandas/core/frame.py in __getitem__(self, key)\n   4111             if self.columns.nlevels > 1:\n   4112                 return self._getitem_multilevel(key)\n-> 4113             indexer = self.columns.get_loc(key)\n   4114             if is_integer(indexer):\n   4115                 indexer = [indexer]\n\n/usr/local/lib/python3.12/dist-packages/pandas/core/indexes/base.py in get_loc(self, key)\n   3817             ):\n   3818                 raise InvalidIndexError(key)\n-> 3819             raise KeyError(key) from err\n   3820         except TypeError:\n   3821             # If we have a listlike key, _check_indexing_error will raise\n\nKeyError: 'price'\n<Figure size 1000x600 with 0 Axes>",
+      "execution_order": 11,
+      "execution_title": "Cell executed at 10:21pm"
+    },
+    {
+      "type": "code",
+      "index": 31,
+      "input": "import matplotlib.pyplot as plt\nimport seaborn as sns\n\n\n# Determine the price column name dynamically\nprice_col = None\nfor c in df_clean.columns:\n    if c.strip().lower() == 'price':\n        price_col = c\n        break\nif price_col is None:\n    raise KeyError('price column not found in df_clean')\n\n\nplt.figure(figsize=(10, 6))\nsns.histplot(df_clean[price_col], bins=50, kde=True)\nplt.title('Price Distribution')\nplt.xlabel('Price')\nplt.ylabel('Count')\nplt.show()",
+      "output": "---------------------------------------------------------------------------\nKeyError                                  Traceback (most recent call last)\n/tmp/ipykernel_57/2041116885.py in <cell line: 0>()\n      9         break\n     10 if price_col is None:\n---> 11     raise KeyError('price column not found in df_clean')\n     12 \n     13 plt.figure(figsize=(10, 6))\n\nKeyError: 'price column not found in df_clean'",
+      "execution_order": 12,
+      "execution_title": "Execution #12"
+    },
+    {
+      "type": "code",
+      "index": 32,
+      "input": "",
       "output": "",
       "execution_order": null,
       "execution_title": ""

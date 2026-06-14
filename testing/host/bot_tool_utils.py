@@ -265,7 +265,7 @@ def normalize_edit_cell_args(args: dict) -> tuple[dict | None, dict | None]:
     if not url:
         return None, {"ok": False, "error": "url is required (open notebook /edit URL)"}
 
-    dom_index, err = normalize_dom_cell_index_from_args(args, url=None, default_basis="app")
+    dom_index, err = normalize_dom_cell_index_from_args(args, url=url, default_basis="app")
     if err:
         return None, {"ok": False, "error": err}
 

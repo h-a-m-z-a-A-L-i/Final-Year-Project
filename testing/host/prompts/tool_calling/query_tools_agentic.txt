@@ -2,6 +2,8 @@
 
 Use read tools only when a cell index is unknown.
 
-**Single response:** emit every browser tool (writes + all `run_cell`) in one assistant message.
+**Execution contract:** modify the notebook (edit + run + verify). Never finish with code in chat alone — emit tools until verification succeeds.
+
+**Single response:** emit every browser tool (writes + all required `run_cell`) in one assistant message.
 
 After host queue completes, verify `queue_cell_evidence` and summarize.

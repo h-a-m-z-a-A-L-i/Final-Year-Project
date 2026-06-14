@@ -1159,6 +1159,7 @@
     if (sid !== activeSessionId) return;
 
     if (msg.type === "CHAT_STREAM") {
+      if (!isStreaming) return;
       if (typeof activePanel.__ncAppendDelta === "function") {
         activePanel.__ncAppendDelta(msg.delta || "");
       }
@@ -1166,6 +1167,7 @@
     }
 
     if (msg.type === "CHAT_STREAM_END" || msg.type === "CHAT_RESPONSE") {
+      if (!isStreaming) return;
       if (typeof activePanel.__ncFinalizeStream === "function") {
         activePanel.__ncFinalizeStream({
           text: msg.response || streamBuffer,

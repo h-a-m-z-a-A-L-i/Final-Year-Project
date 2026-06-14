@@ -117,6 +117,13 @@ def test_analyze_cell_output_detects_traceback():
     assert "hamza" in str(analysis["error_summary"])
 
 
+def test_analyze_cell_output_empty_is_pending_not_success():
+    analysis = analyze_cell_output("")
+    assert analysis["has_output"] is False
+    assert analysis["run_succeeded"] is False
+    assert analysis.get("pending") is True
+
+
 def test_analyze_cell_output_success():
     analysis = analyze_cell_output("hello\n")
     assert analysis["has_error"] is False
@@ -167,15 +174,32 @@ def test_workflow_needs_followup_false_when_verified_only():
 
 
 def test_workflow_needs_followup_true_after_successful_batch():
-    assert workflow_needs_llm_followup({"verified": True, "batch_executed": True}) is True
+    assert workflow_needs_llm_followup({"verified": True, "batch_executed": True}) is False
+    assert workflow_needs_llm_followup({
+        "verified": True,
+        "batch_executed": True,
+        "deferred_tool_calls": [{"tool": "insert_cell"}],
+    }) is True
+
+
+def test_workflow_needs_followup_false_when_queue_complete():
+    assert workflow_needs_llm_followup({
+        "verified": True,
+        "batch_executed": True,
+        "tool_queue_status": "complete",
+        "tool_queue_complete": True,
+        "await_llm_summary": True,
+    }) is False
 
 
 def test_workflow_needs_followup_true_after_run():
     assert workflow_needs_llm_followup({
         "verified": True,
         "run_queue_complete": True,
+        "tool_queue_status": "complete",
+        "tool_queue_complete": True,
         "await_llm_summary": True,
-    }) is True
+    }) is False
     assert workflow_needs_llm_followup({"verified": True, "run_completed": True}) is False
 
 
@@ -191,8 +215,10 @@ def test_workflow_needs_followup_true_on_run_queue_complete():
     assert workflow_needs_llm_followup({
         "verified": True,
         "run_queue_complete": True,
+        "tool_queue_status": "complete",
+        "tool_queue_complete": True,
         "await_llm_summary": True,
-    }) is True
+    }) is False
 
 
 def test_run_wait_failed_detects_traceback():
@@ -328,6 +354,8 @@ def test_attach_run_queue_verification_stopped():
     assert out["pending_run_cells"] == [6, 7]
     assert out["await_llm_summary"] is False
     assert out["close_react_loop"] is False
+    assert out["error_recovery"]["failed_cell_index"] == 5
+    assert out["error_recovery"]["may_propagate"] is True
 
 
 def test_fetch_queue_cell_evidence_shape():
@@ -348,7 +376,7 @@ def test_workflow_needs_followup_tool_queue_complete():
         "tool_queue_status": "complete",
         "tool_queue_complete": True,
         "await_llm_summary": True,
-    }) is True
+    }) is False
 
 
 def test_split_batch_at_run_defers_post_run_tools():
@@ -449,3 +477,35 @@ def test_wait_for_cell_run_detects_output_change():
     assert result["ok"] is True
     assert result["run_succeeded"] is True
     assert result["output"] == "1\n"
+
+
+@patch("testing.host.agentic_batch_executor.wait_for_cell_run")
+@patch("testing.host.agentic_batch_executor._dispatch_run_cell")
+@patch("testing.host.agentic_batch_executor.load_notebook_snapshot")
+def test_execute_run_queue_stops_on_cancel(mock_snap, mock_dispatch, mock_wait):
+    mock_snap.return_value = ({"cells": []}, "live")
+    mock_dispatch.return_value = {"ok": True}
+    runs_done = {"n": 0}
+
+    def wait_side_effect(*_a, **_k):
+        runs_done["n"] += 1
+        return {"ok": True, "run_succeeded": True, "output": "ok"}
+
+    mock_wait.side_effect = wait_side_effect
+
+    def cancel_check():
+        return runs_done["n"] >= 1
+
+    completed, _waits, pending = execute_run_queue_sequential(
+        [1, 2, 3],
+        executed=[],
+        registry=MagicMock(),
+        url="https://x/edit",
+        tab_id=1,
+        mode="agentic",
+        browser_tool_allowed=lambda *_a, **_k: (True, None),
+        cancel_check=cancel_check,
+    )
+    assert completed == [1]
+    assert pending == [2, 3]
+

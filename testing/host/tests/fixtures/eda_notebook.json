@@ -1,0 +1,10 @@
+{
+  "tabUrl": "https://www.kaggle.com/code/test/eda-housing/edit",
+  "cells": [
+    {"type": "code", "index": 1, "input": "import pandas as pd\nimport matplotlib.pyplot as plt\nimport seaborn as sns", "output": "", "execution_order": 1},
+    {"type": "code", "index": 2, "input": "df = pd.read_csv('/kaggle/input/housing/data.csv')", "output": "shape (1000, 10)", "execution_order": 2},
+    {"type": "code", "index": 3, "input": "print(df.describe())\nprint(df.isnull().sum())", "output": "", "execution_order": 3},
+    {"type": "code", "index": 4, "input": "corr_df = df.corr(numeric_only=True)\nsns.heatmap(corr_df)", "output": "", "execution_order": 4},
+    {"type": "code", "index": 5, "input": "df['price'].hist(bins=30)\nplt.show()", "output": "", "execution_order": 5}
+  ]
+}

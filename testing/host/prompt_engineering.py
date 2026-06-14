@@ -122,10 +122,11 @@ _SYSTEM_NOTES_CODE_REACT = """\
 
 
 _SYSTEM_NOTES_AGENTIC = """\
+- **Execution contract:** modify the notebook (edit → run → verify). Never stop after code-only replies — use tools until verification succeeds.
 - **One assistant message = all tool_calls** for the task (every read, write, and run_cell). Never one tool per round.
 - Pass the exact session notebook URL on every tool call.
 - No Placement / Run order / manual UI instructions — tool_calls only until the host queue completes.
-- Summarize only after `tool_queue_status` is `complete`.
+- Summarize only after `tool_queue_status` is `complete` and outputs are verified.
 - Skip redundant reads when cell indices are in Context or the user message."""
 
 
@@ -209,6 +210,7 @@ def load_tool_prompt_sections(
     include_examples: bool = True,
     react_browser: bool = False,
     mode: str = "ask",
+    text_tool_calls: bool = False,
 ) -> tuple[str, str, str]:
     mode = normalize_mode(mode)
     mode_query = _read_text(TOOL_PROMPTS_DIR / f"query_tools_{mode}.txt")
@@ -220,18 +222,18 @@ def load_tool_prompt_sections(
     browser_tool = ""
     workflows = ""
     if react_browser:
-        react_tool = _read_text(TOOL_PROMPTS_DIR / "react_agent.txt")
-        host_batch = _read_text(TOOL_PROMPTS_DIR / "react_agent_host_batch.txt")
-        if host_batch:
-            react_tool = (react_tool + "\n\n" + host_batch).strip()
-        if str(LLM_PROVIDER or "").lower() == "google":
-            gemini_addon = _read_text(TOOL_PROMPTS_DIR / "react_agent_gemini.txt")
-            if gemini_addon:
-                react_tool = (react_tool + "\n\n" + gemini_addon).strip()
-        elif str(LLM_PROVIDER or "").lower() == "cerebras" and mode == "agentic":
-            cerebras_addon = _read_text(TOOL_PROMPTS_DIR / "react_agent_cerebras.txt")
-            if cerebras_addon:
-                react_tool = (react_tool + "\n\n" + cerebras_addon).strip()
+        if text_tool_calls:
+            react_tool = _read_text(TOOL_PROMPTS_DIR / "react_agent_text_tools.txt")
+            react_tool = (react_tool + "\n\n" + _read_text(TOOL_PROMPTS_DIR / "react_agent_host_batch.txt")).strip()
+        else:
+            react_tool = _read_text(TOOL_PROMPTS_DIR / "react_agent.txt")
+            host_batch = _read_text(TOOL_PROMPTS_DIR / "react_agent_host_batch.txt")
+            if host_batch:
+                react_tool = (react_tool + "\n\n" + host_batch).strip()
+            if str(LLM_PROVIDER or "").lower() == "cerebras" and mode == "agentic":
+                cerebras_addon = _read_text(TOOL_PROMPTS_DIR / "react_agent_cerebras.txt")
+                if cerebras_addon:
+                    react_tool = (react_tool + "\n\n" + cerebras_addon).strip()
         browser_tool = _read_text(TOOL_PROMPTS_DIR / "browser_tools.txt")
         if mode != "agentic":
             workflows = _read_text(TOOL_PROMPTS_DIR / "react_workflows.txt")
@@ -358,6 +360,7 @@ def build_system_content(
     include_tools: bool = True,
     include_tool_examples: bool | None = None,
     include_query_guidance: bool = False,
+    text_tool_calls: bool = False,
 ) -> str:
     """
     Assemble system prompt using the Role → Task → Specifics → Context → Examples → Notes schema.
@@ -371,6 +374,8 @@ def build_system_content(
     notebook_len = len(context or "")
     if include_tool_examples is None:
         include_tool_examples = notebook_len < MAX_NOTEBOOK_CONTEXT_CHARS // 2
+    if text_tool_calls and mode == "agentic":
+        include_tool_examples = False
 
     tool_system, tool_desc, tool_examples = ("", "", "")
     if include_tools:
@@ -378,6 +383,7 @@ def build_system_content(
             include_examples=include_tool_examples,
             react_browser=react_browser,
             mode=mode,
+            text_tool_calls=text_tool_calls,
         )
 
     if react_browser:
@@ -474,6 +480,7 @@ def build_chat_messages(
     include_tools: bool = True,
     turn_tail: str = "",
     static_cache: bool = False,
+    text_tool_calls: bool = False,
 ) -> list[dict[str, Any]]:
     try:
         from .context_budget import trim_history_for_api
@@ -493,6 +500,7 @@ def build_chat_messages(
                 include_tools=include_tools,
                 include_tool_examples=False if static_cache else None,
                 include_query_guidance=include_query_guidance,
+                text_tool_calls=text_tool_calls,
             ),
         }
     ]
@@ -507,3 +515,38 @@ def build_chat_messages(
         user_body = f"{tail}\n\n---\n\n{user_body}" if user_body else tail
     messages.append({"role": "user", "content": user_body})
     return messages
+
+
+def estimate_system_prompt_tokens(
+    mode: str = "agentic",
+    *,
+    context: str = "",
+    text_tool_calls: bool = True,
+) -> dict[str, int]:
+    """Token audit helper for system prompt sections."""
+    try:
+        from .context_budget import estimate_tokens
+    except Exception:
+        from context_budget import estimate_tokens
+
+    full = build_system_content(
+        mode,
+        context=context,
+        include_tools=True,
+        text_tool_calls=text_tool_calls,
+    )
+    tool_system, tool_desc, tool_examples = load_tool_prompt_sections(
+        include_examples=not (text_tool_calls and mode == "agentic"),
+        react_browser=agentic_runtime_enabled(mode),
+        mode=mode,
+        text_tool_calls=text_tool_calls,
+    )
+    jupyter = _read_text(JUPYTER_STRUCTURE_FILE)
+    return {
+        "system_total": estimate_tokens(full),
+        "tool_system": estimate_tokens(tool_system),
+        "tool_descriptions": estimate_tokens(tool_desc),
+        "tool_examples": estimate_tokens(tool_examples),
+        "jupyter_structure": estimate_tokens(jupyter),
+        "notebook_context": estimate_tokens(context),
+    }

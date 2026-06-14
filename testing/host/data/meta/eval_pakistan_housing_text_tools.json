@@ -1,0 +1,255 @@
+{
+  "mode": "text_tool_batch",
+  "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+  "notebook_file": "D:\\FYP\\normal-chrome\\testing\\host\\data\\notebooks\\https___www_kaggle_com_code_codekey_pakistan_housing_edit.json",
+  "provider": "cerebras",
+  "model": "gpt-oss-120b",
+  "results": [
+    {
+      "scenario_id": "read_discover_catboost",
+      "title": "Read: locate CatBoost training cell (text tools)",
+      "prompt": "Use notebook read tools to find where catboost_model is trained. Report the 1-based cell index. Use <agent_tool_batch> for tool calls.",
+      "reasoning_snippets": [
+        "The requested tool batch has been submitted.",
+        "first_batch_size=1"
+      ],
+      "final_text": "<agent_tool_batch>\n[\n  {\"tool\": \"notebook_find_symbol\", \"args\": {\"url\": \"https://www.kaggle.com/code/codekey/pakistan-housing/edit\", \"symbol\": \"catboost_model\"}}\n]\n</agent_tool_batch>",
+      "checks": [
+        {
+          "name": "used_read_tool",
+          "passed": true,
+          "detail": "tools=['notebook_find_symbol', 'notebook_find_symbol', 'notebook_find_symbol', 'notebook_find_symbol', 'notebook_find_symbol', 'notebook_find_symbol']"
+        },
+        {
+          "name": "used_search_or_symbol",
+          "passed": true,
+          "detail": "search/symbol/get in ['notebook_find_symbol', 'notebook_find_symbol', 'notebook_find_symbol', 'notebook_find_symbol', 'notebook_find_symbol', 'notebook_find_symbol']"
+        },
+        {
+          "name": "no_premature_write",
+          "passed": true,
+          "detail": "first two calls should be read-only"
+        },
+        {
+          "name": "found_catboost_cell",
+          "passed": false,
+          "detail": "indices=[] final mentions 50=False"
+        },
+        {
+          "name": "mentions_catboost",
+          "passed": true,
+          "detail": "final answer should reference CatBoost"
+        },
+        {
+          "name": "all_calls_have_url",
+          "passed": true,
+          "detail": "every tool call must pass session url"
+        },
+        {
+          "name": "used_text_batch",
+          "passed": true,
+          "detail": "first batch=1"
+        }
+      ],
+      "score": 6.0,
+      "max_score": 7.0,
+      "error": null,
+      "elapsed_sec": 77.91761519992724,
+      "tool_calls": [
+        {
+          "round": 1,
+          "name": "notebook_find_symbol",
+          "args": {
+            "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+            "symbol": "catboost_model"
+          },
+          "result_ok": true,
+          "reasoning": "The requested tool batch has been submitted."
+        },
+        {
+          "round": 2,
+          "name": "notebook_find_symbol",
+          "args": {
+            "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+            "symbol": "catboost_model"
+          },
+          "result_ok": true,
+          "reasoning": ""
+        },
+        {
+          "round": 3,
+          "name": "notebook_find_symbol",
+          "args": {
+            "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+            "symbol": "catboost_model"
+          },
+          "result_ok": true,
+          "reasoning": ""
+        },
+        {
+          "round": 4,
+          "name": "notebook_find_symbol",
+          "args": {
+            "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+            "symbol": "catboost_model"
+          },
+          "result_ok": true,
+          "reasoning": ""
+        },
+        {
+          "round": 5,
+          "name": "notebook_find_symbol",
+          "args": {
+            "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+            "symbol": "catboost_model"
+          },
+          "result_ok": true,
+          "reasoning": ""
+        },
+        {
+          "round": 6,
+          "name": "notebook_find_symbol",
+          "args": {
+            "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+            "symbol": "catboost_model"
+          },
+          "result_ok": true,
+          "reasoning": ""
+        }
+      ]
+    },
+    {
+      "scenario_id": "read_correlation",
+      "title": "Read: corr_with_price analysis (text tools)",
+      "prompt": "Find where corr_with_price is computed. Explain why Pearson correlation is weak for categorical features. Read tools only — use <agent_tool_batch>.",
+      "reasoning_snippets": [
+        "We will call notebook_search for \"corr_with_price\".The tool batch has been submitted to locate the computation of `corr_with_price`. Once the search results are returned, I will identify the cell containing this calculation and explain why Pearson correlation is weak for categorical features.",
+        "{\"tool\":\"notebook_search\",\"args\":{\"url\":\"https://www.kaggle.com/code/codekey/pakistan-housing/edit\",\"query\":\"corr\",\"regex\":false,\"search_output\":false,\"limit\":20}}The requested information is not present in the currently listed cells (1‑5). To locate the computation of `corr_with_price` we would need to search the rest of the notebook, but the provided context only includes those five cells. Consequently I cannot show where `corr_with_price` is computed or explain its Pearson correlation characteristics based on the available evidence.",
+        "first_batch_size=1"
+      ],
+      "final_text": "{\"tool\":\"notebook_search\",\"args\":{\"url\":\"https://www.kaggle.com/code/codekey/pakistan-housing/edit\",\"query\":\"corr\",\"regex\":false,\"search_output\":false,\"limit\":20}}The requested information is not present in the currently listed cells (1‑5). To locate the computation of `corr_with_price` we would need to search the rest of the notebook, but the provided context only includes those five cells. Consequently I cannot show where `corr_with_price` is computed or explain its Pearson correlation characteristics based on the available evidence.",
+      "checks": [
+        {
+          "name": "used_read_tool",
+          "passed": true,
+          "detail": "['notebook_search', 'notebook_search']"
+        },
+        {
+          "name": "searched_or_read_corr",
+          "passed": true,
+          "detail": "should inspect correlation cells"
+        },
+        {
+          "name": "explains_categorical_limitation",
+          "passed": true,
+          "detail": "should discuss why Pearson is weak here"
+        },
+        {
+          "name": "no_write_tools",
+          "passed": true,
+          "detail": "read-only task; writes=[]"
+        },
+        {
+          "name": "used_text_batch",
+          "passed": true,
+          "detail": "first batch=1"
+        }
+      ],
+      "score": 5.0,
+      "max_score": 5.0,
+      "error": null,
+      "elapsed_sec": 89.74004420032725,
+      "tool_calls": [
+        {
+          "round": 1,
+          "name": "notebook_search",
+          "args": {
+            "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+            "query": "corr_with_price",
+            "regex": false,
+            "search_output": false,
+            "limit": 20
+          },
+          "result_ok": true,
+          "reasoning": "We will call notebook_search for \"corr_with_price\".The tool batch has been submitted to locate the computation of `corr_with_price`. Once the search results are returned, I will identify the cell cont"
+        },
+        {
+          "round": 2,
+          "name": "notebook_search",
+          "args": {
+            "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+            "query": "corr_with_price",
+            "regex": false,
+            "search_output": false,
+            "limit": 20
+          },
+          "result_ok": true,
+          "reasoning": ""
+        }
+      ]
+    },
+    {
+      "scenario_id": "notebook_stats",
+      "title": "Read: total cell count (text tools)",
+      "prompt": "How many total cells are in this notebook? Use notebook_list_cells or notebook_snapshot_status in <agent_tool_batch>. Read only.",
+      "reasoning_snippets": [
+        "The requested tool batch has been sent. Once the host returns the cell list, I will report the total number of cells.",
+        "first_batch_size=1"
+      ],
+      "final_text": "",
+      "checks": [
+        {
+          "name": "used_status_or_list",
+          "passed": true,
+          "detail": "['notebook_list_cells', 'notebook_list_cells']"
+        },
+        {
+          "name": "no_write_tools",
+          "passed": true,
+          "detail": "['notebook_list_cells', 'notebook_list_cells']"
+        },
+        {
+          "name": "answer_has_cell_count",
+          "passed": false,
+          "detail": "should report approximate cell/code counts"
+        },
+        {
+          "name": "mentions_78_cells",
+          "passed": false,
+          "detail": ""
+        },
+        {
+          "name": "llm_run",
+          "passed": false,
+          "detail": "LLM API error round 3: Error code: 429 - {'message': 'Tokens per day limit exceeded - too many tokens processed.', 'type': 'too_many_tokens_error', 'param': 'quota', 'code': 'token_quota_exceeded'}"
+        }
+      ],
+      "score": 2.0,
+      "max_score": 5.0,
+      "error": "LLM API error round 3: Error code: 429 - {'message': 'Tokens per day limit exceeded - too many tokens processed.', 'type': 'too_many_tokens_error', 'param': 'quota', 'code': 'token_quota_exceeded'}",
+      "elapsed_sec": 32.65786419995129,
+      "tool_calls": [
+        {
+          "round": 1,
+          "name": "notebook_list_cells",
+          "args": {
+            "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+            "preview_chars": 0
+          },
+          "result_ok": true,
+          "reasoning": "The requested tool batch has been sent. Once the host returns the cell list, I will report the total number of cells."
+        },
+        {
+          "round": 2,
+          "name": "notebook_list_cells",
+          "args": {
+            "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+            "preview_chars": 0
+          },
+          "result_ok": true,
+          "reasoning": ""
+        }
+      ]
+    }
+  ]
+}

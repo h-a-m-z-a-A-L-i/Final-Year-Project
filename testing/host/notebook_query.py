@@ -146,10 +146,36 @@ def build_query_plan(
     agentic: bool = False,
 ) -> list[QueryStep]:
     """Choose read-tool calls for this turn (host executes; Ask/Code do not ReAct)."""
-    if agentic:
-        return []
-
     mode = str(mode or "ask").lower()
+    if agentic:
+        allowed = tools_allowed_for_mode(mode, agentic=True)
+        intent = _classify_intent(mode, prompt)
+        steps: list[QueryStep] = []
+        caps = _query_tool_caps()
+
+        def add_agentic(tool: str, args: dict, reason: str) -> None:
+            if tool in allowed:
+                steps.append(QueryStep(tool, {**caps, **args}, reason=reason))
+
+        if cell_index is not None:
+            add_agentic(
+                "notebook_get_cell",
+                {"url": url, "cell_index": int(cell_index), "include_output": True},
+                "agentic: target cell",
+            )
+            add_agentic(
+                "notebook_cell_neighbors",
+                {"url": url, "cell_index": int(cell_index)},
+                "agentic: upstream/downstream",
+            )
+        elif intent == "error":
+            add_agentic(
+                "notebook_search",
+                {"url": url, "query": "Traceback", "search_output": True, "limit": 6},
+                "agentic: cells with errors",
+            )
+        return steps
+
     allowed = tools_allowed_for_mode(mode, agentic=False)
     intent = _classify_intent(mode, prompt)
     steps: list[QueryStep] = []

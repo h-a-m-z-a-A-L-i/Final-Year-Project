@@ -18,7 +18,13 @@ try:
     from .config import *
     from .config import _HASHES_LOCK, _EXECUTION_STATE_LOCK, _SEND_LOCK, _ACTIVE_STREAMS, _ACTIVE_STREAMS_LOCK, _RATE_LOCK, _BOT_STATE_LOCK
     from .dispatcher import get_next_message, send_msg, _append_jsonl, start_host_io
-    from .prompt_utils import _extract_cell_number, _extract_user_profile_facts, _build_profile_memory_context
+    from .prompt_utils import (
+        _extract_cell_number,
+        _extract_user_profile_facts,
+        _build_profile_memory_context,
+        resolve_cell_index,
+    )
+    from .notebook_context import load_notebook_snapshot, _cells_from_data
     from .notebook_data_handler import build_graph_payload, handle_get_graph, handle_notebook_data, _normalized_url
     from .persistence_helpers import _atomic_write_json, save_json, save_live_json, save_persistent_json, get_safe_filename, _load_hashes, _save_hashes, _load_execution_state, _save_execution_state
     from .memory import memory_store
@@ -42,7 +48,13 @@ except Exception:
         from config import *
         from config import _HASHES_LOCK, _EXECUTION_STATE_LOCK, _SEND_LOCK, _ACTIVE_STREAMS, _ACTIVE_STREAMS_LOCK, _RATE_LOCK, _BOT_STATE_LOCK
         from dispatcher import get_next_message, send_msg, _append_jsonl, start_host_io
-        from prompt_utils import _extract_cell_number, _extract_user_profile_facts, _build_profile_memory_context
+        from prompt_utils import (
+            _extract_cell_number,
+            _extract_user_profile_facts,
+            _build_profile_memory_context,
+            resolve_cell_index,
+        )
+        from notebook_context import load_notebook_snapshot, _cells_from_data
         from notebook_data_handler import build_graph_payload, handle_get_graph, handle_notebook_data, _normalized_url
         from persistence_helpers import _atomic_write_json, save_json, save_live_json, save_persistent_json, get_safe_filename, _load_hashes, _save_hashes, _load_execution_state, _save_execution_state
         from memory import memory_store
@@ -240,6 +252,12 @@ def main():
                     cell_num = _extract_cell_number(prompt)
             else:
                 cell_num = _extract_cell_number(prompt)
+            if cell_num is None:
+                try:
+                    snap, _snap_src = load_notebook_snapshot(snapshot_url)
+                    cell_num = resolve_cell_index(prompt, _cells_from_data(snap))
+                except Exception:
+                    pass
 
             with _BOT_STATE_LOCK:
                 bot_state = dict(host_ctx.get("bot_state") or {})
@@ -341,7 +359,7 @@ def main():
 
             context_meta = {
                 "coverage": pack_coverage,
-                "cell_index": ctx_pack.cell_index,
+                "cell_index": cell_num if cell_num is not None else ctx_pack.cell_index,
                 "snapshot": ctx_pack.snapshot,
                 "active_key": active_key,
                 "stream_channel": stream_channel,
@@ -353,8 +371,18 @@ def main():
                 "cache_session_id": memory_session_id,
             }
 
+            def _stream_worker(*stream_args):
+                try:
+                    from .notebook_semantic_index import set_active_notebook_key
+                except Exception:
+                    from notebook_semantic_index import set_active_notebook_key
+                meta = stream_args[8] if len(stream_args) > 8 else {}
+                key = (meta or {}).get("history_key") or (stream_args[0] if stream_args else "")
+                set_active_notebook_key(str(key or ""))
+                _run_streaming_chat(*stream_args)
+
             worker = threading.Thread(
-                target=_run_streaming_chat,
+                target=_stream_worker,
                 args=(history_key, prompt, tab_id, session_id, history, context, mode, ui_mode, context_meta),
                 daemon=True,
             )
@@ -369,9 +397,9 @@ def main():
             tab_id = msg.get("tabId")
             session_id = str(msg.get("sessionId") or "")
             url = _history_url_key(msg.get("url"), msg.get("notebookId"))
-            stream_channel = str(msg.get("streamChannel") or "").strip()
-            active_key = resolve_active_key(tab_id, stream_channel) if stream_channel else None
-            _signal_remote_stop(session_id)
+            stream_channel = str(msg.get("streamChannel") or "main").strip() or "main"
+            active_key = resolve_active_key(tab_id, stream_channel) if tab_id is not None else None
+            _signal_remote_stop(session_id, active_key=active_key)
             with _ACTIVE_STREAMS_LOCK:
                 state = None
                 if active_key:
@@ -383,12 +411,17 @@ def main():
                             state = candidate
                             break
                 if state is None and tab_id is not None:
-                    state = _ACTIVE_STREAMS.get(str(tab_id))
-                if state and not session_id:
-                    session_id = str(state.get("sessionId") or "")
-                if state and not url:
-                    url = state.get("url") or url
-            send_stream_end(url or "", tab_id, session_id, stopped=True)
+                    active_key = str(tab_id)
+                    state = _ACTIVE_STREAMS.get(active_key)
+                if state is not None:
+                    _stop_active_stream(state)
+                    if not session_id:
+                        session_id = str(state.get("sessionId") or "")
+                    if not url:
+                        url = state.get("url") or url
+                    tab_id = tab_id if tab_id is not None else active_key.split(":", 1)[0]
+            log(f"STOP_CHAT session={session_id} active_key={active_key}")
+            send_stream_end(url or "", tab_id, session_id, stopped=True, snapshot_url=url)
             continue
 
         if m_type == "PROMPT_SIGNAL":

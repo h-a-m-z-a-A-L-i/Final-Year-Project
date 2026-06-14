@@ -101,8 +101,17 @@ def test_notebook_executed_cells_includes_head_output(tmp_path, monkeypatch):
     assert "print(df.head())" in out["cells"][0]["input"]
 
 
-def test_build_query_plan_agentic_empty():
-    assert build_query_plan(mode="agentic", prompt="run cell 2", url="u", agentic=True) == []
+def test_build_query_plan_agentic_prefetches_target_cell():
+    plan = build_query_plan(
+        mode="agentic",
+        prompt="run cell 2",
+        url="u",
+        cell_index=2,
+        agentic=True,
+    )
+    tools = [s.tool for s in plan]
+    assert "notebook_get_cell" in tools
+    assert "notebook_cell_neighbors" in tools
 
 
 def test_execute_all_local_tools(tmp_path, monkeypatch):

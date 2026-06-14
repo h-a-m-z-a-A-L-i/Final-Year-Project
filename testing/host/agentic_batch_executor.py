@@ -9,6 +9,23 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 try:
+    from .strict_execution_engine import (
+        EXECUTE_FULL_BATCH_WITHOUT_LLM_SPLIT,
+        attach_strict_execution,
+        build_execution_queue,
+        build_run_cell_result,
+        record_queue_progress,
+    )
+except Exception:
+    from strict_execution_engine import (
+        EXECUTE_FULL_BATCH_WITHOUT_LLM_SPLIT,
+        attach_strict_execution,
+        build_execution_queue,
+        build_run_cell_result,
+        record_queue_progress,
+    )
+
+try:
     from .agentic_tool_chain import (
         build_edit_after_insert,
         extract_cell_count_from_prompt,
@@ -60,7 +77,8 @@ def analyze_cell_output(output: str | None) -> dict[str, Any]:
         return {
             "has_output": False,
             "has_error": False,
-            "run_succeeded": True,
+            "run_succeeded": False,
+            "pending": True,
             "error_type": None,
             "error_summary": None,
         }
@@ -101,34 +119,69 @@ def workflow_needs_llm_followup(verification: dict[str, Any]) -> bool:
     if not isinstance(verification, dict):
         return False
     pipeline = verification.get("pipeline") or {}
+    deferred = verification.get("deferred_tool_calls") or []
+    pending_runs = list(verification.get("pending_run_cells") or [])
+    status = verification.get("tool_queue_status")
+
+    if not verification.get("needs_fix") and not verification.get("execution_error"):
+        queue_done = (
+            status == "complete"
+            or verification.get("tool_queue_complete")
+            or verification.get("run_queue_complete")
+        )
+        if queue_done and not pending_runs and not deferred:
+            return False
+
     if pipeline.get("active") and not pipeline.get("complete"):
         return True
     if verification.get("pipeline_active"):
         return True
-    status = verification.get("tool_queue_status")
     if status == "error" or verification.get("tool_queue_stopped") or verification.get("run_queue_stopped"):
         return True
     if verification.get("needs_fix"):
         return True
-    if status == "complete" or verification.get("tool_queue_complete") or verification.get("run_queue_complete"):
-        return bool(verification.get("await_llm_summary"))
     if verification.get("runs_incomplete"):
         return True
-    if verification.get("deferred_tool_calls"):
-        deferred = verification.get("deferred_tool_calls") or []
+    if deferred:
         if any(d.get("tool") != "run_cell" for d in deferred):
             return True
     if verification.get("execution_error"):
         return True
-    if verification.get("await_llm_summary"):
+    try:
+        from .agent_goal_verification import goal_verification_failed
+    except Exception:
+        from agent_goal_verification import goal_verification_failed
+    if goal_verification_failed(verification):
         return True
     if verification.get("run_completed") and pipeline.get("active") and not pipeline.get("complete"):
-        return True
-    if verification.get("batch_executed") and verification.get("verified"):
         return True
     if verification.get("verified") is True:
         return False
     return True
+
+
+def workflow_followup_reason(verification: dict[str, Any]) -> str:
+    """Human-readable reason for continue/stop (observability)."""
+    if not isinstance(verification, dict):
+        return "invalid_verification"
+    if not workflow_needs_llm_followup(verification):
+        return "queue_complete_no_pending_go_to_final_summary"
+    try:
+        from .agent_goal_verification import goal_verification_failed
+    except Exception:
+        from agent_goal_verification import goal_verification_failed
+    if goal_verification_failed(verification):
+        return "goal_verification_failed"
+    if verification.get("needs_fix") or verification.get("execution_error"):
+        return "error_recovery"
+    if verification.get("deferred_tool_calls"):
+        return "deferred_tools"
+    if verification.get("pending_run_cells"):
+        return "pending_runs"
+    pipeline = verification.get("pipeline") or {}
+    if pipeline.get("active") and not pipeline.get("complete"):
+        return "pipeline_active"
+    return "continue_react"
 
 
 def user_requests_run(user_prompt: str, parsed_calls: list[ParsedToolCall] | None = None) -> bool:
@@ -407,6 +460,8 @@ def finalize_tool_queue_verification(
     run_requested: list[int],
     run_completed: list[int],
     run_pending: list[int],
+    user_prompt: str = "",
+    run_waits: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """
     Close or reopen the ReAct loop after the host tool queue finishes.
@@ -428,6 +483,7 @@ def finalize_tool_queue_verification(
     runs_planned = bool(run_requested)
     all_runs_done = runs_planned and not run_pending and len(run_completed) == len(run_requested)
     writes_only_ok = not runs_planned and bool(expected_edits) and verification.get("verified")
+    workflow_verified = verification.get("verified") is not False
 
     verification["tool_queue"] = {
         "run_requested": run_requested,
@@ -445,12 +501,31 @@ def finalize_tool_queue_verification(
         failed_ci = err.get("cell_index") or (run_completed[-1] if run_completed else None)
         verification["await_llm_summary"] = False
         verification["close_react_loop"] = False
+        failed_evidence = None
+        if failed_ci is not None and registry is not None:
+            failed_evidence = fetch_queue_cell_evidence(registry, url, int(failed_ci))
+        verification["error_recovery"] = {
+            "original_user_task": str(user_prompt or "").strip(),
+            "failed_cell_index": failed_ci,
+            "run_completed_before_stop": list(run_completed),
+            "pending_run_cells": list(run_pending),
+            "may_propagate": bool(run_pending),
+            "failed_cell_evidence": failed_evidence,
+            "execution_error": err,
+        }
+        propagation = (
+            f"Error may affect downstream cells {run_pending} — fix cell {failed_ci} "
+            "then re-run failed + pending cells if needed."
+            if run_pending
+            else f"Error isolated to cell {failed_ci} — fix and re-run that cell, then finish the user task."
+        )
         verification["user_response_gate"] = (
             f"Tool queue stopped at cell {failed_ci}. Pending runs: {run_pending}. "
+            f"{propagation} "
             "Inspect queue_cell_evidence / notebook read tools, fix with edit_cell_by_index, "
             "then emit ALL tool calls (including every run_cell) in one turn."
         )
-    elif all_runs_done or writes_only_ok:
+    elif (all_runs_done or writes_only_ok) and workflow_verified and not had_error:
         verification["tool_queue_status"] = "complete"
         verification["tool_queue_complete"] = True
         verification["run_queue_complete"] = True
@@ -462,10 +537,31 @@ def finalize_tool_queue_verification(
             "Tool queue complete. Verify every target cell in queue_cell_evidence "
             "(input + output). Write a final Summary — no further tools."
         )
+    elif (all_runs_done or writes_only_ok) and not workflow_verified:
+        verification["tool_queue_status"] = "verification_failed"
+        verification["await_llm_summary"] = False
+        verification["close_react_loop"] = False
+        verification["needs_fix"] = True
+        verification["user_response_gate"] = (
+            "Tool dispatch finished but workflow verification failed — inspect queue_cell_evidence "
+            "and emit fixes via tools. Do not claim success."
+        )
     elif run_pending:
         verification["tool_queue_status"] = "incomplete"
         verification["runs_incomplete"] = True
         verification["pending_run_cells"] = run_pending
+
+    try:
+        from .agent_goal_verification import apply_goal_verification_layer
+    except Exception:
+        from agent_goal_verification import apply_goal_verification_layer
+    verification = apply_goal_verification_layer(
+        verification,
+        user_prompt=user_prompt,
+        expected_edits=expected_edits,
+        run_waits=run_waits,
+        run_indices=run_completed,
+    )
 
     return verification
 
@@ -545,15 +641,41 @@ def enrich_batch_from_prompt(
 
 
 def _run_wait_failed(wait: dict[str, Any]) -> bool:
-    if not wait.get("ok"):
+    if wait.get("pending"):
         return True
-    if wait.get("run_succeeded") is False:
+    if not wait.get("ok"):
         return True
     if wait.get("has_error"):
         return True
+    if wait.get("run_succeeded") is False:
+        return True
+    output = str(wait.get("output") or "").strip()
+    if wait.get("run_succeeded") is True and output:
+        return False
+    if wait.get("run_completed") and wait.get("run_succeeded") is True:
+        return False
+    if wait.get("run_cell_result"):
+        rc = wait["run_cell_result"]
+        if rc.get("success"):
+            return False
+        if rc.get("pending"):
+            return True
+        if rc.get("finished") and not rc.get("success"):
+            return True
+    if not wait.get("run_completed") and wait.get("ok"):
+        if not output:
+            return True
+        analysis = analyze_cell_output(output)
+        if analysis.get("pending"):
+            return True
+        if analysis.get("has_error"):
+            return True
+        return not analysis.get("run_succeeded", False)
     if wait.get("run_succeeded") is None:
         analysis = analyze_cell_output(wait.get("output"))
-        return not analysis.get("run_succeeded", True)
+        if analysis.get("pending"):
+            return True
+        return not analysis.get("run_succeeded", False)
     return False
 
 
@@ -579,6 +701,28 @@ def _ordered_run_indices(
     return ordered
 
 
+def _poll_sleep(seconds: float, cancel_check=None) -> bool:
+    """Sleep up to seconds; return True if cancel_check fired."""
+    if not callable(cancel_check):
+        time.sleep(max(0.0, float(seconds)))
+        return False
+    try:
+        from .streaming import _interruptible_sleep
+    except Exception:
+        try:
+            from streaming import _interruptible_sleep
+        except Exception:
+            _interruptible_sleep = None
+    if _interruptible_sleep is not None:
+        return bool(_interruptible_sleep(seconds, cancel_check))
+    end = time.monotonic() + max(0.0, float(seconds))
+    while time.monotonic() < end:
+        if cancel_check():
+            return True
+        time.sleep(min(0.1, end - time.monotonic()))
+    return bool(cancel_check())
+
+
 def execute_run_queue_sequential(
     run_indices: list[int],
     *,
@@ -590,6 +734,7 @@ def execute_run_queue_sequential(
     browser_tool_allowed: Callable[[str | None, str], tuple[bool, str | None]],
     inter_delay: float = INTER_TOOL_DELAY_SEC,
     stop_on_error: bool = True,
+    cancel_check=None,
 ) -> tuple[list[int], list[dict[str, Any]], list[int]]:
     """
     Run cells one-by-one: dispatch → wait → check. Stop queue on first error.
@@ -603,8 +748,11 @@ def execute_run_queue_sequential(
     snap_for_run, _ = load_notebook_snapshot(url)
 
     for run_idx, run_ci in enumerate(run_indices):
+        if callable(cancel_check) and cancel_check():
+            return completed, waits, run_indices[run_idx:]
         if run_idx > 0:
-            time.sleep(inter_delay)
+            if _poll_sleep(inter_delay, cancel_check):
+                return completed, waits, run_indices[run_idx:]
 
         dispatch = _dispatch_run_cell(
             registry,
@@ -633,14 +781,23 @@ def execute_run_queue_sequential(
             )
             return completed, waits, run_indices[run_idx:]
 
-        time.sleep(POST_BATCH_SETTLE_SEC)
+        if _poll_sleep(POST_BATCH_SETTLE_SEC, cancel_check):
+            return completed, waits, run_indices[run_idx:]
         snap_for_run, _ = load_notebook_snapshot(url)
-        wait = wait_for_cell_run(url, int(run_ci), snap_for_run)
+        started_at = time.monotonic()
+        wait = wait_for_cell_run(url, int(run_ci), snap_for_run, cancel_check=cancel_check)
         if wait.get("run_succeeded") is None and wait.get("output"):
             analysis = analyze_cell_output(wait.get("output"))
             for key in ("run_succeeded", "has_error", "error_type", "error_summary", "output_preview"):
                 if wait.get(key) is None and analysis.get(key) is not None:
                     wait[key] = analysis[key]
+        run_result = build_run_cell_result(int(run_ci), wait, started_at=started_at)
+        wait["run_cell_result"] = run_result.to_dict()
+        wait["pending"] = run_result.pending
+        wait["run_completed"] = run_result.finished
+        wait["run_succeeded"] = run_result.success if run_result.finished else False
+        if wait.get("cancelled"):
+            return completed, waits, run_indices[run_idx:]
         waits.append(wait)
         completed.append(int(run_ci))
         executed.append(
@@ -754,27 +911,60 @@ def normalize_sequential_insert_anchors(calls: list[ParsedToolCall]) -> list[Par
     return normalized
 
 
+def _insert_new_cell_indices(inserts: list[ParsedToolCall]) -> list[int]:
+    """Deterministic 1-based indices for cells created by sequential below-inserts."""
+    if not inserts:
+        return []
+    try:
+        start_anchor = int(inserts[0].args.get("index") or inserts[0].args.get("cell_index"))
+    except (TypeError, ValueError):
+        return []
+    direction = str(inserts[0].args.get("direction") or "below").strip().lower()
+    if direction != "below":
+        return [start_anchor + i for i in range(len(inserts))]
+    return [start_anchor + 1 + i for i in range(len(inserts))]
+
+
 def normalize_batch_indices(calls: list[ParsedToolCall]) -> list[ParsedToolCall]:
     """Align edit/run indices for single- or multi-insert batches."""
     calls = normalize_sequential_insert_anchors(calls)
     inserts = [c for c in calls if c.name == "insert_cell"]
-    if len(inserts) != 1:
+    if not inserts:
         return calls
 
-    insert_new_index = infer_new_cell_index(inserts[0].args, {"ok": True, "dispatched": True})
-    if insert_new_index is None:
+    new_indices = _insert_new_cell_indices(inserts)
+    if not new_indices:
         return calls
+
+    try:
+        anchor = int(inserts[0].args.get("index") or inserts[0].args.get("cell_index"))
+    except (TypeError, ValueError):
+        anchor = new_indices[0] - 1
+
+    edit_calls = [c for c in calls if c.name == "edit_cell_by_index"]
+    run_calls = [c for c in calls if c.name == "run_cell"]
+    edit_targets = {id(c): new_indices[min(i, len(new_indices) - 1)] for i, c in enumerate(edit_calls)}
+    run_targets = {id(c): new_indices[min(i, len(new_indices) - 1)] for i, c in enumerate(run_calls)}
 
     normalized: list[ParsedToolCall] = []
     for call in calls:
-        if call.name in {"edit_cell_by_index", "run_cell"}:
+        if call.name == "edit_cell_by_index":
             args = dict(call.args)
             try:
                 ci = int(args.get("cell_index"))
             except (TypeError, ValueError):
                 ci = None
-            if ci is None or ci <= int(inserts[0].args.get("index", insert_new_index)):
-                args["cell_index"] = insert_new_index
+            if ci is None or ci <= anchor + len(inserts) - 1 or ci in {anchor} | set(new_indices):
+                args["cell_index"] = edit_targets.get(id(call), new_indices[0])
+            normalized.append(ParsedToolCall(id=call.id, name=call.name, args=args))
+        elif call.name == "run_cell":
+            args = dict(call.args)
+            try:
+                ci = int(args.get("cell_index"))
+            except (TypeError, ValueError):
+                ci = None
+            if ci is None or ci <= anchor + len(inserts) - 1 or ci in {anchor} | set(new_indices):
+                args["cell_index"] = run_targets.get(id(call), new_indices[0])
             normalized.append(ParsedToolCall(id=call.id, name=call.name, args=args))
         else:
             normalized.append(call)
@@ -832,6 +1022,7 @@ def wait_for_cell_run(
     *,
     timeout: float = RUN_WAIT_TIMEOUT_SEC,
     poll_interval: float = RUN_POLL_INTERVAL_SEC,
+    cancel_check=None,
 ) -> dict[str, Any]:
     before_cell = _cell_by_index(before_data, cell_index)
     before_order = before_cell.get("execution_order") if before_cell else None
@@ -841,10 +1032,13 @@ def wait_for_cell_run(
     last_error = "timeout waiting for cell execution"
 
     while time.monotonic() < deadline:
+        if callable(cancel_check) and cancel_check():
+            return {"ok": False, "cancelled": True, "error": "stopped by user", "cell_index": cell_index}
         data, source = load_notebook_snapshot(url)
         cell = _cell_by_index(data, cell_index)
         if not cell:
-            time.sleep(poll_interval)
+            if _poll_sleep(poll_interval, cancel_check):
+                return {"ok": False, "cancelled": True, "error": "stopped by user", "cell_index": cell_index}
             continue
 
         order = cell.get("execution_order")
@@ -853,11 +1047,18 @@ def wait_for_cell_run(
         output_changed = bool(output) and output != before_output
 
         if order_changed or output_changed:
+            if order_changed and not output.strip():
+                if _poll_sleep(poll_interval, cancel_check):
+                    return {"ok": False, "cancelled": True, "error": "stopped by user", "cell_index": cell_index}
+                continue
             analysis = analyze_cell_output(output)
+            finished = bool(output.strip()) or bool(analysis.get("has_error"))
             return {
                 "ok": True,
-                "run_completed": True,
-                "run_succeeded": analysis.get("run_succeeded"),
+                "started": True,
+                "run_completed": finished,
+                "pending": not finished and not analysis.get("has_error"),
+                "run_succeeded": analysis.get("run_succeeded") if finished else False,
                 "cell_index": cell_index,
                 "execution_order": order,
                 "execution_title": cell.get("execution_title"),
@@ -867,7 +1068,8 @@ def wait_for_cell_run(
                 **analysis,
             }
 
-        time.sleep(poll_interval)
+        if _poll_sleep(poll_interval, cancel_check):
+            return {"ok": False, "cancelled": True, "error": "stopped by user", "cell_index": cell_index}
 
     return {"ok": False, "error": last_error, "cell_index": cell_index}
 
@@ -1095,6 +1297,7 @@ def execute_agentic_batch(
     mode: str,
     inter_delay: float = INTER_TOOL_DELAY_SEC,
     pipeline_state: dict[str, Any] | None = None,
+    cancel_check=None,
 ) -> dict[str, Any]:
     try:
         from .agentic_pipeline import (
@@ -1116,6 +1319,21 @@ def execute_agentic_batch(
     before_data, _before_source = load_notebook_snapshot(url)
     before_cells = cells_from_snapshot(before_data)
     before_fp = snapshot_fingerprint(before_cells) if before_cells else ""
+
+    queue_state = build_execution_queue(tool_calls)
+    run_waits: list[dict[str, Any]] = []
+
+    def _strict_return(verification: dict[str, Any]) -> dict[str, Any]:
+        for wait in run_waits:
+            ci = wait.get("cell_index")
+            if ci is not None:
+                queue_state.run_results.append(build_run_cell_result(int(ci), wait))
+        return attach_strict_execution(
+            verification,
+            queue_state=queue_state,
+            user_prompt=user_prompt,
+            executor_called=True,
+        )
 
     parsed = _parse_tool_calls(tool_calls, url=url, tab_id=tab_id)
     parsed = enrich_batch_from_prompt(
@@ -1173,10 +1391,13 @@ def execute_agentic_batch(
         for c in parsed
     )
 
+    full_write_run_batch = bool(pre_expected_edits) and bool(run_calls_pre)
+
     sequential_pipeline = (
         not write_only
         and not run_verify
         and not run_only_batch
+        and not (EXECUTE_FULL_BATCH_WITHOUT_LLM_SPLIT and full_write_run_batch)
         and not run_calls_pre
         and (
             bool(pipeline_state and pipeline_state.get("active"))
@@ -1184,7 +1405,12 @@ def execute_agentic_batch(
         )
     )
 
-    if sequential_pipeline and pre_expected_edits and run_calls_pre and not user_requests_run(user_prompt):
+    if (
+        EXECUTE_FULL_BATCH_WITHOUT_LLM_SPLIT
+        and full_write_run_batch
+    ):
+        deferred_from_strip = []
+    elif sequential_pipeline and pre_expected_edits and run_calls_pre and not user_requests_run(user_prompt):
         stripped, extra_runs = strip_runs_for_write_phase(parsed, sequential=True)
         parsed = stripped
         deferred_from_strip = extra_runs
@@ -1198,6 +1424,8 @@ def execute_agentic_batch(
 
     if run_only_batch or (user_requests_run(user_prompt) and run_calls_pre):
         pass  # never split a run-only / run-request batch across LLM rounds
+    elif EXECUTE_FULL_BATCH_WITHOUT_LLM_SPLIT and full_write_run_batch:
+        pass  # execute insert/edit/run in one host batch
     elif sequential_pipeline and pipeline_state and pipeline_state.get("active"):
         run_calls = [c for c in parsed if c.name == "run_cell"]
         if len(run_calls) > 1:
@@ -1221,6 +1449,15 @@ def execute_agentic_batch(
     pipeline = dict(pipeline_state) if isinstance(pipeline_state, dict) else None
 
     for call in parsed:
+        if callable(cancel_check) and cancel_check():
+            return _strict_return({
+                "ok": False,
+                "verified": False,
+                "cancelled": True,
+                "batch_executed": True,
+                "executed": executed,
+                "phase": "cancelled",
+            })
         if call.name == "run_cell":
             run_queue_calls.append(call)
             continue
@@ -1249,9 +1486,11 @@ def execute_agentic_batch(
             continue
 
         if prev_was_write:
-            time.sleep(inter_delay)
+            if _poll_sleep(inter_delay, cancel_check):
+                break
         elif wrote_browser:
-            time.sleep(inter_delay)
+            if _poll_sleep(inter_delay, cancel_check):
+                break
 
         try:
             allowed, block_err = browser_tool_allowed(mode, call.name)
@@ -1272,6 +1511,18 @@ def execute_agentic_batch(
                 "cell_index": result.get("cell_index") or call.args.get("cell_index") or call.args.get("index"),
             }
         )
+        ci_prog = result.get("cell_index") or call.args.get("cell_index") or call.args.get("index")
+        try:
+            ci_prog = int(ci_prog) if ci_prog is not None else None
+        except (TypeError, ValueError):
+            ci_prog = None
+        record_queue_progress(
+            queue_state,
+            tool=call.name,
+            dispatched=dispatched,
+            cell_index=ci_prog,
+            error=str(result.get("error") or "") if not dispatched else None,
+        )
 
         if call.name == "edit_cell_by_index":
             try:
@@ -1286,12 +1537,31 @@ def execute_agentic_batch(
         prev_was_write = True
 
         if call.name == "insert_cell":
-            time.sleep(max(0.0, INSERT_SETTLE_SEC - inter_delay))
+            if _poll_sleep(max(0.0, INSERT_SETTLE_SEC - inter_delay), cancel_check):
+                break
+
+    if callable(cancel_check) and cancel_check():
+        return _strict_return({
+            "ok": False,
+            "verified": False,
+            "cancelled": True,
+            "batch_executed": True,
+            "executed": executed,
+            "phase": "cancelled",
+        })
 
     run_queue_calls.extend(deferred_run_calls)
 
     if wrote_browser:
-        time.sleep(POST_BATCH_SETTLE_SEC)
+        if _poll_sleep(POST_BATCH_SETTLE_SEC, cancel_check):
+            return _strict_return({
+                "ok": False,
+                "verified": False,
+                "cancelled": True,
+                "batch_executed": True,
+                "executed": executed,
+                "phase": "cancelled",
+            })
         after_data, _after_source = wait_for_snapshot_change(url, before_fp)
     else:
         after_data, _after_source = load_notebook_snapshot(url)
@@ -1302,7 +1572,6 @@ def execute_agentic_batch(
     )
     pending_run_cells: list[int] = []
     run_cell_indices: list[int] = []
-    run_waits: list[dict[str, Any]] = []
     if run_indices and run_queue_calls:
         run_cell_indices, run_waits, pending_run_cells = execute_run_queue_sequential(
             run_indices,
@@ -1314,6 +1583,7 @@ def execute_agentic_batch(
             browser_tool_allowed=browser_tool_allowed,
             inter_delay=inter_delay,
             stop_on_error=True,
+            cancel_check=cancel_check,
         )
         wrote_browser = True
 
@@ -1399,6 +1669,8 @@ def execute_agentic_batch(
                 run_requested=list(pipeline.get("run_queue") or []),
                 run_completed=list(pipeline.get("completed_runs") or []),
                 run_pending=list(pipeline.get("pending_runs") or []),
+                user_prompt=user_prompt,
+                run_waits=run_waits,
             )
     elif run_cell_indices or expected_edits:
         verification = finalize_tool_queue_verification(
@@ -1409,6 +1681,8 @@ def execute_agentic_batch(
             run_requested=run_indices,
             run_completed=run_cell_indices,
             run_pending=pending_run_cells,
+            user_prompt=user_prompt,
+            run_waits=run_waits,
         )
     elif not run_cell_indices and verification.get("verified"):
         verification["await_llm_summary"] = False
@@ -1420,4 +1694,5 @@ def execute_agentic_batch(
     verification["sequential_pipeline"] = sequential_pipeline
     if read_results:
         verification["read_results"] = read_results
-    return verification
+
+    return _strict_return(verification)

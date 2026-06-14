@@ -210,8 +210,8 @@
         }
         .code-header {
             display: flex;
-            flex-direction: column;
-            align-items: stretch;
+            justify-content: space-between;
+            align-items: center;
             gap: 8px;
             padding: 8px 12px;
             background: #1a1d24;
@@ -219,62 +219,6 @@
             color: var(--cp-text-muted);
             font-family: inherit;
             letter-spacing: 0.04em;
-        }
-        .code-header-top {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 8px;
-        }
-        .code-insert-row {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 6px;
-        }
-        .code-insert-label {
-            color: var(--cp-text-muted);
-            white-space: nowrap;
-        }
-        .code-insert-index {
-            width: 56px;
-            padding: 4px 6px;
-            border-radius: 6px;
-            border: 1px solid var(--cp-border);
-            background: var(--cp-surface-elevated);
-            color: var(--cp-text);
-            font-size: 11px;
-        }
-        .code-insert-index:focus {
-            outline: none;
-            border-color: var(--cp-accent);
-        }
-        .insert-cell-btn {
-            background: rgba(91, 156, 255, 0.2);
-            border: 1px solid rgba(91, 156, 255, 0.45);
-            color: #dceaff;
-            padding: 4px 10px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 11px;
-            white-space: nowrap;
-        }
-        .insert-cell-btn:hover:not(:disabled) {
-            background: rgba(91, 156, 255, 0.35);
-        }
-        .insert-cell-btn:disabled {
-            opacity: 0.55;
-            cursor: wait;
-        }
-        .insert-cell-btn.success {
-            background: rgba(40, 167, 69, 0.35);
-            border-color: #28a745;
-        }
-        .code-insert-status {
-            font-size: 10px;
-            color: var(--cp-text-muted);
-            flex: 1;
-            min-width: 80px;
         }
         .code-lang-label {
             font-weight: 600;
@@ -1209,9 +1153,6 @@
         block.className = 'code-block-wrapper';
         const header = document.createElement('div');
         header.className = 'code-header';
-
-        const headerTop = document.createElement('div');
-        headerTop.className = 'code-header-top';
         const label = document.createElement('span');
         label.className = 'code-lang-label';
         label.textContent = lang || 'code';
@@ -1232,67 +1173,8 @@
                 copyBtn.textContent = 'Failed';
             }
         });
-        headerTop.appendChild(label);
-        headerTop.appendChild(copyBtn);
-
-        const insertRow = document.createElement('div');
-        insertRow.className = 'code-insert-row';
-        const insertLabel = document.createElement('span');
-        insertLabel.className = 'code-insert-label';
-        insertLabel.textContent = 'Create new cell at';
-        const indexInput = document.createElement('input');
-        indexInput.type = 'number';
-        indexInput.min = '0';
-        indexInput.step = '1';
-        indexInput.className = 'code-insert-index';
-        indexInput.placeholder = '0';
-        indexInput.title = 'Anchor cell index — a new code cell is inserted below it';
-        const insertBtn = document.createElement('button');
-        insertBtn.type = 'button';
-        insertBtn.className = 'insert-cell-btn';
-        insertBtn.textContent = 'Insert below';
-        const statusEl = document.createElement('span');
-        statusEl.className = 'code-insert-status';
-
-        insertBtn.addEventListener('click', () => {
-            const anchor = Number.parseInt(indexInput.value, 10);
-            if (!Number.isInteger(anchor) || anchor < 1) {
-                statusEl.textContent = 'Enter a valid cell index.';
-                return;
-            }
-            insertBtn.disabled = true;
-            statusEl.textContent = 'Inserting…';
-            chrome.runtime.sendMessage({
-                type: 'INSERT_CODE_CELL',
-                url: currentNotebookUrl(),
-                index: anchor,
-                content: code,
-            }, (resp) => {
-                insertBtn.disabled = false;
-                if (chrome.runtime.lastError) {
-                    statusEl.textContent = chrome.runtime.lastError.message || 'Extension error';
-                    return;
-                }
-                if (resp?.ok) {
-                    const newIdx = resp?.result?.newCellIndex;
-                    statusEl.textContent = newIdx != null
-                        ? `New cell at index ${newIdx} (below ${anchor})`
-                        : `Inserted below cell ${anchor}`;
-                    insertBtn.classList.add('success');
-                    setTimeout(() => insertBtn.classList.remove('success'), 2500);
-                } else {
-                    statusEl.textContent = String(resp?.error || 'Insert failed');
-                }
-            });
-        });
-
-        insertRow.appendChild(insertLabel);
-        insertRow.appendChild(indexInput);
-        insertRow.appendChild(insertBtn);
-        insertRow.appendChild(statusEl);
-
-        header.appendChild(headerTop);
-        header.appendChild(insertRow);
+        header.appendChild(label);
+        header.appendChild(copyBtn);
 
         const pre = document.createElement('pre');
         pre.className = 'code-block';
@@ -1771,9 +1653,9 @@
                 return;
             }
             if (!isStreaming) {
-                setStreamingState(true);
-                ensureStreamMessage();
+                return;
             }
+            ensureStreamMessage();
             appendStreamDelta(msg.delta || '');
             return;
         }
@@ -1782,8 +1664,12 @@
             const wasCancelled = msgSessionId && cancelledSessions.has(msgSessionId);
             if (wasCancelled) {
                 cancelledSessions.delete(msgSessionId);
+                return;
             }
-            finalizeStream({ text: msg.response || '', stopped: wasCancelled || !!msg.stopped, error: msg.error });
+            if (!isStreaming) {
+                return;
+            }
+            finalizeStream({ text: msg.response || '', stopped: !!msg.stopped, error: msg.error });
             return;
         }
 

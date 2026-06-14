@@ -1,0 +1,20 @@
+{
+  "format_version": 2,
+  "history_key": "kaggle:kernel:112732919",
+  "session_id": "f56ae048-f867-4bfb-94c3-26254b0a4245",
+  "mode": "ask",
+  "url": "https://www.kaggle.com/code/codekey/testing-ol/edit",
+  "snapshot": "live",
+  "created_at": "2026-06-14T07:52:10.787153+00:00",
+  "baseline_text": "CONTEXT_MANIFEST\ncoverage: baseline\nsnapshot: live\n## Session baseline notebook (frozen for prompt cache)\nCompact snapshot at session start — outputs truncated. Use the live delta block on the current turn for full latest input/output.\n\n\n### Cell [1] (code)\nexecution_status: idle\ninput:\n```python\n(empty)\n```\noutput: (none)",
+  "cells": [
+    {
+      "index": 1,
+      "type": "code",
+      "input": "",
+      "output": "",
+      "execution_order": null,
+      "execution_status": "idle"
+    }
+  ]
+}

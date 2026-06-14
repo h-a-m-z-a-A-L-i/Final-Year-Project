@@ -17,6 +17,19 @@ def test_extract_cell_number():
     assert _extract_cell_number("what does the first cell do") == 0
     assert _extract_cell_number("3rd cell upstream") == 3
     assert _extract_cell_number("index 4 error") == 4
+    assert _extract_cell_number("fix last cell") is None
+
+
+def test_resolve_last_cell_with_error():
+    from prompt_utils import resolve_cell_index
+
+    cells = [
+        {"index": 24, "type": "code", "input": "x=1", "output": "1"},
+        {"index": 25, "type": "code", "input": "bad", "output": "KeyError: 'price'"},
+        {"index": 26, "type": "code", "input": "", "output": ""},
+    ]
+    assert resolve_cell_index("fix last cell, it has error", cells) == 25
+    assert resolve_cell_index("edit cell 24", cells) == 24
 
 
 def test_profile_fact_extraction_and_context():

@@ -136,13 +136,140 @@ def looks_like_instruction_only_response(text: str) -> bool:
     return hits >= 2
 
 
+MAX_ERROR_RECOVERY_ROUNDS = 4
+MAX_PROSE_ONLY_ROUNDS = 2
+
+
+def build_prose_only_corrective_nudge(
+    prompt: str,
+    *,
+    streak: int,
+    use_text_tools: bool = False,
+) -> str:
+    lines = [
+        "Your last reply had NO valid tool batch.",
+        f"Original task: {prompt.strip()}",
+        "You MUST emit a valid <agent_tool_batch>[...]</agent_tool_batch> JSON array "
+        "with every required tool — not prose or manual instructions.",
+    ]
+    if use_text_tools:
+        lines.append(
+            "Example: <agent_tool_batch>[{\"tool\":\"edit_cell_by_index\",\"args\":{...}}]</agent_tool_batch>"
+        )
+    lines.append(f"Prose-only attempt {streak} of {MAX_PROSE_ONLY_ROUNDS}. Next failure stops the agent.")
+    return "\n".join(lines)
+
+
+def build_prose_only_exhausted_message(prompt: str, *, streak: int) -> str:
+    return (
+        f"Agent stopped: model returned prose without a tool batch after {streak} attempt(s). "
+        f"Emit <agent_tool_batch> with edit_cell_by_index / run_cell / insert_cell as needed. "
+        f"Original task: {prompt.strip()[:300]}"
+    )
+
+
+def queue_error_active(verification: dict | None) -> bool:
+    if not isinstance(verification, dict):
+        return False
+    if verification.get("tool_queue_status") == "error":
+        return True
+    if verification.get("tool_queue_status") == "verification_failed":
+        return True
+    if verification.get("tool_queue_stopped") or verification.get("run_queue_stopped"):
+        return True
+    if verification.get("goal_verified") is False and verification.get("next_action_required"):
+        return True
+    return bool(verification.get("needs_fix") or verification.get("execution_error"))
+
+
+def build_error_recovery_nudge(
+    user_prompt: str,
+    verification: dict,
+    *,
+    use_text_tools: bool = False,
+    no_tools_reply: bool = False,
+) -> str:
+    err = verification.get("execution_error") or {}
+    failed_ci = err.get("cell_index") or verification.get("cell_index")
+    pending = list(verification.get("pending_run_cells") or [])
+    completed = list((verification.get("tool_queue") or {}).get("run_completed") or [])
+    lines = [
+        "TOOL QUEUE STOPPED on a cell execution error. Do NOT give a final summary yet.",
+        f"Keep the original user task in mind: {user_prompt.strip()}",
+    ]
+    if no_tools_reply:
+        lines.insert(1, "Your last reply had no tool calls — you must inspect and/or fix via tools.")
+    if failed_ci is not None:
+        lines.append(f"Failed cell index: {failed_ci}")
+    if err.get("error_type") or err.get("error_summary"):
+        lines.append(
+            f"Error: {err.get('error_type') or 'ExecutionError'}: "
+            f"{(err.get('error_summary') or '')[:500]}"
+        )
+    if err.get("output_preview"):
+        lines.append(f"Output preview: {str(err.get('output_preview'))[:600]}")
+    if completed:
+        lines.append(f"Runs completed before stop: {completed}")
+    if pending:
+        lines.append(
+            f"Pending runs (skipped): {pending}. "
+            "Decide if the error propagates — fix the failed cell, then include run_cell "
+            "for the failed index and every pending index that depends on it."
+        )
+    else:
+        lines.append(
+            "No pending runs remain in the queue. Fix the failed cell (edit_cell_by_index), "
+            "run_cell on it, then continue the original task or summarize if done."
+        )
+    lines.append(
+        "Inspect suspect cells with notebook_get_cell or notebook_get_cells before editing."
+    )
+    if use_text_tools:
+        lines.append(
+            "Emit <agent_tool_batch>[...]</agent_tool_batch> with reads (if needed) plus "
+            "edit_cell_by_index / run_cell fixes in one JSON array."
+        )
+    else:
+        lines.append("Respond with tool_calls — not manual notebook instructions.")
+    gate = verification.get("user_response_gate")
+    if gate:
+        lines.append(str(gate))
+    audit = verification.get("batch_audit") or {}
+    if verification.get("goal_verified") is False:
+        lines.append(f"GOAL NOT VERIFIED: {verification.get('goal_reason') or audit.get('next_required_action') or 'continue repairing'}")
+        failed = audit.get("failed_cells") or []
+        if failed:
+            lines.append(f"FAILED CELLS: {failed}")
+    return "\n".join(lines)
+
+
+def build_error_recovery_exhausted_message(user_prompt: str, verification: dict) -> str:
+    err = verification.get("execution_error") or {}
+    failed_ci = err.get("cell_index") or verification.get("cell_index")
+    pending = verification.get("pending_run_cells") or []
+    msg = (
+        f"Stopped after repeated error-recovery attempts. "
+        f"Cell {failed_ci} failed"
+    )
+    if err.get("error_summary"):
+        msg += f": {err.get('error_summary')}"
+    msg += "."
+    if pending:
+        msg += f" Did not run pending cells {pending}."
+    msg += f" Original task: {user_prompt.strip()[:300]}"
+    return msg
+
+
 def agentic_must_continue_with_tools(
     *,
     prompt: str,
     followup_text: str,
     tools_executed: int,
     pipeline_active: bool,
+    queue_error_active_flag: bool = False,
 ) -> bool:
+    if queue_error_active_flag:
+        return True
     if pipeline_active:
         return True
     if not is_actionable_notebook_request(prompt):
@@ -152,9 +279,20 @@ def agentic_must_continue_with_tools(
     return looks_like_instruction_only_response(followup_text)
 
 
-def build_action_nudge(prompt: str, *, tools_executed: int, round_idx: int) -> str:
+def build_action_nudge(
+    prompt: str,
+    *,
+    tools_executed: int,
+    round_idx: int,
+    use_text_tools: bool = False,
+) -> str:
+    fmt = (
+        "Emit <agent_tool_batch>[...]</agent_tool_batch> with required tools."
+        if use_text_tools
+        else "Respond with tool_calls, not manual notebook instructions."
+    )
     return (
-        "Agentic mode: respond with tool_calls, not manual notebook instructions. "
+        f"Agentic mode: {fmt} "
         f"tools_executed={tools_executed}, round={round_idx}.\n"
         f"Task: {prompt.strip()}"
     )

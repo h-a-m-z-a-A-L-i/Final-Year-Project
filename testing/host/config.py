@@ -3,10 +3,6 @@ import sys
 import threading
 from pathlib import Path
 from datetime import timedelta
-
-from cerebras.cloud.sdk import Cerebras
-
-
 def _load_dotenv(env_path: Path):
     if not env_path.is_file():
         return
@@ -28,33 +24,20 @@ def _load_dotenv(env_path: Path):
 _load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 CEREBRAS_API_KEY = os.environ.get("CEREBRAS_API_KEY", "").strip()
+CEREBRAS_SECONDARY_API_KEY = os.environ.get("CEREBRAS_SECONDARY_API_KEY", "").strip()
+CEREBRAS_KEY_PROFILE = os.environ.get("CEREBRAS_KEY_PROFILE", "auto").strip().lower()
 CEREBRAS_MODEL = os.environ.get("CEREBRAS_MODEL", "gpt-oss-120b")
 LLM_MODEL = CEREBRAS_MODEL
 
-# LLM provider: cerebras (default) | google (Google AI Studio / Gemini)
-LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "cerebras").strip().lower()
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", os.environ.get("GOOGLE_API_KEY", "")).strip()
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite").strip()
-
+# LLM provider (Cerebras only)
 try:
-    from .llm_provider import (
-        resolve_gemini_model_id,
-        gemini_free_tier_limits,
-        normalize_provider,
-        cerebras_rate_limits,
-    )
+    from .llm_provider import cerebras_rate_limits, normalize_provider
 except Exception:
-    from llm_provider import (
-        resolve_gemini_model_id,
-        gemini_free_tier_limits,
-        normalize_provider,
-        cerebras_rate_limits,
-    )
+    from llm_provider import cerebras_rate_limits, normalize_provider
 
-LLM_PROVIDER = normalize_provider(LLM_PROVIDER)
-if LLM_PROVIDER == "google":
-    GEMINI_MODEL = resolve_gemini_model_id(GEMINI_MODEL)
-    LLM_MODEL = GEMINI_MODEL
+LLM_PROVIDER = normalize_provider(os.environ.get("LLM_PROVIDER", "cerebras").strip().lower())
+if LLM_PROVIDER != "cerebras":
+    LLM_PROVIDER = "cerebras"
 
 # ReAct / agentic: server master switch (dashboard toggle + Agentic mode still required).
 _LLM_AGENTIC_RAW = os.environ.get(
@@ -65,6 +48,8 @@ LLM_AGENTIC_ENABLED = _LLM_AGENTIC_RAW in ("1", "true", "yes")
 # Back-compat alias
 LLM_BROWSER_TOOLS = LLM_AGENTIC_ENABLED
 LLM_REACT_MAX_ROUNDS = int(os.environ.get("LLM_REACT_MAX_ROUNDS", "15"))
+_AGENTIC_PLANNER_RAW = os.environ.get("AGENTIC_PLANNER", "1").strip().lower()
+AGENTIC_PLANNER = _AGENTIC_PLANNER_RAW not in ("0", "false", "no", "off")
 
 # AIML API (disabled until project finalized)
 # AIML_API_KEY = os.environ.get("AIML_API_KEY", "").strip()
@@ -123,7 +108,7 @@ else:
     MAX_FULL_NOTEBOOK_CONTEXT_CHARS = 0
 # Local TPM preflight (on by default when an LLM API key is set).
 TPM_PREFLIGHT_RATIO = float(os.environ.get("TPM_PREFLIGHT_RATIO", "0.85"))
-_ENABLE_PREFLIGHT_DEFAULT = "1" if (CEREBRAS_API_KEY or GEMINI_API_KEY) else "0"
+_ENABLE_PREFLIGHT_DEFAULT = "1" if (CEREBRAS_API_KEY or CEREBRAS_SECONDARY_API_KEY) else "0"
 ENABLE_TPM_PREFLIGHT = os.environ.get(
     "ENABLE_TPM_PREFLIGHT",
     _ENABLE_PREFLIGHT_DEFAULT,
@@ -167,23 +152,14 @@ if CEREBRAS_STATIC_NOTEBOOK_CACHE:
     if "MAX_INPUT_TOKENS" not in os.environ and "LLM_MAX_INPUT_TOKENS" not in os.environ:
         MAX_INPUT_TOKENS = min(int(MAX_INPUT_TOKENS), 5500)
 
-# Free-tier limits (provider-specific defaults).
-if LLM_PROVIDER == "google":
-    _glim = gemini_free_tier_limits(GEMINI_MODEL)
-    TPM_LIMIT = int(os.environ.get("GEMINI_TPM_LIMIT", str(_glim["tpm"])))
-    RPM_LIMIT = int(os.environ.get("GEMINI_RPM_LIMIT", str(_glim["rpm"])))
-    RPD_LIMIT = int(os.environ.get("GEMINI_RPD_LIMIT", str(_glim["rpd"])))
-    TPH_LIMIT = int(os.environ.get("GEMINI_TPH_LIMIT", str(_glim["tph"])))
-    RPH_LIMIT = int(os.environ.get("GEMINI_RPH_LIMIT", str(_glim["rph"])))
-    TPD_LIMIT = int(os.environ.get("GEMINI_TPD_LIMIT", str(TPM_LIMIT * 60 * 24)))
-else:
-    _clim = cerebras_rate_limits()
-    TPM_LIMIT = _clim["tpm"]
-    TPH_LIMIT = int(os.environ.get("CEREBRAS_TPH_LIMIT", "1000000"))
-    TPD_LIMIT = int(os.environ.get("CEREBRAS_TPD_LIMIT", "1000000"))
-    RPM_LIMIT = _clim["rpm"]  # hardcoded 5 req/min — see llm_provider.CEREBRAS_RPM_HARD_LIMIT
-    RPH_LIMIT = _clim["rph"]
-    RPD_LIMIT = _clim["rpd"]
+# Free-tier limits (Cerebras)
+_clim = cerebras_rate_limits()
+TPM_LIMIT = _clim["tpm"]
+TPH_LIMIT = int(os.environ.get("CEREBRAS_TPH_LIMIT", "1000000"))
+TPD_LIMIT = int(os.environ.get("CEREBRAS_TPD_LIMIT", "1000000"))
+RPM_LIMIT = _clim["rpm"]  # hardcoded 5 req/min — see llm_provider.CEREBRAS_RPM_HARD_LIMIT
+RPH_LIMIT = _clim["rph"]
+RPD_LIMIT = _clim["rpd"]
 
 # Threading locks
 _HASHES_LOCK = threading.Lock()
@@ -194,21 +170,25 @@ _ACTIVE_STREAMS_LOCK = threading.Lock()
 _RATE_LOCK = threading.Lock()
 _BOT_STATE_LOCK = threading.Lock()
 
-_CEREBRAS_CLIENT = Cerebras(api_key=CEREBRAS_API_KEY) if CEREBRAS_API_KEY else None
-_LLM_CLIENT = None
+try:
+    from .cerebras_client import build_cerebras_router
+except Exception:
+    from cerebras_client import build_cerebras_router
 
-if LLM_PROVIDER == "google" and GEMINI_API_KEY:
+_LLM_CLIENT = build_cerebras_router()
+if _LLM_CLIENT is not None:
     try:
-        from .google_ai import create_google_client
+        _active = _LLM_CLIENT.active_profile
+        _keys = _LLM_CLIENT.available_profiles()
+        # defer log until log() exists
+        _cerebras_startup_msg = (
+            f"Cerebras LLM client ready (profiles={_keys}, active={_active}, "
+            f"pref={CEREBRAS_KEY_PROFILE})"
+        )
     except Exception:
-        from google_ai import create_google_client
-    _GOOGLE_CLIENT = create_google_client()
-    if _GOOGLE_CLIENT is not None:
-        _LLM_CLIENT = _GOOGLE_CLIENT
-        LLM_MODEL = GEMINI_MODEL
-elif CEREBRAS_API_KEY:
-    _LLM_CLIENT = _CEREBRAS_CLIENT
-    LLM_MODEL = CEREBRAS_MODEL
+        _cerebras_startup_msg = "Cerebras LLM client ready"
+else:
+    _cerebras_startup_msg = ""
 
 # AIML client (disabled until project finalized)
 # try:
@@ -246,4 +226,8 @@ def log(msg: str):
             print(msg, file=sys.stderr, flush=True)
         except Exception:
             pass
+
+
+if _cerebras_startup_msg:
+    log(_cerebras_startup_msg)
 

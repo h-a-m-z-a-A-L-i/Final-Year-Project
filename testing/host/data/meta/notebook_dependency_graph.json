@@ -1,0 +1,22 @@
+{
+  "nb-1": {
+    "notebook_key": "nb-1",
+    "symbol_to_cell": {
+      "x": 3
+    },
+    "cell_to_symbols": {
+      "3": [
+        "x"
+      ]
+    },
+    "edges": [
+      {
+        "from": 3,
+        "to": "x",
+        "kind": "cell->symbol",
+        "cell": 3
+      }
+    ],
+    "updated_at": "2026-06-14T15:44:44.320509+00:00"
+  }
+}
