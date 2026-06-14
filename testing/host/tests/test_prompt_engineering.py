@@ -78,6 +78,23 @@ def test_react_browser_prompt_sections_when_enabled(monkeypatch):
     )
     assert "Agentic" in content or "agentic" in content.lower()
     assert "insert_cell" in content
+
+
+def test_agentic_system_notes_require_single_turn_batch(monkeypatch):
+    monkeypatch.setattr(pe, "LLM_AGENTIC_ENABLED", True)
+    try:
+        from testing.host import agentic_mode as am
+        monkeypatch.setattr(am, "LLM_AGENTIC_ENABLED", True)
+        am.set_dashboard_agentic_enabled(True)
+    except Exception:
+        pass
+    content = pe.build_system_content(
+        "agentic",
+        notebook_url="https://www.kaggle.com/code/x/edit",
+        context="cell 1",
+    )
+    assert "one tool per round" not in content.lower()
+    assert "all tool_calls" in content.lower() or "multiple" in content.lower()
     assert "edit_cell_by_index" in content
     assert "insert_and_edit_cell example" not in content
 

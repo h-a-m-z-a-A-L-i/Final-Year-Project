@@ -38,3 +38,4 @@ def test_parallel_tools_default_by_provider(monkeypatch):
     monkeypatch.delenv("LLM_PARALLEL_TOOL_CALLS", raising=False)
     assert parallel_tool_calls_enabled("google") is True
     assert parallel_tool_calls_enabled("cerebras") is False
+    assert parallel_tool_calls_enabled("cerebras", agentic=True) is True

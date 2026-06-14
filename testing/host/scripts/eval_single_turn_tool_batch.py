@@ -30,10 +30,10 @@ URL = "https://www.kaggle.com/code/codekey/testing-ol/edit"
 
 # Requires 6+ distinct tool types in one turn when indices are known.
 COMPLEX_PROMPT = (
-    "In one action: (1) list all notebook cells, (2) insert a new code cell below cell 2, "
-    "(3) set its content to print('batch_eval_1'), (4) insert another code cell below cell 3, "
-    "(5) set that cell to print('batch_eval_2'), (6) run cell 3, (7) run cell 4. "
-    "Use browser tools only — no manual instructions."
+    "Cell indices are known. In ONE tool response emit ALL of these — do not split across rounds: "
+    "insert_cell below cell 2, edit_cell_by_index on cell 3 with print('batch_eval_1'), "
+    "insert_cell below cell 3, edit_cell_by_index on cell 4 with print('batch_eval_2'), "
+    "run_cell on cell 3, run_cell on cell 4. No notebook_list_cells. Browser tools only."
 )
 
 
@@ -112,7 +112,7 @@ def run_eval(*, min_tools: int, min_unique: int, prompt: str) -> EvalReport:
     report = EvalReport(
         provider=LLM_PROVIDER,
         model=LLM_MODEL,
-        parallel_tool_calls=_parallel_tool_calls_flag(),
+        parallel_tool_calls=_parallel_tool_calls_flag(agentic=True),
         prompt=prompt,
         min_tools_required=min_tools,
         min_unique_required=min_unique,
@@ -125,6 +125,10 @@ def run_eval(*, min_tools: int, min_unique: int, prompt: str) -> EvalReport:
         context="Notebook has code cells 1-25. Cell 2 and 3 are code cells.",
         notebook_url=URL,
         include_tools=True,
+        turn_tail=(
+            "Respond with ONE assistant message containing ALL tool_calls required "
+            "(every insert, edit, run_cell, etc.). Do not use one tool per round."
+        ),
     )
     tools = build_cerebras_tools(include_browser=True)
     extra = _completion_extra_kwargs()
