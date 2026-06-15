@@ -74,7 +74,15 @@ def effective_session_id(session_id: str, mode: str) -> str:
 def _baseline_path(history_key: str, session_id: str, mode: str) -> Path:
     raw = f"{history_key}|{session_id}|{mode}"
     digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:32]
-    return BASELINE_DIR / f"{get_safe_filename(history_key)[:48]}_{digest}.json"
+    try:
+        from .notebook_storage import notebook_filename
+    except Exception:
+        try:
+            from notebook_storage import notebook_filename
+        except Exception:
+            from testing.host.notebook_storage import notebook_filename
+    prefix = notebook_filename(history_key).replace(".json", "")[:48]
+    return BASELINE_DIR / f"{prefix}_{digest}.json"
 
 
 def _cell_fingerprint(cell: dict) -> dict[str, Any]:
@@ -87,8 +95,6 @@ def _cell_fingerprint(cell: dict) -> dict[str, Any]:
         "type": str(cell.get("type") or "code"),
         "input": str(cell.get("input") or ""),
         "output": str(cell.get("output") or ""),
-        "execution_order": cell.get("execution_order"),
-        "execution_status": cell.get("execution_status"),
     }
 
 
@@ -107,10 +113,6 @@ def _format_compact_cell_block(cell: dict) -> str:
     ctype = str(cell.get("type") or "code")
     inp = _truncate_text(str(cell.get("input") or ""), int(BASELINE_MAX_CELL_INPUT_CHARS))
     lines = [f"### Cell [{idx}] ({ctype})"]
-    for key in ("execution_order", "execution_status"):
-        val = cell.get(key)
-        if val is not None and str(val).strip():
-            lines.append(f"{key}: {val}")
     lang = "python" if ctype == "code" else "markdown"
     lines.extend(["input:", f"```{lang}", inp or "(empty)", "```"])
     if ctype == "code":
@@ -217,8 +219,6 @@ def compute_notebook_delta(
             live.get("type") != base.get("type")
             or live.get("input") != base.get("input")
             or live.get("output") != base.get("output")
-            or live.get("execution_order") != base.get("execution_order")
-            or live.get("execution_status") != base.get("execution_status")
         ):
             changed.append({"index": idx, "before": base, "after": live})
 

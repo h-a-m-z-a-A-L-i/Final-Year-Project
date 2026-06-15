@@ -55,31 +55,25 @@ class LocalContextBuilder:
 
 def _build_fallback_graph(notebook_url: str):
     """Build a minimal graph from saved notebook JSON when dependency modules are unavailable."""
-    filename = get_safe_filename(notebook_url)
+    try:
+        from .notebook_storage import resolve_storage_key, notebook_paths, load_notebook_snapshot_for_url
+    except Exception:
+        try:
+            from notebook_storage import resolve_storage_key, notebook_paths, load_notebook_snapshot_for_url
+        except Exception:
+            from testing.host.notebook_storage import resolve_storage_key, notebook_paths, load_notebook_snapshot_for_url
+
+    storage_key = resolve_storage_key(notebook_url)
+    filename = notebook_paths(storage_key)["live"].name
     try:
         with LOG_PATH.open('a', encoding='utf-8') as f:
-            f.write(f"[_build_fallback_graph] URL: {notebook_url} -> Filename: {filename}\n")
+            f.write(f"[_build_fallback_graph] URL: {notebook_url} -> key: {storage_key} file: {filename}\n")
     except Exception:
         pass
-    candidates = [
-        SCRAPED_DIR / "live" / filename,
-        SCRAPED_DIR / "persistent" / filename,
-    ]
-    json_path = None
-    for p in candidates:
-        try:
-            with LOG_PATH.open('a', encoding='utf-8') as f:
-                f.write(f"[_build_fallback_graph] Checking: {p} (exists: {p.exists()})\n")
-        except Exception:
-            pass
-        if p.exists():
-            json_path = p
-            break
-    if not json_path:
+    data, _ = load_notebook_snapshot_for_url(notebook_url)
+    if not isinstance(data, dict):
         return None
     try:
-        with json_path.open('r', encoding='utf-8') as f:
-            data = json.load(f)
         cells = data.get('cells', [])
 
         tracker = FallbackDependencyTracker()
@@ -139,15 +133,17 @@ class DependencyManager:
             return None
 
         if _DEP_AVAILABLE:
-            filename = get_safe_filename(notebook_url)
-            candidates = [self.json_dir / 'persistent' / filename]
-            json_path = None
-            for p in candidates:
-                if p.exists():
-                    json_path = p
-                    break
-            if not json_path:
+            try:
+                from .notebook_storage import resolve_storage_key, notebook_paths
+            except Exception:
+                from notebook_storage import resolve_storage_key, notebook_paths
+            storage_key = resolve_storage_key(notebook_url)
+            json_path = notebook_paths(storage_key)["persistent"]
+            if not json_path.is_file():
+                json_path = notebook_paths(storage_key)["live"]
+            if not json_path.is_file():
                 return None
+            filename = json_path.name
 
             mtime = json_path.stat().st_mtime
             if filename not in self._cache or self._cache[filename]['mtime'] != mtime:

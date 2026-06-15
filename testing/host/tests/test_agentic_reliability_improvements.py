@@ -31,11 +31,15 @@ from testing.host.agent_metrics import METRICS_PATH, read_metrics, record_turn_m
 
 def test_prose_only_max_two_wasted_calls():
     assert MAX_PROSE_ONLY_ROUNDS == 2
-    msg = build_prose_only_exhausted_message("edit cell 1", streak=2)
+    msg = build_prose_only_exhausted_message("edit cell 1", streak=2, use_text_tools=True)
     assert "stopped" in msg.lower()
     assert "agent_tool_batch" in msg
+    native_msg = build_prose_only_exhausted_message("edit cell 1", streak=2, use_text_tools=False)
+    assert "tool_calls" in native_msg
     nudge = build_prose_only_corrective_nudge("edit cell 1", streak=1, use_text_tools=True)
     assert "MUST emit" in nudge
+    native_nudge = build_prose_only_corrective_nudge("edit cell 1", streak=1, use_text_tools=False)
+    assert "tool_calls" in native_nudge
 
 
 def test_multiple_batches_merged_not_lost():

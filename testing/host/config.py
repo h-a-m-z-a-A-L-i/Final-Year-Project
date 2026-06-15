@@ -26,7 +26,7 @@ _load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 CEREBRAS_API_KEY = os.environ.get("CEREBRAS_API_KEY", "").strip()
 CEREBRAS_SECONDARY_API_KEY = os.environ.get("CEREBRAS_SECONDARY_API_KEY", "").strip()
 CEREBRAS_KEY_PROFILE = os.environ.get("CEREBRAS_KEY_PROFILE", "auto").strip().lower()
-CEREBRAS_MODEL = os.environ.get("CEREBRAS_MODEL", "gpt-oss-120b")
+CEREBRAS_MODEL = os.environ.get("CEREBRAS_MODEL", "zai-glm-4.7")
 LLM_MODEL = CEREBRAS_MODEL
 
 # LLM provider (Cerebras only)
@@ -68,6 +68,10 @@ HASHES_PATH = DATA_ROOT / "meta" / "hashes.json"
 KERNEL_METADATA_DIR = DATA_ROOT / "meta" / "kernel_metadata"
 KERNEL_SLUG_INDEX_PATH = DATA_ROOT / "meta" / "kernel_slug_index.json"
 EXECUTION_STATE_PATH = DATA_ROOT / "meta" / "execution_state.json"
+# Per-cell execution metadata (order/title/status). Off until stable host+LLM integration.
+KERNEL_EXECUTION_METADATA_ENABLED = os.environ.get(
+    "KERNEL_EXECUTION_METADATA_ENABLED", "0"
+).strip().lower() in ("1", "true", "yes")
 LOG_PATH = DATA_ROOT / "logs" / "host.log"
 RATE_LIMIT_TRACKER = DATA_ROOT / "meta" / "rate_limit_tracker.json"
 BOT_COMMANDS_PATH = DATA_ROOT / "meta" / "bot_commands.jsonl"
@@ -135,6 +139,15 @@ CEREBRAS_STATIC_NOTEBOOK_CACHE = os.environ.get(
 # When 1, SQLite history + baselines are scoped per mode (ask/code/agentic) under the same UI session id.
 CHAT_SESSION_PER_MODE = os.environ.get("CHAT_SESSION_PER_MODE", "0").strip().lower() in ("1", "true", "yes")
 
+# Real-time tool-call trace on host stderr + JSONL for monitor script (set 0 to disable).
+# Tail in a second terminal: python testing/host/scripts/monitor_agentic_tool_calls.py
+TOOL_CALL_TERMINAL_TRACE = os.environ.get("TOOL_CALL_TERMINAL_TRACE", "1").strip().lower() not in (
+    "0",
+    "false",
+    "no",
+    "off",
+)
+
 # Compact frozen baseline for Cerebras prefix cache (outputs truncated; full state via deltas/tools).
 BASELINE_MAX_CELL_INPUT_CHARS = int(os.environ.get("BASELINE_MAX_CELL_INPUT_CHARS", "1500"))
 BASELINE_MAX_CELL_OUTPUT_CHARS = int(os.environ.get("BASELINE_MAX_CELL_OUTPUT_CHARS", "350"))
@@ -153,7 +166,7 @@ if CEREBRAS_STATIC_NOTEBOOK_CACHE:
         MAX_INPUT_TOKENS = min(int(MAX_INPUT_TOKENS), 5500)
 
 # Free-tier limits (Cerebras)
-_clim = cerebras_rate_limits()
+_clim = cerebras_rate_limits(CEREBRAS_MODEL)
 TPM_LIMIT = _clim["tpm"]
 TPH_LIMIT = int(os.environ.get("CEREBRAS_TPH_LIMIT", "1000000"))
 TPD_LIMIT = int(os.environ.get("CEREBRAS_TPD_LIMIT", "1000000"))

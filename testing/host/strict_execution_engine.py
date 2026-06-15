@@ -43,8 +43,11 @@ class RunCellResult:
     started: bool = False
     finished: bool = False
     pending: bool = False
+    run_verified: bool = False
     success: bool = False
     execution_time: float | None = None
+    execution_order: int | None = None
+    source: str = ""
     output: str = ""
     traceback: str | None = None
     error_type: str | None = None
@@ -56,8 +59,11 @@ class RunCellResult:
             "started": self.started,
             "finished": self.finished,
             "pending": self.pending,
+            "run_verified": self.run_verified,
             "success": self.success,
             "execution_time": self.execution_time,
+            "execution_order": self.execution_order,
+            "source": self.source[:2000],
             "output": self.output[:8000],
             "traceback": self.traceback,
             "error_type": self.error_type,
@@ -143,11 +149,15 @@ def build_run_cell_result(
     w = dict(wait or {})
     output = str(w.get("output") or "")
     has_output = bool(output.strip())
+    run_verified = bool(w.get("run_verified"))
 
     try:
         from .agentic_batch_executor import analyze_cell_output
     except Exception:
         from agentic_batch_executor import analyze_cell_output
+
+    snap = w.get("run_snapshot") or {}
+    after_snap = snap.get("after") or {}
 
     if has_output:
         a = analyze_cell_output(output)
@@ -155,34 +165,22 @@ def build_run_cell_result(
         a = {
             "has_error": bool(w.get("has_error")),
             "run_succeeded": w.get("run_succeeded"),
-            "pending": True,
+            "pending": not run_verified,
             "error_type": w.get("error_type"),
             "error_summary": w.get("error_summary"),
         }
 
-    explicit_ok = w.get("run_succeeded") is True and has_output and not a.get("has_error")
-    explicit_fail = w.get("run_succeeded") is False or bool(a.get("has_error"))
+    explicit_ok = run_verified and not a.get("has_error") and w.get("run_succeeded") is not False
+    explicit_fail = run_verified and (w.get("run_succeeded") is False or bool(a.get("has_error")))
 
-    pending = bool(w.get("pending")) or (
-        w.get("ok") and not has_output and not w.get("run_completed")
-    )
-    if explicit_ok:
+    pending = not run_verified or bool(w.get("pending"))
+    if run_verified and not a.get("has_error") and w.get("ok") is not False:
         pending = False
 
-    if w.get("run_completed"):
-        finished = not pending
-    elif explicit_ok:
-        finished = True
-    elif explicit_fail and has_output:
-        finished = True
-    elif has_output and not a.get("pending"):
-        finished = True
-    else:
-        finished = False
-
-    started = bool(w.get("ok")) or bool(w.get("started"))
-    has_error = bool(a.get("has_error")) or w.get("run_succeeded") is False
-    success = finished and not has_error and not pending and w.get("ok") is not False
+    finished = run_verified and not pending
+    started = bool(w.get("started")) or run_verified or bool(w.get("ok"))
+    has_error = bool(a.get("has_error")) or (run_verified and w.get("run_succeeded") is False)
+    success = run_verified and finished and not has_error and not pending and w.get("ok") is not False
 
     traceback_text = None
     if has_error:
@@ -192,13 +190,18 @@ def build_run_cell_result(
     if started_at is not None and finished:
         elapsed = round(time.monotonic() - started_at, 3)
 
+    source = str(after_snap.get("source_preview") or w.get("source") or "")
+
     return RunCellResult(
         cell_index=int(cell_index),
         started=started,
         finished=finished,
         pending=pending,
+        run_verified=run_verified,
         success=success,
         execution_time=elapsed,
+        execution_order=w.get("execution_order") or after_snap.get("execution_order"),
+        source=source,
         output=output,
         traceback=traceback_text,
         error_type=a.get("error_type") or w.get("error_type"),
@@ -293,6 +296,8 @@ def compute_strict_goal_verified(
         return False, target_reason
 
     for r in state.run_results:
+        if not r.run_verified:
+            return False, f"run_cell_{r.cell_index}_not_verified"
         if r.pending:
             return False, f"run_cell_{r.cell_index}_still_pending"
         if r.started and not r.finished:
@@ -331,6 +336,11 @@ def compute_strict_goal_verified(
 
 def build_execution_report(state: ExecutionQueueState) -> dict[str, Any]:
     """Evidence package for LLM — actual execution data only."""
+    try:
+        from .cell_run_snapshot import format_cell_run_evidence
+    except Exception:
+        from cell_run_snapshot import format_cell_run_evidence
+
     executed_lines: list[str] = []
     for op in state.operations:
         ci = op.args.get("cell_index") or op.args.get("index")
@@ -340,25 +350,33 @@ def build_execution_report(state: ExecutionQueueState) -> dict[str, Any]:
             executed_lines.append(op.tool)
 
     results: dict[str, Any] = {}
+    formatted_blocks: list[str] = []
     for r in state.run_results:
         key = f"cell_{r.cell_index}"
-        results[key] = {
+        entry = {
+            "cell_index": r.cell_index,
+            "source": r.source[:1500],
+            "execution_order": r.execution_order,
+            "run_verified": r.run_verified,
             "success": r.success,
+            "output": r.output[:2000] if r.output else "",
             "traceback": r.traceback,
-            "output_preview": r.output[:500] if r.output else "",
             "pending": r.pending,
             "finished": r.finished,
         }
+        results[key] = entry
+        formatted_blocks.append(format_cell_run_evidence(entry))
 
-    failed = [r for r in state.run_results if r.finished and not r.success]
+    failed = [r for r in state.run_results if r.run_verified and r.finished and not r.success]
     error_block = None
     if failed:
         f0 = failed[0]
-        source = ""
-        for op in state.operations:
-            if op.tool == "edit_cell_by_index" and int(op.args.get("cell_index", -1)) == f0.cell_index:
-                source = str(op.args.get("content") or op.args.get("new_source") or "")[:2000]
-                break
+        source = f0.source
+        if not source:
+            for op in state.operations:
+                if op.tool == "edit_cell_by_index" and int(op.args.get("cell_index", -1)) == f0.cell_index:
+                    source = str(op.args.get("content") or op.args.get("new_source") or "")[:2000]
+                    break
         error_block = {
             "TARGET_FAILED": True,
             "cell": f0.cell_index,
@@ -366,8 +384,11 @@ def build_execution_report(state: ExecutionQueueState) -> dict[str, Any]:
             "last_source": source,
         }
 
+    report_text = "\n\n".join(formatted_blocks) if formatted_blocks else "EXECUTION REPORT\n\n(no runs in batch)"
+
     return {
         "EXECUTION_REPORT": True,
+        "execution_report_text": report_text,
         "executed": executed_lines,
         "results": results,
         "queue_complete": state.queue_complete,
@@ -408,18 +429,48 @@ def attach_strict_execution(
     queue_state.strict_goal_reason = strict_reason
 
     report = build_execution_report(queue_state)
+    target_cells = out.get("target_cells") or (out.get("queue_cell_evidence") or {}).get("cells") or []
+    if target_cells:
+        report["target_cell_query"] = target_cells
+        lines = [report.get("execution_report_text") or ""]
+        for cell in target_cells:
+            if not isinstance(cell, dict):
+                continue
+            ci = cell.get("cell_index")
+            lines.append(
+                f"Cell {ci}\n"
+                f"Run verified: {'YES' if cell.get('run_verified') else 'NO'}\n"
+                f"Success: {'YES' if cell.get('success') else 'NO' if cell.get('success') is False else 'UNKNOWN'}\n"
+                f"Source: {str(cell.get('source') or cell.get('input') or '')[:800]}\n"
+                + (
+                    f"Traceback:\n{cell.get('traceback')}\n"
+                    if cell.get("traceback")
+                    else f"Output:\n{str(cell.get('output') or '')[:800]}\n"
+                )
+            )
+        report["execution_report_text"] = "\n".join(x for x in lines if x).strip()
+
     out["execution_queue"] = queue_state.to_dict()
     out["execution_report"] = report
+    out["execution_report_text"] = report.get("execution_report_text", "")
     out["strict_goal_verified"] = strict_ok
     out["strict_goal_reason"] = strict_reason
     out["goal_verified"] = strict_ok
     out["goal_reason"] = strict_reason if not strict_ok else out.get("goal_reason", "strict queue verified")
+
+    had_runs = bool(queue_state.run_results)
+    if had_runs:
+        out["continue_react_loop"] = True
+        out["close_react_loop"] = False
+        out["await_llm_summary"] = strict_ok
+        out["run_evidence_delivered"] = True
 
     if not strict_ok:
         out["verified"] = False
         out["needs_fix"] = True
         out["await_llm_summary"] = False
         out["close_react_loop"] = False
+        out["continue_react_loop"] = True
         if report.get("error_recovery"):
             er = report["error_recovery"]
             out["execution_error"] = {
@@ -433,7 +484,8 @@ def attach_strict_execution(
                 f"Last source:\n{er.get('last_source', '')[:1500]}"
             )
     else:
-        out["await_llm_summary"] = out.get("await_llm_summary", True)
+        if not had_runs:
+            out["await_llm_summary"] = out.get("await_llm_summary", True)
 
     _append_strict_log(out, queue_state)
     return out

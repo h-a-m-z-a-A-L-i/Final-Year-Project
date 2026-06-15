@@ -128,14 +128,12 @@ def _cell_payload(cell: dict, *, include_output: bool, max_input: int, max_outpu
         "output": out if include_output else None,
         "output_chars": len(raw_out) if include_output else 0,
         "output_truncated": include_output and len(raw_out) > max_output > 0,
-        "execution_order": cell.get("execution_order"),
-        "execution_title": cell.get("execution_title"),
         "has_output": _cell_has_output(cell),
     }
 
 
 def notebook_list_cells(args: dict) -> dict:
-    """Compact index of all cells (types, previews, execution metadata)."""
+    """Compact index of all cells (types and previews)."""
     url = _notebook_url(args)
     data, source, cells = _load(url)
     if not cells:
@@ -150,7 +148,6 @@ def notebook_list_cells(args: dict) -> dict:
             "type": cell.get("type"),
             "preview": _truncate(code.replace("\n", " "), preview_len, suffix="..."),
             "has_output": bool(str(cell.get("output") or "").strip()),
-            "execution_order": cell.get("execution_order"),
         })
     return _ok(url=url, snapshot=source, cell_count=len(items), cells=items)
 
@@ -538,7 +535,12 @@ def notebook_executed_cells(args: dict) -> dict:
         if preview_only and not _is_data_preview_cell(cell):
             continue
         executed.append(
-            _cell_payload(cell, include_output=True, max_input=max_in, max_output=max_out)
+            _cell_payload(
+                cell,
+                include_output=True,
+                max_input=max_in,
+                max_output=max_out,
+            )
         )
         if len(executed) >= max_cells:
             break
@@ -549,9 +551,98 @@ def notebook_executed_cells(args: dict) -> dict:
             snapshot=source,
             cell_count=0,
             cells=[],
-            message="No executed code cells with output in snapshot.",
+            message="No code cells with output in snapshot.",
         )
-    return _ok(url=url, snapshot=source, cell_count=len(executed), cells=executed)
+    return _ok(
+        url=url,
+        snapshot=source,
+        cell_count=len(executed),
+        cells=executed,
+    )
+
+
+def notebook_kernel_state(args: dict) -> dict:
+    """
+    Kernel scenario (off / fresh / reload) and which cells ran since the session started.
+    Use before analysis cells that depend on df or other upstream variables.
+    """
+    url = _notebook_url(args)
+    if not url:
+        return _err("url is required")
+
+    _, source, cells = _load(url)
+    if not cells:
+        return _err("No notebook snapshot found", url=url, snapshot=source)
+
+    try:
+        from .kernel_session import analyze_kernel_session
+    except Exception:
+        from kernel_session import analyze_kernel_session
+
+    target_cell = args.get("cell_index")
+    if target_cell is not None:
+        try:
+            target_cell = int(target_cell)
+        except (TypeError, ValueError):
+            return _err("cell_index must be an integer")
+
+    symbols = args.get("symbols")
+    if isinstance(symbols, str):
+        symbols = [symbols]
+    if not symbols and args.get("symbol"):
+        symbols = [str(args.get("symbol"))]
+    if not symbols and args.get("user_prompt"):
+        symbols = extract_symbols_from_text(str(args.get("user_prompt")))
+
+    report = analyze_kernel_session(
+        url,
+        cells,
+        target_cell_index=target_cell,
+        symbols=list(symbols) if symbols else None,
+    )
+    report["ok"] = True
+    report["snapshot"] = source
+    return report
+
+
+def notebook_kernel_execution(args: dict) -> dict:
+    """
+    Full kernel scenario + per-cell execution board (mode-aware).
+    OFF: execution_order only. FRESH: lifecycle titles. RELOAD: preserved execution.
+    """
+    url = _notebook_url(args)
+    if not url:
+        return _err("url is required")
+
+    data, source, cells = _load(url)
+    if not cells:
+        return _err("No notebook snapshot found", url=url, snapshot=source)
+
+    try:
+        from .kernel_execution_policy import build_kernel_execution_report, normalize_scenario
+        from .kernel_session import get_live_kernel_context, _load_execution_notebook_state
+    except Exception:
+        from kernel_execution_policy import build_kernel_execution_report, normalize_scenario
+        from kernel_session import get_live_kernel_context, _load_execution_notebook_state
+
+    live = get_live_kernel_context()
+    persisted = _load_execution_notebook_state(url)
+    scenario = normalize_scenario(
+        (data or {}).get("kernelScenario")
+        or live.get("kernelScenario")
+        or persisted.get("last_kernel_scenario")
+        or "unknown"
+    )
+
+    report = build_kernel_execution_report(
+        url=url,
+        cells=cells,
+        kernel_scenario=scenario,
+        kernel_session_started_at=persisted.get("kernel_session_started_at"),
+        kernel_session_stopped_at=persisted.get("kernel_session_stopped_at"),
+    )
+    report["snapshot"] = source
+    return report
 
 
 def notebook_snapshot_status(args: dict) -> dict:
@@ -591,7 +682,14 @@ LOCAL_TOOL_HANDLERS: dict[str, Callable[[dict], dict]] = {
     "notebook_snapshot_status": notebook_snapshot_status,
 }
 
+# Host/monitor only — not exposed to the LLM until execution tracking is stable.
+INTERNAL_KERNEL_TOOL_HANDLERS: dict[str, Callable[[dict], dict]] = {
+    "notebook_kernel_state": notebook_kernel_state,
+    "notebook_kernel_execution": notebook_kernel_execution,
+}
+
 LOCAL_TOOL_NAMES = frozenset(LOCAL_TOOL_HANDLERS.keys())
+LLM_LOCAL_TOOL_NAMES = LOCAL_TOOL_NAMES
 
 _URL_SCHEMA = {"type": "string"}
 _CELL_SCHEMA = {"type": "integer"}
@@ -612,7 +710,7 @@ LOCAL_TOOL_SPECS: list[dict[str, Any]] = [
             },
             "required": ["url"],
         },
-        "description": "List all cells with index, type, short preview, and execution metadata.",
+        "description": "List all cells with index, type, short preview, and whether output exists.",
     },
     {
         "name": "notebook_graph_query",
@@ -726,7 +824,7 @@ LOCAL_TOOL_SPECS: list[dict[str, Any]] = [
             "required": ["url"],
         },
         "description": (
-            "Return code cells that have execution output, each with index, input, and output text."
+            "Return code cells that have captured output, each with index, input, and output text."
         ),
     },
 ]
@@ -736,3 +834,21 @@ def register_local_tools(reg) -> None:
     for spec in LOCAL_TOOL_SPECS:
         name = spec["name"]
         reg.register(name, spec["schema"], spec["description"], LOCAL_TOOL_HANDLERS[name])
+
+
+def run_internal_kernel_tool(name: str, args: dict) -> dict:
+    """Run kernel execution tools (host/monitor only, not LLM-facing)."""
+    try:
+        from .execution_metadata import enabled as _exec_meta_on
+    except Exception:
+        from execution_metadata import enabled as _exec_meta_on
+    if not _exec_meta_on():
+        return _err(
+            "Kernel execution metadata is disabled",
+            disabled=True,
+            hint="Set KERNEL_EXECUTION_METADATA_ENABLED=1 to re-enable",
+        )
+    handler = INTERNAL_KERNEL_TOOL_HANDLERS.get(name)
+    if not handler:
+        return _err(f"Unknown internal kernel tool: {name}")
+    return handler(args)

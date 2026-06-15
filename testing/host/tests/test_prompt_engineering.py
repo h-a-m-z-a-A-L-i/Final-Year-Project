@@ -117,3 +117,29 @@ def test_parse_prompt_sections():
     assert "You are X" in secs["role"]
     assert "Step 1" in secs["task"]
     assert "Be careful" in secs["notes"]
+
+
+def test_agentic_glm_native_prompt_excludes_text_batch(monkeypatch):
+    monkeypatch.setattr(pe, "LLM_AGENTIC_ENABLED", True)
+    monkeypatch.setenv("CEREBRAS_MODEL", "zai-glm-4.7")
+    content = pe.build_system_content(
+        "agentic",
+        notebook_url="https://www.kaggle.com/code/x/edit",
+        include_tools=True,
+        text_tool_calls=False,
+    )
+    assert "native parallel tool_calls" in content.lower() or "native `tool_calls`" in content
+    assert "Emit one <agent_tool_batch>" not in content
+    assert '<agent_tool_batch>\n[' not in content
+
+
+def test_agentic_gpt_oss_text_batch_prompt_when_enabled(monkeypatch):
+    monkeypatch.setattr(pe, "LLM_AGENTIC_ENABLED", True)
+    monkeypatch.setenv("CEREBRAS_MODEL", "gpt-oss-120b")
+    content = pe.build_system_content(
+        "agentic",
+        notebook_url="https://www.kaggle.com/code/x/edit",
+        include_tools=True,
+        text_tool_calls=True,
+    )
+    assert "<agent_tool_batch>" in content

@@ -113,6 +113,16 @@ def update_agent_state_from_verification(
         from runtime_state import sync_runtime_state_to_agent_state
     out = sync_runtime_state_to_agent_state(out, verification)
 
+    try:
+        from .kernel_session import sync_kernel_session_to_agent_state
+    except Exception:
+        from kernel_session import sync_kernel_session_to_agent_state
+    out = sync_kernel_session_to_agent_state(
+        out,
+        verification,
+        notebook_key=str(out.get("notebook_key") or ""),
+    )
+
     return out
 
 
@@ -189,6 +199,23 @@ def format_runtime_block(state: dict[str, Any]) -> str:
     return ""
 
 
+def format_kernel_session_block(state: dict[str, Any]) -> str:
+    try:
+        from .execution_metadata import enabled as _exec_meta_on
+    except Exception:
+        from execution_metadata import enabled as _exec_meta_on
+    if not _exec_meta_on():
+        return ""
+    ks = state.get("kernel_session")
+    if not isinstance(ks, dict) or not ks:
+        return ""
+    try:
+        from .kernel_session import compact_kernel_session_for_prompt
+    except Exception:
+        from kernel_session import compact_kernel_session_for_prompt
+    return compact_kernel_session_for_prompt(ks)
+
+
 def format_agent_state_block(state: dict[str, Any] | None) -> str:
     if not isinstance(state, dict):
         return ""
@@ -208,6 +235,10 @@ def format_agent_state_block(state: dict[str, Any] | None) -> str:
     runtime_block = format_runtime_block(state)
     if runtime_block:
         lines.append(runtime_block)
+
+    kernel_block = format_kernel_session_block(state)
+    if kernel_block:
+        lines.append(kernel_block)
 
     plan_block = format_plan_block(state)
     if plan_block:

@@ -50,10 +50,10 @@ def _atomic_write_json(file_path: Path, data):
     tmp_path.replace(file_path)
 
 
-def save_json(data, tab_url):
+def save_json(data, tab_url, storage_key: str | None = None):
     scraped_dir = _current_scraped_dir()
     scraped_dir.mkdir(parents=True, exist_ok=True)
-    filename = get_safe_filename(tab_url)
+    filename = _notebook_filename(tab_url, storage_key)
     filepath = scraped_dir / filename
     _atomic_write_json(filepath, data)
     return filepath
@@ -71,19 +71,33 @@ def _persistent_dir() -> Path:
     return d
 
 
-def save_live_json(data, tab_url):
-    filename = get_safe_filename(tab_url)
+def _notebook_filename(tab_url: str, storage_key: str | None = None) -> str:
+    key = str(storage_key or "").strip()
+    if key.startswith("kaggle:kernel:"):
+        try:
+            from .notebook_storage import notebook_filename
+        except Exception:
+            try:
+                from notebook_storage import notebook_filename
+            except Exception:
+                from testing.host.notebook_storage import notebook_filename
+        return notebook_filename(key)
+    if key:
+        return get_safe_filename(key)
+    return get_safe_filename(tab_url)
+
+
+def save_live_json(data, tab_url, storage_key: str | None = None):
+    filename = _notebook_filename(tab_url, storage_key)
     path = _live_dir() / filename
     _atomic_write_json(path, data)
     return path
 
 
-def save_persistent_json(data, tab_url):
-    filename = get_safe_filename(tab_url)
+def save_persistent_json(data, tab_url, storage_key: str | None = None):
+    filename = _notebook_filename(tab_url, storage_key)
     path = _persistent_dir() / filename
     _atomic_write_json(path, data)
-    legacy_path = SCRAPED_DIR / filename
-    _atomic_write_json(legacy_path, data)
     return path
 
 

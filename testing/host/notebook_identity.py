@@ -114,9 +114,15 @@ def register_notebook_identity(
             entry["updatedAt"] = datetime.now(timezone.utc).isoformat()
             result["notebookKey"] = stable
 
-            prior_keys = set()
+            prior_keys: set[str] = set()
             for candidate in migration_sources:
-                prior_keys.add(candidate)
+                if candidate:
+                    prior_keys.add(candidate)
+            # Also migrate chat rows stored under any URL alias mapped to this kernel.
+            for alias_url, mapped in list(url_to_key.items()):
+                if mapped == stable and alias_url:
+                    prior_keys.add(alias_url)
+            prior_keys.add(stable)
             result["migratedRows"] = migrate_notebook_keys(
                 memory_store,
                 sorted(prior_keys),
@@ -249,3 +255,24 @@ def handle_notebook_url_changed(
         log=log,
         old_url=old_url,
     )
+
+
+def consolidate_chat_history_keys(memory_store, *, log=None) -> int:
+    """Migrate SQLite chat rows from URL keys to kaggle:kernel:id using the registry."""
+    if not memory_store:
+        return 0
+    reg = _load_registry()
+    url_to_key = reg.get("url_to_key") if isinstance(reg, dict) else {}
+    if not isinstance(url_to_key, dict):
+        return 0
+    migrated = 0
+    for url, key in url_to_key.items():
+        if not str(key).startswith("kaggle:kernel:"):
+            continue
+        url_s = str(url or "").strip()
+        key_s = str(key).strip()
+        if not url_s or url_s == key_s:
+            continue
+        count = migrate_notebook_keys(memory_store, [url_s], key_s, log=log)
+        migrated += int(count or 0)
+    return migrated

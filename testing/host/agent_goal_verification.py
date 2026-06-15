@@ -114,7 +114,13 @@ def verify_run_cell(
     output = str(cell_output if cell_output is not None else (run_wait or {}).get("output") or "")
     analysis = analyze_cell_output(output)
     dispatched = bool((run_wait or {}).get("ok", True))
-    executed = dispatched and bool(output or (run_wait or {}).get("run_completed"))
+    run_verified = bool((run_wait or {}).get("run_verified"))
+    if (run_wait or {}).get("run_cell_result"):
+        run_verified = bool(run_wait["run_cell_result"].get("run_verified"))
+    executed = dispatched and (
+        run_verified
+        or bool(output or (run_wait or {}).get("run_completed"))
+    )
     has_error = bool(analysis.get("has_error")) or (run_wait or {}).get("run_succeeded") is False
     error_type = analysis.get("error_type") or (run_wait or {}).get("error_type")
     error_message = analysis.get("error_summary") or (run_wait or {}).get("error_summary")
@@ -126,6 +132,21 @@ def verify_run_cell(
             verification_status="failed",
             evidence={"cell_index": cell_index, "executed": False},
             reason=(run_wait or {}).get("error") or "run_cell dispatch failed",
+            next_action_required=True,
+        )
+
+    if dispatched and not run_verified:
+        return tool_verification_record(
+            "run_cell",
+            tool_succeeded=False,
+            verification_status="failed",
+            evidence={
+                "cell_index": cell_index,
+                "executed": False,
+                "execution_state": "not_verified",
+                "output_preview": output[:400],
+            },
+            reason=f"Cell {cell_index} run not verified in notebook snapshot",
             next_action_required=True,
         )
 
@@ -153,6 +174,7 @@ def verify_run_cell(
         evidence={
             "cell_index": cell_index,
             "executed": True,
+            "run_verified": True,
             "execution_state": "completed",
             "error": None,
             "output_preview": output[:400],

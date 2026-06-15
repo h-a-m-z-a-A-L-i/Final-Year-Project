@@ -25,6 +25,28 @@ except Exception:
         record_queue_progress,
     )
 
+
+def _terminal_trace(
+    tool: str,
+    args: dict[str, Any] | None,
+    result: dict[str, Any] | None,
+    *,
+    phase: str = "batch",
+) -> None:
+    try:
+        from .tool_call_terminal import trace_tool_exec
+    except Exception:
+        try:
+            from tool_call_terminal import trace_tool_exec
+        except Exception:
+            return
+    trace_tool_exec(
+        tool,
+        args if isinstance(args, dict) else {},
+        result if isinstance(result, dict) else {},
+        phase=phase,
+    )
+
 try:
     from .agentic_tool_chain import (
         build_edit_after_insert,
@@ -118,6 +140,14 @@ def workflow_needs_llm_followup(verification: dict[str, Any]) -> bool:
     """True when the ReAct loop must call the LLM again before answering the user."""
     if not isinstance(verification, dict):
         return False
+
+    if verification.get("continue_react_loop"):
+        return True
+    if verification.get("strict_goal_verified") is False:
+        return True
+    if verification.get("close_react_loop") is False and verification.get("run_evidence_delivered"):
+        return True
+
     pipeline = verification.get("pipeline") or {}
     deferred = verification.get("deferred_tool_calls") or []
     pending_runs = list(verification.get("pending_run_cells") or [])
@@ -130,6 +160,10 @@ def workflow_needs_llm_followup(verification: dict[str, Any]) -> bool:
             or verification.get("run_queue_complete")
         )
         if queue_done and not pending_runs and not deferred:
+            if verification.get("strict_goal_verified") is True and verification.get("close_react_loop"):
+                return False
+            if verification.get("execution_report") or verification.get("run_evidence_delivered"):
+                return True
             return False
 
     if pipeline.get("active") and not pipeline.get("complete"):
@@ -155,7 +189,7 @@ def workflow_needs_llm_followup(verification: dict[str, Any]) -> bool:
         return True
     if verification.get("run_completed") and pipeline.get("active") and not pipeline.get("complete"):
         return True
-    if verification.get("verified") is True:
+    if verification.get("verified") is True and verification.get("strict_goal_verified") is not False:
         return False
     return True
 
@@ -392,6 +426,8 @@ def fetch_queue_cell_evidence(
     registry,
     url: str,
     cell_indices: list[int] | int,
+    *,
+    run_waits: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Fetch input + output for every target cell after the tool queue finishes."""
     if isinstance(cell_indices, int):
@@ -399,34 +435,123 @@ def fetch_queue_cell_evidence(
     else:
         indices = sorted({int(i) for i in cell_indices if i is not None})
 
-    cells: list[dict[str, Any]] = []
-    for cell_index in indices:
+    wait_by_index: dict[int, dict[str, Any]] = {}
+    for wait in run_waits or []:
         try:
-            raw = registry.call(
-                "notebook_get_cell",
-                {"url": url, "cell_index": cell_index, "include_output": True},
-            )
-        except Exception as exc:
-            raw = {"ok": False, "cell_index": cell_index, "error": str(exc)}
-        if not isinstance(raw, dict):
-            raw = {"ok": False, "cell_index": cell_index, "error": "invalid cell payload"}
-        cells.append(
-            {
-                "cell_index": cell_index,
-                "ok": raw.get("ok", True),
-                "type": raw.get("type"),
-                "input": raw.get("input") or raw.get("source") or raw.get("content"),
-                "output": raw.get("output"),
-                "execution_order": raw.get("execution_order"),
-                "error": raw.get("error"),
-            }
-        )
+            ci = int(wait.get("cell_index"))
+        except (TypeError, ValueError):
+            continue
+        wait_by_index[ci] = wait
+
+    cells: list[dict[str, Any]] = []
+    fetched: dict[int, dict[str, Any]] = {}
+
+    if indices:
+        if len(indices) > 1:
+            try:
+                batch_raw = registry.call(
+                    "notebook_get_cells",
+                    {"url": url, "cell_indices": indices, "include_output": True},
+                )
+            except Exception as exc:
+                batch_raw = {"ok": False, "error": str(exc)}
+            if isinstance(batch_raw, dict) and batch_raw.get("ok"):
+                for item in batch_raw.get("cells") or []:
+                    if not isinstance(item, dict):
+                        continue
+                    try:
+                        ci = int(item.get("index") if item.get("index") is not None else item.get("cell_index"))
+                    except (TypeError, ValueError):
+                        continue
+                    fetched[ci] = item
+
+        for cell_index in indices:
+            raw = fetched.get(cell_index)
+            if raw is None:
+                try:
+                    raw = registry.call(
+                        "notebook_get_cell",
+                        {"url": url, "cell_index": cell_index, "include_output": True},
+                    )
+                except Exception as exc:
+                    raw = {"ok": False, "cell_index": cell_index, "error": str(exc)}
+                if isinstance(raw, dict) and raw.get("cell"):
+                    raw = {**raw, **raw["cell"]}
+
+            if not isinstance(raw, dict):
+                raw = {"ok": False, "cell_index": cell_index, "error": "invalid cell payload"}
+
+            entry = _build_cell_evidence_entry(cell_index, raw, wait_by_index.get(cell_index))
+            cells.append(entry)
 
     return {
         "cell_indices": indices,
         "cells": cells,
         "count": len(cells),
     }
+
+
+def _build_cell_evidence_entry(
+    cell_index: int,
+    raw: dict[str, Any],
+    wait: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Merge notebook_get_cell snapshot with run wait verification."""
+    output = str(
+        (wait or {}).get("output")
+        or raw.get("output")
+        or ""
+    )
+    source = str(
+        raw.get("input")
+        or raw.get("source")
+        or raw.get("content")
+        or (wait or {}).get("source")
+        or ""
+    )
+    analysis = analyze_cell_output(output) if output.strip() else {
+        "has_error": False,
+        "run_succeeded": None,
+        "error_type": None,
+        "error_summary": None,
+    }
+
+    run_verified = bool((wait or {}).get("run_verified"))
+    if wait and wait.get("ok") and run_verified:
+        success = wait.get("run_succeeded")
+        if success is None:
+            success = not analysis.get("has_error")
+    elif wait and not wait.get("ok"):
+        run_verified = False
+        success = False
+    else:
+        success = None
+
+    entry: dict[str, Any] = {
+        "cell_index": cell_index,
+        "ok": raw.get("ok", True) if raw.get("error") is None else False,
+        "type": raw.get("type"),
+        "input": source,
+        "source": source,
+        "output": output,
+        "execution_order": raw.get("execution_order") or (wait or {}).get("execution_order"),
+        "execution_title": raw.get("execution_title") or (wait or {}).get("execution_title"),
+        "error": raw.get("error"),
+        "run_verified": run_verified,
+        "success": success,
+        "has_error": bool(analysis.get("has_error")) or success is False,
+        "error_type": analysis.get("error_type") or (wait or {}).get("error_type"),
+        "traceback": analysis.get("error_summary") or (wait or {}).get("error_summary"),
+    }
+    if wait:
+        entry["wait_reason"] = wait.get("wait_reason")
+        rc = wait.get("run_cell_result") or {}
+        if rc.get("run_verified") is not None:
+            entry["run_verified"] = bool(rc.get("run_verified"))
+            entry["success"] = bool(rc.get("success"))
+            if rc.get("traceback"):
+                entry["traceback"] = rc.get("traceback")
+    return entry
 
 
 fetch_post_run_cell_evidence = fetch_queue_cell_evidence
@@ -474,7 +599,9 @@ def finalize_tool_queue_verification(
         run_completed=run_completed,
     )
     if targets and registry is not None:
-        evidence = fetch_queue_cell_evidence(registry, url, targets)
+        evidence = fetch_queue_cell_evidence(
+            registry, url, targets, run_waits=run_waits
+        )
         verification["queue_cell_evidence"] = evidence
         verification["target_cells"] = evidence.get("cells") or []
         verification["post_run_query"] = evidence
@@ -491,6 +618,8 @@ def finalize_tool_queue_verification(
         "run_pending": run_pending,
         "delay_sec": INTER_TOOL_DELAY_SEC,
     }
+    if run_waits:
+        verification["run_waits"] = list(run_waits)
 
     if had_error:
         verification["tool_queue_status"] = "error"
@@ -503,7 +632,9 @@ def finalize_tool_queue_verification(
         verification["close_react_loop"] = False
         failed_evidence = None
         if failed_ci is not None and registry is not None:
-            failed_evidence = fetch_queue_cell_evidence(registry, url, int(failed_ci))
+            failed_evidence = fetch_queue_cell_evidence(
+                registry, url, int(failed_ci), run_waits=run_waits
+            )
         verification["error_recovery"] = {
             "original_user_task": str(user_prompt or "").strip(),
             "failed_cell_index": failed_ci,
@@ -641,6 +772,8 @@ def enrich_batch_from_prompt(
 
 
 def _run_wait_failed(wait: dict[str, Any]) -> bool:
+    if wait.get("run_verified") is False:
+        return True
     if wait.get("pending"):
         return True
     if not wait.get("ok"):
@@ -649,6 +782,8 @@ def _run_wait_failed(wait: dict[str, Any]) -> bool:
         return True
     if wait.get("run_succeeded") is False:
         return True
+    if wait.get("run_verified") and wait.get("run_succeeded") is True:
+        return False
     output = str(wait.get("output") or "").strip()
     if wait.get("run_succeeded") is True and output:
         return False
@@ -656,21 +791,14 @@ def _run_wait_failed(wait: dict[str, Any]) -> bool:
         return False
     if wait.get("run_cell_result"):
         rc = wait["run_cell_result"]
-        if rc.get("success"):
+        if rc.get("run_verified") and rc.get("success"):
             return False
-        if rc.get("pending"):
+        if rc.get("pending") or not rc.get("run_verified"):
             return True
         if rc.get("finished") and not rc.get("success"):
             return True
-    if not wait.get("run_completed") and wait.get("ok"):
-        if not output:
-            return True
-        analysis = analyze_cell_output(output)
-        if analysis.get("pending"):
-            return True
-        if analysis.get("has_error"):
-            return True
-        return not analysis.get("run_succeeded", False)
+    if not wait.get("run_verified") and wait.get("ok"):
+        return True
     if wait.get("run_succeeded") is None:
         analysis = analyze_cell_output(wait.get("output"))
         if analysis.get("pending"):
@@ -682,8 +810,19 @@ def _run_wait_failed(wait: dict[str, Any]) -> bool:
 def _ordered_run_indices(
     run_calls: list[ParsedToolCall],
     wanted: list[int] | None = None,
+    *,
+    user_prompt: str = "",
 ) -> list[int]:
     """Preserve LLM emission order; append any host-resolved cells not yet listed."""
+    try:
+        from .agent_goal_verification import extract_cell_index_from_prompt
+    except Exception:
+        from agent_goal_verification import extract_cell_index_from_prompt
+
+    prompt_cell = extract_cell_index_from_prompt(user_prompt)
+    if prompt_cell is not None and user_requests_run(user_prompt):
+        return [int(prompt_cell)]
+
     seen: set[int] = set()
     ordered: list[int] = []
     for call in run_calls:
@@ -754,6 +893,7 @@ def execute_run_queue_sequential(
             if _poll_sleep(inter_delay, cancel_check):
                 return completed, waits, run_indices[run_idx:]
 
+        snap_before_run, _ = load_notebook_snapshot(url)
         dispatch = _dispatch_run_cell(
             registry,
             url=url,
@@ -768,6 +908,7 @@ def execute_run_queue_sequential(
                     "ok": False,
                     "error": dispatch.get("error") or "dispatch failed",
                     "cell_index": run_ci,
+                    "run_verified": False,
                     "run_succeeded": False,
                 }
             )
@@ -783,9 +924,8 @@ def execute_run_queue_sequential(
 
         if _poll_sleep(POST_BATCH_SETTLE_SEC, cancel_check):
             return completed, waits, run_indices[run_idx:]
-        snap_for_run, _ = load_notebook_snapshot(url)
         started_at = time.monotonic()
-        wait = wait_for_cell_run(url, int(run_ci), snap_for_run, cancel_check=cancel_check)
+        wait = wait_for_cell_run(url, int(run_ci), snap_before_run, cancel_check=cancel_check)
         if wait.get("run_succeeded") is None and wait.get("output"):
             analysis = analyze_cell_output(wait.get("output"))
             for key in ("run_succeeded", "has_error", "error_type", "error_summary", "output_preview"):
@@ -795,7 +935,8 @@ def execute_run_queue_sequential(
         wait["run_cell_result"] = run_result.to_dict()
         wait["pending"] = run_result.pending
         wait["run_completed"] = run_result.finished
-        wait["run_succeeded"] = run_result.success if run_result.finished else False
+        wait["run_verified"] = run_result.run_verified
+        wait["run_succeeded"] = run_result.success if run_result.run_verified else False
         if wait.get("cancelled"):
             return completed, waits, run_indices[run_idx:]
         waits.append(wait)
@@ -850,9 +991,28 @@ def enrich_run_cells_from_prompt(
         from .agentic_action_guard import resolve_wanted_run_cells, user_requests_run
     except Exception:
         from agentic_action_guard import resolve_wanted_run_cells, user_requests_run
+    try:
+        from .agent_goal_verification import extract_cell_index_from_prompt
+    except Exception:
+        from agent_goal_verification import extract_cell_index_from_prompt
 
     if not user_requests_run(user_prompt) or registry is None:
         return calls
+
+    prompt_cell = extract_cell_index_from_prompt(user_prompt)
+    if prompt_cell is not None:
+        run_args: dict[str, Any] = {"cell_index": int(prompt_cell), "url": url}
+        if isinstance(tab_id, int) and tab_id > 0:
+            run_args["tab_id"] = tab_id
+        out = [c for c in calls if c.name != "run_cell"]
+        out.append(
+            ParsedToolCall(
+                id="host_prompt_run_cell",
+                name="run_cell",
+                args=run_args,
+            )
+        )
+        return _sort_tool_calls(out)
 
     wanted = resolve_wanted_run_cells(user_prompt, calls, registry=registry, url=url)
     if len(wanted) < 2:
@@ -874,6 +1034,78 @@ def enrich_run_cells_from_prompt(
         out.append(
             ParsedToolCall(
                 id=f"host_enrich_run_{i}",
+                name="run_cell",
+                args=run_args,
+            )
+        )
+    return _sort_tool_calls(out)
+
+
+def enrich_prerequisite_runs_from_kernel(
+    calls: list[ParsedToolCall],
+    *,
+    user_prompt: str,
+    url: str,
+    tab_id: int | None,
+) -> list[ParsedToolCall]:
+    """Inject run_cell for stale upstream / data-load cells after a fresh kernel."""
+    try:
+        from .kernel_session import analyze_kernel_session
+        from .notebook_context import load_notebook_snapshot, _cells_from_data
+    except Exception:
+        from kernel_session import analyze_kernel_session
+        from notebook_context import load_notebook_snapshot, _cells_from_data
+
+    data, _ = load_notebook_snapshot(url)
+    cells = _cells_from_data(data)
+    if not cells:
+        return calls
+
+    target = None
+    for call in reversed(calls):
+        if call.name in {"edit_cell_by_index", "run_cell", "insert_cell"}:
+            try:
+                target = int(call.args.get("cell_index") or call.args.get("index"))
+                break
+            except (TypeError, ValueError):
+                pass
+
+    report = analyze_kernel_session(
+        url,
+        cells,
+        target_cell_index=target,
+        symbols=["df"],
+    )
+    if report.get("kernel_scenario_label") not in {"fresh", "off"}:
+        return calls
+
+    to_run = list(report.get("suggested_prerequisite_runs") or [])
+    for row in report.get("stale_data_load_cells") or []:
+        try:
+            to_run.append(int(row["index"]))
+        except (TypeError, ValueError, KeyError):
+            pass
+    to_run = sorted(set(to_run))
+    if not to_run:
+        return calls
+
+    existing = {
+        int(c.args["cell_index"])
+        for c in calls
+        if c.name == "run_cell" and c.args.get("cell_index") is not None
+    }
+    missing = [ci for ci in to_run if ci not in existing]
+    if not missing:
+        return calls
+
+    out = list(calls)
+    for ci in missing:
+        run_args: dict[str, Any] = {"cell_index": int(ci), "url": url}
+        if isinstance(tab_id, int) and tab_id > 0:
+            run_args["tab_id"] = tab_id
+        out.append(
+            ParsedToolCall(
+                id=f"host_prereq_run_{ci}",
                 name="run_cell",
                 args=run_args,
             )
@@ -1024,9 +1256,12 @@ def wait_for_cell_run(
     poll_interval: float = RUN_POLL_INTERVAL_SEC,
     cancel_check=None,
 ) -> dict[str, Any]:
+    try:
+        from .cell_run_snapshot import detect_run_verification
+    except Exception:
+        from cell_run_snapshot import detect_run_verification
+
     before_cell = _cell_by_index(before_data, cell_index)
-    before_order = before_cell.get("execution_order") if before_cell else None
-    before_output = str((before_cell or {}).get("output") or "")
 
     deadline = time.monotonic() + max(1.0, float(timeout))
     last_error = "timeout waiting for cell execution"
@@ -1041,37 +1276,53 @@ def wait_for_cell_run(
                 return {"ok": False, "cancelled": True, "error": "stopped by user", "cell_index": cell_index}
             continue
 
-        order = cell.get("execution_order")
+        detection = detect_run_verification(before_cell, cell)
+        if not detection.get("run_verified"):
+            if _poll_sleep(poll_interval, cancel_check):
+                return {"ok": False, "cancelled": True, "error": "stopped by user", "cell_index": cell_index}
+            continue
+
         output = str(cell.get("output") or "")
-        order_changed = order is not None and order != before_order
-        output_changed = bool(output) and output != before_output
+        analysis = analyze_cell_output(output)
+        run_succeeded = not analysis.get("has_error")
+        if analysis.get("has_error"):
+            run_succeeded = False
 
-        if order_changed or output_changed:
-            if order_changed and not output.strip():
-                if _poll_sleep(poll_interval, cancel_check):
-                    return {"ok": False, "cancelled": True, "error": "stopped by user", "cell_index": cell_index}
-                continue
-            analysis = analyze_cell_output(output)
-            finished = bool(output.strip()) or bool(analysis.get("has_error"))
-            return {
-                "ok": True,
-                "started": True,
-                "run_completed": finished,
-                "pending": not finished and not analysis.get("has_error"),
-                "run_succeeded": analysis.get("run_succeeded") if finished else False,
-                "cell_index": cell_index,
-                "execution_order": order,
-                "execution_title": cell.get("execution_title"),
-                "output": output[:MAX_CELL_OUTPUT_CHARS],
-                "snapshot": source,
-                "wait_reason": "execution_order_changed" if order_changed else "output_changed",
-                **analysis,
-            }
+        reasons: list[str] = []
+        if detection.get("execution_order_increased"):
+            reasons.append("execution_order_increased")
+        if detection.get("snapshot_changed"):
+            reasons.append("snapshot_changed")
 
-        if _poll_sleep(poll_interval, cancel_check):
-            return {"ok": False, "cancelled": True, "error": "stopped by user", "cell_index": cell_index}
+        return {
+            "ok": True,
+            "started": True,
+            "run_verified": True,
+            "run_completed": True,
+            "pending": False,
+            "run_succeeded": run_succeeded,
+            "cell_index": cell_index,
+            "execution_order": detection.get("execution_order"),
+            "execution_title": detection.get("execution_title"),
+            "output": output[:MAX_CELL_OUTPUT_CHARS],
+            "source": detection.get("source", ""),
+            "snapshot": source,
+            "run_snapshot": {
+                "before": detection.get("before"),
+                "after": detection.get("after"),
+            },
+            "wait_reason": "+".join(reasons) or "snapshot_changed",
+            **analysis,
+        }
 
-    return {"ok": False, "error": last_error, "cell_index": cell_index}
+    return {
+        "ok": False,
+        "error": last_error,
+        "cell_index": cell_index,
+        "run_verified": False,
+        "pending": True,
+        "run_completed": False,
+    }
 
 
 def _dispatch_run_cell(
@@ -1090,9 +1341,13 @@ def _dispatch_run_cell(
     if not allowed:
         return {"ok": False, "error": block_err, "tool": "run_cell"}
     try:
-        return dict(registry.call("run_cell", args) or {})
+        out = dict(registry.call("run_cell", args) or {})
+        _terminal_trace("run_cell", args, out, phase="run_queue")
+        return out
     except Exception as exc:
-        return {"ok": False, "error": str(exc), "tool": "run_cell"}
+        out = {"ok": False, "error": str(exc), "tool": "run_cell"}
+        _terminal_trace("run_cell", args, out, phase="run_queue")
+        return out
 
 
 def _content_matches(expected: str, actual: str) -> bool:
@@ -1180,15 +1435,39 @@ def verify_workflow_batch(
             continue
 
         if run_wait_item and run_wait_item.get("ok"):
-            run_completed = True
+            run_verified = bool(run_wait_item.get("run_verified"))
+            if not run_verified and run_wait_item.get("run_cell_result"):
+                run_verified = bool(run_wait_item["run_cell_result"].get("run_verified"))
             output = run_wait_item.get("output")
             succeeded = run_wait_item.get("run_succeeded")
             if succeeded is None:
                 analysis = analyze_cell_output(output)
                 succeeded = analysis.get("run_succeeded")
+            if run_verified and succeeded is None and not str(output or "").strip():
+                succeeded = True
+            if not run_verified:
+                verified = False
+                batch_checks.append(
+                    {
+                        "tool": "run_cell",
+                        "ok": False,
+                        "run_verified": False,
+                        "cell_index": run_ci,
+                        "error": run_wait_item.get("error") or "run not verified in notebook snapshot",
+                    }
+                )
+                if execution_error is None:
+                    execution_error = {
+                        "cell_index": run_ci,
+                        "error_type": "RunNotVerified",
+                        "error_summary": run_wait_item.get("error") or "run not verified",
+                    }
+                continue
+            run_completed = True
             run_entry: dict[str, Any] = {
                 "tool": "run_cell",
                 "ok": bool(succeeded),
+                "run_verified": run_verified,
                 "run_completed": True,
                 "run_succeeded": succeeded,
                 "cell_index": run_ci,
@@ -1322,12 +1601,62 @@ def execute_agentic_batch(
 
     queue_state = build_execution_queue(tool_calls)
     run_waits: list[dict[str, Any]] = []
+    run_cell_indices: list[int] = []
+    run_indices: list[int] = []
+    expected_edits: dict[int, str] = {}
 
     def _strict_return(verification: dict[str, Any]) -> dict[str, Any]:
         for wait in run_waits:
             ci = wait.get("cell_index")
             if ci is not None:
                 queue_state.run_results.append(build_run_cell_result(int(ci), wait))
+
+        targets = _target_cell_indices(
+            expected_edits=expected_edits,
+            run_requested=run_indices if run_indices else [],
+            run_completed=run_cell_indices,
+        )
+        if targets and registry is not None:
+            evidence = fetch_queue_cell_evidence(
+                registry, url, targets, run_waits=run_waits
+            )
+            verification["queue_cell_evidence"] = evidence
+            verification["target_cells"] = evidence.get("cells") or []
+            verification["post_run_query"] = evidence
+
+        try:
+            from .execution_metadata import enabled as _exec_meta_on
+        except Exception:
+            from execution_metadata import enabled as _exec_meta_on
+        if _exec_meta_on():
+            try:
+                from .kernel_session import analyze_kernel_session, compact_kernel_session_for_prompt
+                from .snapshot_verification import cells_from_snapshot
+            except Exception:
+                from kernel_session import analyze_kernel_session, compact_kernel_session_for_prompt
+                from snapshot_verification import cells_from_snapshot
+            try:
+                snap_data, _ = load_notebook_snapshot(url)
+                snap_cells = cells_from_snapshot(snap_data) if snap_data else []
+                if snap_cells:
+                    ks = analyze_kernel_session(url, snap_cells)
+                    verification["kernel_session"] = {
+                        "summary": ks.get("summary"),
+                        "kernel_scenario_label": ks.get("kernel_scenario_label"),
+                        "stale_data_load_cells": [
+                            c["index"] for c in (ks.get("stale_data_load_cells") or [])
+                        ],
+                        "suggested_prerequisite_runs": ks.get("suggested_prerequisite_runs"),
+                        "guidance": ks.get("guidance"),
+                    }
+                    if ks.get("stale_data_load_cells") or ks.get("suggested_prerequisite_runs"):
+                        hint = compact_kernel_session_for_prompt(ks)
+                        gate = str(verification.get("user_response_gate") or "")
+                        if hint and hint not in gate:
+                            verification["user_response_gate"] = (gate + "\n\n" + hint).strip()
+            except Exception:
+                pass
+
         return attach_strict_execution(
             verification,
             queue_state=queue_state,
@@ -1348,6 +1677,12 @@ def execute_agentic_batch(
         user_prompt=user_prompt,
         url=url,
         registry=registry,
+        tab_id=tab_id,
+    )
+    parsed = enrich_prerequisite_runs_from_kernel(
+        parsed,
+        user_prompt=user_prompt,
+        url=url,
         tab_id=tab_id,
     )
     try:
@@ -1417,6 +1752,9 @@ def execute_agentic_batch(
     else:
         deferred_from_strip = []
 
+    if any(c.name == "run_cell" for c in parsed):
+        parsed = _sort_tool_calls(parsed)
+
     parsed, deferred_calls = partition_batch(parsed)
 
     deferred_run_calls = _collect_deferred_run_calls(deferred_calls)
@@ -1436,13 +1774,13 @@ def execute_agentic_batch(
 
     parsed = _sort_tool_calls(parsed)
     if deferred_from_strip:
+        deferred_from_strip = _sort_tool_calls(deferred_from_strip)
         deferred_calls = deferred_from_strip + deferred_calls
         deferred_run_calls = deferred_run_calls + _collect_deferred_run_calls(deferred_from_strip)
         deferred_calls = _non_run_deferred(deferred_calls)
 
     executed: list[dict[str, Any]] = []
     read_results: list[dict[str, Any]] = []
-    expected_edits: dict[int, str] = {}
     run_queue_calls: list[ParsedToolCall] = []
     wrote_browser = False
     prev_was_write = False
@@ -1471,6 +1809,7 @@ def execute_agentic_batch(
                     result = registry.call(call.name, call.args)
             except Exception as exc:
                 result = {"ok": False, "error": str(exc), "tool": call.name}
+            _terminal_trace(call.name, call.args, result, phase="read")
             read_results.append({"tool": call.name, "result": result})
             executed.append(
                 {
@@ -1501,6 +1840,7 @@ def execute_agentic_batch(
         except Exception as exc:
             result = {"ok": False, "error": str(exc), "tool": call.name}
 
+        _terminal_trace(call.name, call.args, result, phase="write")
         result = dict(result or {})
         dispatched = bool(result.get("ok"))
         executed.append(
@@ -1569,9 +1909,9 @@ def execute_agentic_batch(
     run_indices = _ordered_run_indices(
         run_queue_calls,
         wanted_run_cells if wanted_run_cells else None,
+        user_prompt=user_prompt,
     )
     pending_run_cells: list[int] = []
-    run_cell_indices: list[int] = []
     if run_indices and run_queue_calls:
         run_cell_indices, run_waits, pending_run_cells = execute_run_queue_sequential(
             run_indices,
@@ -1586,6 +1926,9 @@ def execute_agentic_batch(
             cancel_check=cancel_check,
         )
         wrote_browser = True
+
+    if run_cell_indices:
+        after_data, _after_source = load_notebook_snapshot(url)
 
     verification = verify_workflow_batch(
         before_data=before_data,

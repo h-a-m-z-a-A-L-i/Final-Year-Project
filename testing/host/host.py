@@ -93,6 +93,19 @@ def _history_url_key(url: str, notebook_id=None) -> str:
         from notebook_identity import resolve_history_key
     return resolve_history_key(url, notebook_id, memory_store=memory_store)
 
+
+def _resolve_chat_key(msg: dict) -> str:
+    """Stable chat key: prefer resolved kaggle:kernel:id over URL slug."""
+    url = msg.get("url")
+    notebook_id = msg.get("notebookId")
+    hinted = str(msg.get("notebookKey") or "").strip()
+    resolved = _history_url_key(url, notebook_id)
+    if str(resolved).startswith("kaggle:kernel:"):
+        return resolved
+    if hinted.startswith("kaggle:kernel:"):
+        return hinted
+    return resolved or hinted or _normalized_url(str(url or ""))
+
 try:
     from .dependency import _build_fallback_graph, DependencyManager, _DEP_AVAILABLE, _DEP_FALLBACK
 except Exception:
@@ -217,7 +230,7 @@ def main():
 
         if m_type == "CHAT_REQUEST":
             snapshot_url = _normalized_url(msg.get("url"))
-            history_key = _history_url_key(msg.get("url"), msg.get("notebookId"))
+            history_key = _resolve_chat_key(msg)
             prompt = str(msg.get("prompt", ""))
             tab_id = msg.get("tabId")
             session_id = str(msg.get("sessionId") or "default")
@@ -502,33 +515,48 @@ def main():
             continue
 
         if m_type == "GET_HISTORY":
-            url = _history_url_key(msg.get("url"), msg.get("notebookId"))
+            history_key = _resolve_chat_key(msg)
             tab_id = msg.get("tabId")
             session_id = str(msg.get("sessionId") or "default")
-            history = memory_store.get_history(url, session_id=session_id) if url else []
-            sessions = memory_store.list_sessions(url) if url else []
+            history = memory_store.get_history(history_key, session_id=session_id) if history_key else []
+            sessions = memory_store.list_sessions(history_key) if history_key else []
+            resolved_session_id = session_id
+            if not history and sessions:
+                for row in sessions:
+                    sid = str(row.get("sessionId") or "").strip()
+                    if not sid or sid.startswith("cell-debug-"):
+                        continue
+                    candidate = memory_store.get_history(history_key, session_id=sid)
+                    if candidate:
+                        history = candidate
+                        resolved_session_id = sid
+                        log(
+                            f"[chat] Loaded latest session for {history_key}: "
+                            f"{sid} ({len(history)} messages)"
+                        )
+                        break
             send_msg({
                 "type": "HISTORY_DATA",
                 "history": history,
                 "sessions": sessions,
-                "activeSessionId": session_id,
-                "sessionId": session_id,
+                "activeSessionId": resolved_session_id,
+                "sessionId": resolved_session_id,
                 "tabId": tab_id,
                 "url": _normalized_url(msg.get("url") or ""),
-                "notebookKey": url,
+                "notebookKey": history_key,
             })
             continue
 
         if m_type == "CLEAR_HISTORY":
-            url = _history_url_key(msg.get("url"), msg.get("notebookId"))
+            history_key = _resolve_chat_key(msg)
             tab_id = msg.get("tabId")
             session_id = msg.get("sessionId")
-            if url:
-                memory_store.clear_history(url, session_id=session_id)
+            if history_key:
+                memory_store.clear_history(history_key, session_id=session_id)
             send_msg({
                 "type": "HISTORY_CLEARED",
                 "url": _normalized_url(msg.get("url") or ""),
-                "notebookKey": url,
+                "notebookKey": history_key,
                 "tabId": tab_id,
                 "sessionId": session_id,
             })

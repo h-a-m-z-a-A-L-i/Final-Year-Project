@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import threading
+import time
 from typing import Any
 
 from cerebras.cloud.sdk import Cerebras
@@ -11,6 +12,23 @@ from cerebras.cloud.sdk import Cerebras
 _KEY_LOCK = threading.Lock()
 _EXHAUSTED: set[str] = set()
 _ACTIVE_PROFILE = "primary"
+
+_TRANSIENT_NEEDLES = (
+    "connection error",
+    "connection reset",
+    "connection refused",
+    "connect timeout",
+    "timed out",
+    "timeout",
+    "temporarily unavailable",
+    "502",
+    "503",
+    "504",
+    "server disconnected",
+    "network",
+    "ssl",
+    "eof occurred",
+)
 
 
 def _is_quota_error(exc: Exception) -> bool:
@@ -21,10 +39,42 @@ def _is_quota_error(exc: Exception) -> bool:
         "tokens per day limit exceeded",
         "daily token",
         "quota exceeded",
+        "queue_exceeded",
+        "too_many_requests",
+        "too many requests",
+        "high traffic",
+        "rate limit",
     )
-    return any(n in err for n in needles) or (
-        "429" in err and ("quota" in err or "token" in err)
-    )
+    return any(n in err for n in needles) or "429" in err
+
+
+def _is_transient_error(exc: Exception) -> bool:
+    if _is_quota_error(exc):
+        return False
+    err = str(exc or "").lower()
+    return any(n in err for n in _TRANSIENT_NEEDLES)
+
+
+def _request_timeout_sec() -> float:
+    try:
+        return max(30.0, float(os.environ.get("CEREBRAS_REQUEST_TIMEOUT", "180")))
+    except Exception:
+        return 180.0
+
+
+def _max_retries() -> int:
+    try:
+        return max(1, min(5, int(os.environ.get("CEREBRAS_MAX_RETRIES", "3"))))
+    except Exception:
+        return 3
+
+
+def _retry_backoff_sec(attempt: int) -> float:
+    return min(16.0, 2.0 ** max(0, attempt))
+
+
+def cerebras_request_timeout() -> float:
+    return _request_timeout_sec()
 
 
 class _CompletionsProxy:
@@ -63,10 +113,12 @@ class CerebrasClientRouter:
         }
         self.chat = _ChatProxy(self)
         with _KEY_LOCK:
-            global _ACTIVE_PROFILE
+            global _ACTIVE_PROFILE, _EXHAUSTED
             if self._profile_pref == "secondary" and "secondary" in self._clients:
+                _EXHAUSTED.discard("secondary")
                 _ACTIVE_PROFILE = "secondary"
             elif self._profile_pref == "primary" and "primary" in self._clients:
+                _EXHAUSTED.discard("primary")
                 _ACTIVE_PROFILE = "primary"
             elif "primary" in self._clients:
                 _ACTIVE_PROFILE = "primary"
@@ -84,9 +136,9 @@ class CerebrasClientRouter:
     def _ordered_profiles(self) -> list[str]:
         with _KEY_LOCK:
             if self._profile_pref == "secondary":
-                order = ["secondary", "primary"]
+                order = ["secondary"]
             elif self._profile_pref == "primary":
-                order = ["primary", "secondary"]
+                order = ["primary"]
             else:
                 global _ACTIVE_PROFILE
                 if _ACTIVE_PROFILE in self._clients and _ACTIVE_PROFILE not in _EXHAUSTED:
@@ -121,27 +173,55 @@ class CerebrasClientRouter:
         if not profiles:
             raise RuntimeError("No Cerebras API key configured")
 
+        if kwargs.get("timeout") is None:
+            kwargs["timeout"] = _request_timeout_sec()
+
         last_exc: Exception | None = None
-        for idx, profile in enumerate(profiles):
+        max_retries = _max_retries()
+
+        for profile_idx, profile in enumerate(profiles):
             client = self._clients[profile]
-            try:
-                result = client.chat.completions.create(**kwargs)
-                self._set_active(profile)
-                return result
-            except Exception as exc:
-                last_exc = exc
-                if _is_quota_error(exc) and idx < len(profiles) - 1:
-                    self._mark_exhausted(profile)
-                    try:
-                        from .config import log
-                    except Exception:
-                        from config import log
-                    log(
-                        f"Cerebras key profile '{profile}' quota exceeded — "
-                        f"failover to '{profiles[idx + 1]}'"
-                    )
-                    continue
-                raise
+            for attempt in range(max_retries):
+                try:
+                    result = client.chat.completions.create(**kwargs)
+                    self._set_active(profile)
+                    return result
+                except Exception as exc:
+                    last_exc = exc
+                    if _is_quota_error(exc) and profile_idx < len(profiles) - 1:
+                        self._mark_exhausted(profile)
+                        try:
+                            from .config import log
+                        except Exception:
+                            from config import log
+                        log(
+                            f"Cerebras key profile '{profile}' quota exceeded — "
+                            f"failover to '{profiles[profile_idx + 1]}'"
+                        )
+                        break
+                    if _is_transient_error(exc) and attempt < max_retries - 1:
+                        delay = _retry_backoff_sec(attempt)
+                        try:
+                            from .config import log
+                        except Exception:
+                            from config import log
+                        log(
+                            f"Cerebras transient error (profile={profile}, "
+                            f"attempt={attempt + 1}/{max_retries}): {exc} — retry in {delay:.0f}s"
+                        )
+                        time.sleep(delay)
+                        continue
+                    if _is_transient_error(exc) and profile_idx < len(profiles) - 1:
+                        try:
+                            from .config import log
+                        except Exception:
+                            from config import log
+                        log(
+                            f"Cerebras connection failed on '{profile}' — trying "
+                            f"'{profiles[profile_idx + 1]}'"
+                        )
+                        break
+                    raise
         if last_exc:
             raise last_exc
         raise RuntimeError("Cerebras completion failed")

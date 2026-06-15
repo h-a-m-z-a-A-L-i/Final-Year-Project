@@ -1,9 +1,8 @@
 """Agentic mode gate — browser tools, ReAct loop, and parallel tool calls.
 
-Agentic features run ONLY when ALL are true:
+Agentic features run when:
   1. Server allows it (`LLM_AGENTIC_ENABLED` in .env)
-  2. User enabled the dashboard toggle (`dashboard_enabled` in agentic_settings.json)
-  3. Chat session mode is `agentic` (UI mode dropdown)
+  2. Chat session mode is `agentic` (UI mode dropdown)
 """
 
 from __future__ import annotations
@@ -56,7 +55,8 @@ def server_agentic_allowed() -> bool:
 
 
 def dashboard_agentic_enabled() -> bool:
-    return bool(_read_settings().get("dashboard_enabled"))
+    """Legacy setting file; always treated as enabled (mode dropdown is the user gate)."""
+    return True
 
 
 def set_dashboard_agentic_enabled(enabled: bool) -> dict[str, Any]:
@@ -84,21 +84,14 @@ def agentic_session_active(
     """True when this chat turn may use browser tools and full ReAct behavior."""
     if not is_agentic_chat_mode(mode):
         return False
-    if not server_agentic_allowed():
-        return False
-    if dashboard_enabled is None:
-        return dashboard_agentic_enabled()
-    return bool(dashboard_enabled)
+    return server_agentic_allowed()
 
 
 def resolve_effective_chat_mode(ui_mode: str | None) -> tuple[str, str | None]:
-    """Normalize UI mode; downgrade agentic if dashboard/server disallows it."""
+    """Normalize UI mode; downgrade agentic if server disallows it."""
     mode = str(ui_mode or "ask").strip().lower()
-    if mode == AGENTIC_MODE_ID:
-        if not server_agentic_allowed():
-            return "code", "Agentic mode is disabled on the host (set LLM_AGENTIC_ENABLED=1)."
-        if not dashboard_agentic_enabled():
-            return "code", "Enable Agentic mode in Settings before using it."
+    if mode == AGENTIC_MODE_ID and not server_agentic_allowed():
+        return "code", "Agentic mode is disabled on the host (set LLM_AGENTIC_ENABLED=1)."
     return mode, None
 
 
@@ -114,5 +107,5 @@ def browser_tool_allowed(mode: str | None, tool_name: str) -> tuple[bool, str | 
         return True, None
     return False, (
         f"Tool '{tool_name}' requires Agentic mode. "
-        "Open Settings, enable Agentic mode, then select Agentic in the mode dropdown."
+        "Select Agentic in the chat mode dropdown."
     )

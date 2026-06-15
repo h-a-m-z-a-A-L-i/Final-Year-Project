@@ -105,10 +105,10 @@ def _search_queries_for_prompt(prompt: str) -> list[str]:
 def tools_allowed_for_mode(mode: str, *, agentic: bool) -> frozenset[str]:
     """Read tools exposed per mode (browser tools handled separately in agentic)."""
     try:
-        from .local_notebook_tools import LOCAL_TOOL_NAMES
+        from .local_notebook_tools import LLM_LOCAL_TOOL_NAMES
     except Exception:
-        from local_notebook_tools import LOCAL_TOOL_NAMES
-    base = set(LOCAL_TOOL_NAMES)
+        from local_notebook_tools import LLM_LOCAL_TOOL_NAMES
+    base = set(LLM_LOCAL_TOOL_NAMES)
     if agentic:
         return frozenset(base)
     mode = str(mode or "ask").lower()

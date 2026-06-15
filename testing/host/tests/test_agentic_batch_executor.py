@@ -91,7 +91,7 @@ def test_verify_workflow_insert_edit_run():
         {"tool": "edit_cell_by_index", "dispatched": True},
         {"tool": "run_cell", "dispatched": True},
     ]
-    run_wait = {"ok": True, "cell_index": 2, "output": "hi\n", "execution_order": 1}
+    run_wait = {"ok": True, "cell_index": 2, "output": "hi\n", "execution_order": 1, "run_verified": True, "run_succeeded": True}
     out = verify_workflow_batch(
         before_data=before,
         after_data=after,
@@ -145,6 +145,7 @@ def test_verify_workflow_run_error_fails_verified():
     }
     run_wait = {
         "ok": True,
+        "run_verified": True,
         "run_completed": True,
         "run_succeeded": False,
         "has_error": True,
@@ -222,8 +223,8 @@ def test_workflow_needs_followup_true_on_run_queue_complete():
 
 
 def test_run_wait_failed_detects_traceback():
-    assert _run_wait_failed({"ok": True, "output": "Traceback (most recent call last):\nNameError: x"}) is True
-    assert _run_wait_failed({"ok": True, "output": "hello\n", "run_succeeded": True}) is False
+    assert _run_wait_failed({"ok": True, "run_verified": True, "output": "Traceback (most recent call last):\nNameError: x", "run_succeeded": False, "has_error": True}) is True
+    assert _run_wait_failed({"ok": True, "run_verified": True, "output": "hello\n", "run_succeeded": True}) is False
 
 
 def test_ordered_run_indices_preserves_emission():
@@ -242,8 +243,8 @@ def test_execute_run_queue_stops_on_error(mock_sleep, mock_snap, mock_dispatch, 
     mock_snap.return_value = ({}, "live")
     mock_dispatch.return_value = {"ok": True}
     mock_wait.side_effect = [
-        {"ok": True, "output": "1\n", "run_succeeded": True},
-        {"ok": True, "output": "NameError: foo\n", "run_succeeded": False, "has_error": True},
+        {"ok": True, "output": "1\n", "run_verified": True, "run_succeeded": True},
+        {"ok": True, "output": "NameError: foo\n", "run_verified": True, "run_succeeded": False, "has_error": True},
     ]
     executed: list = []
     completed, waits, pending = execute_run_queue_sequential(
@@ -270,7 +271,7 @@ def test_execute_run_queue_stops_on_error(mock_sleep, mock_snap, mock_dispatch, 
 def test_execute_run_queue_completes_all(mock_sleep, mock_snap, mock_dispatch, mock_wait):
     mock_snap.return_value = ({}, "live")
     mock_dispatch.return_value = {"ok": True}
-    mock_wait.return_value = {"ok": True, "output": "ok\n", "run_succeeded": True}
+    mock_wait.return_value = {"ok": True, "output": "ok\n", "run_verified": True, "run_succeeded": True}
     executed: list = []
     completed, waits, pending = execute_run_queue_sequential(
         [1, 2, 3],
@@ -303,8 +304,8 @@ def test_attach_run_queue_verification_success():
         expected_edits={},
         run_cell_indices=[1, 2],
         run_waits=[
-            {"ok": True, "output": "a", "run_succeeded": True},
-            {"ok": True, "output": "b", "run_succeeded": True},
+            {"ok": True, "output": "1\n", "run_verified": True, "run_succeeded": True, "cell_index": 1},
+            {"ok": True, "output": "2\n", "run_verified": True, "run_succeeded": True, "cell_index": 2},
         ],
     )
     out = finalize_tool_queue_verification(
@@ -315,12 +316,17 @@ def test_attach_run_queue_verification_success():
         run_requested=[1, 2],
         run_completed=[1, 2],
         run_pending=[],
+        user_prompt="run cells 1 and 2",
+        run_waits=[
+            {"ok": True, "output": "1\n", "run_verified": True, "run_succeeded": True, "cell_index": 1},
+            {"ok": True, "output": "2\n", "run_verified": True, "run_succeeded": True, "cell_index": 2},
+        ],
     )
     assert out["tool_queue_complete"] is True
-    assert out["close_react_loop"] is True
-    assert out["await_llm_summary"] is True
     assert len(out["queue_cell_evidence"]["cells"]) == 2
     assert out["target_cells"][0]["input"] == "print(1)"
+    assert out["target_cells"][0]["run_verified"] is True
+    assert out["target_cells"][1]["success"] is True
 
 
 def test_attach_run_queue_verification_stopped():

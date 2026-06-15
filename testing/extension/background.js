@@ -7,72 +7,45 @@ let __lastPromptSignal = 0;
 // State machine for tracking kernel state transitions per tab
 const kernelStateByTab = {}; // tabId -> { lastStatus, lastEditorLoading, scenario, timestamp }
 
-function classifyKernelScenario(tabId, detectedState) {
-  const isFirstScan = !kernelStateByTab[tabId];
-  const current = kernelStateByTab[tabId] || {};
-  let scenario = current.scenario || "unknown";
+const KERNEL_SCENARIO_OFF = "scenario_1_new_notebook_off";
+const KERNEL_SCENARIO_ON = "scenario_2_kernel_on";
 
-  // Priority 1: Editor loading always resets the machine (covers page reloads from any state).
+function classifyKernelScenario(tabId, detectedState) {
+  const current = kernelStateByTab[tabId] || {};
+
+  // During editor loading keep the last stable scenario (reload while kernel on).
   if (detectedState.editorLoading) {
-    scenario = "editor_loading";
-    console.log(`[Tab ${tabId}] Transition: any → editor_loading`);
+    kernelStateByTab[tabId] = {
+      lastStatus: detectedState.status,
+      lastEditorLoading: true,
+      scenario: current.scenario || "editor_loading",
+      timestamp: Date.now(),
+    };
+    console.log(`[Tab ${tabId}] Editor loading — holding scenario=${current.scenario || "editor_loading"}`);
+    return current.scenario || "editor_loading";
   }
-  // Priority 2: First time we see this tab — no prior state, classify directly from DOM flags.
-  else if (isFirstScan) {
-    if (detectedState.hdd) {
-      scenario = "scenario_3_reload_running_kernel";
-      console.log(`[Tab ${tabId}] First-scan with HDD → scenario_3_reload_running_kernel`);
-    } else if (detectedState.off) {
-      scenario = "scenario_1_new_notebook_off";
-      console.log(`[Tab ${tabId}] First-scan with off → scenario_1_new_notebook_off`);
-    }
-  }
-  // Priority 3: Normal state transitions on subsequent polls.
-  else {
-    // Editor loading finished → kernel is off (new notebook never started)
-    if (current.scenario === "editor_loading" && detectedState.off && !detectedState.hdd) {
-      scenario = "scenario_1_new_notebook_off";
-      console.log(`[Tab ${tabId}] Transition: editor_loading → scenario_1_new_notebook_off`);
-    }
-    // Editor loading finished → HDD already present (tab reload with running kernel)
-    else if (current.scenario === "editor_loading" && detectedState.hdd && !detectedState.off) {
-      scenario = "scenario_3_reload_running_kernel";
-      console.log(`[Tab ${tabId}] Transition: editor_loading → scenario_3_reload_running_kernel`);
-    }
-    // Kernel off → user clicked Run (fresh start)
-    else if (current.scenario === "scenario_1_new_notebook_off" && detectedState.hdd) {
-      scenario = "scenario_2_fresh_kernel_started";
-      console.log(`[Tab ${tabId}] Transition: scenario_1 → scenario_2_fresh_kernel_started`);
-    }
-    // Kernel turned OFF from a running state → badge must update back to off
-    else if (
-      (current.scenario === "scenario_2_fresh_kernel_started" ||
-       current.scenario === "scenario_3_reload_running_kernel") &&
-      detectedState.off && !detectedState.hdd
-    ) {
-      scenario = "scenario_1_new_notebook_off";
-      console.log(`[Tab ${tabId}] Transition: ${current.scenario} → scenario_1_new_notebook_off (kernel turned off)`);
-    }
-  }
+
+  const scenario = detectedState.off ? KERNEL_SCENARIO_OFF : KERNEL_SCENARIO_ON;
 
   kernelStateByTab[tabId] = {
     lastStatus: detectedState.status,
-    lastEditorLoading: detectedState.editorLoading,
+    lastEditorLoading: false,
     scenario: scenario,
     timestamp: Date.now(),
   };
 
-  console.log(`[Tab ${tabId}] State: editorLoading=${detectedState.editorLoading}, off=${detectedState.off}, hdd=${detectedState.hdd} → scenario=${scenario}`);
+  console.log(`[Tab ${tabId}] State: off=${detectedState.off} → scenario=${scenario}`);
 
   return scenario;
 }
 
 function setBadgeForScenario(tabId, scenario) {
   const badgeConfig = {
-    "scenario_1_new_notebook_off": { text: "1️⃣OFF", color: "#FF6B6B" },
-    "scenario_2_fresh_kernel_started": { text: "2️⃣RUN", color: "#4ECDC4" },
-    "scenario_3_reload_running_kernel": { text: "3️⃣RLD", color: "#45B7D1" },
-    "editor_loading": { text: "⏳", color: "#FFA07A" },
+    "scenario_1_new_notebook_off": { text: "OFF", color: "#FF6B6B" },
+    "scenario_2_kernel_on": { text: "ON", color: "#4ECDC4" },
+    "scenario_2_fresh_kernel_started": { text: "ON", color: "#4ECDC4" },
+    "scenario_3_reload_running_kernel": { text: "ON", color: "#4ECDC4" },
+    "editor_loading": { text: "...", color: "#FFA07A" },
     "unknown": { text: "?", color: "#888888" },
   };
   
@@ -138,6 +111,16 @@ function scrapeNotebook() {
 
   collectFromRoot(document);
   const extractExecutionMeta = (cell) => {
+    // Disabled until host execution-metadata pipeline is stable (see KERNEL_EXECUTION_METADATA_ENABLED).
+    const KERNEL_EXECUTION_METADATA_ENABLED = false;
+    if (!KERNEL_EXECUTION_METADATA_ENABLED) {
+      return {
+        execution_order: null,
+        execution_title: "",
+        execution_status: "idle",
+        execution_signal: "",
+      };
+    }
     const buttonHost = cell.querySelector(
       ".cell-execution-button, [title*='Cell executed'], [title*='Cell started execution'], [title*='Cell execution queued'], [aria-label*='Cell executed'], [aria-label*='Cell started execution'], [aria-label*='Cell execution queued']"
     );
@@ -498,49 +481,41 @@ async function sendKernelStateToTab(tabId, kernelData) {
 }
 
 function getKernelStatus() {
+  const offLabelEl = document.querySelector(
+    "#site-content > div.sc-tkEuq.fTdalQ > div > div.sc-kUrMZp.iZSzNa > div > div.sc-UobXP.igDrFI > button.sc-bSDwOd.sc-cFxKLN.LolHj.fzHoiL > div > div.sc-fQpbHj.QscAk"
+  );
   const statusEl = document.querySelector(
     "#site-content > div.sc-cvANaB.lntgBg > div > div.sc-hpEunQ.efgyYB > div > div.sc-NOWJl.jHHMmT"
   );
   const activeEl = document.querySelector(
     "#site-content > div.sc-cvANaB.lntgBg > div > div.sc-hpEunQ.efgyYB > div > div.sc-NOWJl.jHHMmT > button.sc-NoPZx.sc-anfIT.cgepwS.fqcZPa > div:nth-child(2)"
   );
-  
+
+  const offLabelText = (offLabelEl?.innerText || offLabelEl?.textContent || "").trim();
   let statusText = (statusEl?.innerText || statusEl?.textContent || "").trim();
   let activeText = (activeEl?.innerText || activeEl?.textContent || "").trim();
-  
-  console.log('[getKernelStatus] Initial query - statusText:', statusText, 'activeText:', activeText);
-  
-  // Fallback: search entire page for these text patterns if not found
+
   if (statusText.length === 0 && activeText.length === 0) {
     const bodyText = document.body.innerText || document.body.textContent || "";
-    console.log('[getKernelStatus] Using fallback - searching page body');
     statusText = bodyText;
     activeText = bodyText;
   }
 
   const hasEditorLoading = /Editor\s+loading/i.test(statusText) || /Editor\s+loading/i.test(activeText);
-  const hasOff = /off\s*\(run a cell to start\)/i.test(statusText) || /off\s*\(run a cell to start\)/i.test(activeText) || /\bDraft Session Off\b/i.test(statusText) || /(^|\s)off(\s|$)/i.test(statusEl?.innerText || "");
-  let hasHDD = /\bHDD\b/i.test(activeText) || /\bHDD\b/i.test(statusText);
-  const hasSessionStarted = /Session started/i.test(statusText) || /Session started/i.test(activeText);
+  const hasOff =
+    /off\s*\(run a cell to start\)/i.test(offLabelText) ||
+    /off\s*\(run a cell to start\)/i.test(statusText) ||
+    /off\s*\(run a cell to start\)/i.test(activeText) ||
+    /\bDraft Session Off\b/i.test(statusText);
 
-  // Priority: "off" is the authoritative kernel state. When the body-text fallback
-  // is active, "HDD" can appear in unrelated page sections. Suppress it.
-  if (hasOff) {
-    hasHDD = false;
-  }
-
-  console.log('[getKernelStatus] Flags detected - editorLoading:', hasEditorLoading, 'off:', hasOff, 'hdd:', hasHDD, 'sessionStarted:', hasSessionStarted);
+  console.log('[getKernelStatus] offLabel:', offLabelText.substring(0, 80), 'editorLoading:', hasEditorLoading, 'off:', hasOff);
 
   return {
-    status: (() => {
-      if (hasOff) return "off";
-      if (hasHDD || hasSessionStarted || activeText) return "running";
-      return null;
-    })(),
+    status: hasOff ? "off" : (hasEditorLoading ? null : "running"),
     editorLoading: hasEditorLoading,
     off: hasOff,
-    hdd: hasHDD,
-    statusText: statusText.substring(0, 200),
+    hdd: !hasOff && !hasEditorLoading,
+    statusText: (offLabelText || statusText).substring(0, 200),
     activeText: activeText.substring(0, 200),
   };
 }
@@ -1614,6 +1589,25 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   const p = getPort();
+  if (!p) {
+    const hostError = "Native host not connected. Start host.py and reload the extension.";
+    if (msg?.type === "CHAT_REQUEST" && typeof sender.tab?.id === "number") {
+      const payload = {
+        type: "CHAT_STREAM_END",
+        error: hostError,
+        stopped: false,
+        tabId: sender.tab.id,
+        url: msg.url,
+        notebookKey: msg.notebookKey,
+        sessionId: msg.sessionId,
+      };
+      broadcastToTabFrames(sender.tab.id, payload);
+    }
+    if (sendResponse) {
+      sendResponse({ error: hostError });
+    }
+    return true;
+  }
   if (p) {
     if (msg?.type === "GET_GRAPH" && typeof msg?.tabId !== "number") {
       resolveTabIdForUrl(msg?.url, sender, (tabId) => {

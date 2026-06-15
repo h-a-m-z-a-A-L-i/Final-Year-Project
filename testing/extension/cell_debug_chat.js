@@ -361,39 +361,6 @@
         background: #16a34a;
         border-color: #16a34a;
       }
-      .${PANEL_CLASS} .nc-cd-insert-row {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 6px;
-        font-size: 10px;
-        color: #a1a1aa;
-      }
-      .${PANEL_CLASS} .nc-cd-insert-index {
-        width: 48px;
-        padding: 2px 4px;
-        border-radius: 4px;
-        border: 1px solid #52525b;
-        background: #18181b;
-        color: #f4f4f5;
-        font-size: 10px;
-      }
-      .${PANEL_CLASS} .nc-cd-insert-btn {
-        border: 1px solid rgba(124, 58, 237, 0.5);
-        background: rgba(124, 58, 237, 0.2);
-        color: #ede9fe;
-        padding: 2px 8px;
-        border-radius: 4px;
-        font-size: 10px;
-        cursor: pointer;
-      }
-      .${PANEL_CLASS} .nc-cd-insert-btn:disabled { opacity: 0.55; cursor: wait; }
-      .${PANEL_CLASS} .nc-cd-insert-status {
-        flex: 1;
-        min-width: 60px;
-        font-size: 10px;
-        color: #a1a1aa;
-      }
       .${PANEL_CLASS} .nc-cd-code-pre {
         margin: 0;
         padding: 8px 10px;
@@ -653,7 +620,7 @@
     return fenced;
   }
 
-  function createCodeSnippetCard(lang, code, defaultCellIndex) {
+  function createCodeSnippetCard(lang, code) {
     const card = document.createElement("div");
     card.className = "nc-cd-code-card";
 
@@ -688,73 +655,7 @@
 
     headerTop.appendChild(label);
     headerTop.appendChild(copyBtn);
-
-    const insertRow = document.createElement("div");
-    insertRow.className = "nc-cd-insert-row";
-
-    const insertLabel = document.createElement("span");
-    insertLabel.textContent = "New cell below";
-
-    const indexInput = document.createElement("input");
-    indexInput.type = "number";
-    indexInput.min = "1";
-    indexInput.step = "1";
-    indexInput.className = "nc-cd-insert-index";
-    indexInput.value = String(defaultCellIndex || "");
-    indexInput.title = "Anchor cell index — inserts a new code cell below it";
-
-    const insertBtn = document.createElement("button");
-    insertBtn.type = "button";
-    insertBtn.className = "nc-cd-insert-btn";
-    insertBtn.textContent = "Insert";
-
-    const statusEl = document.createElement("span");
-    statusEl.className = "nc-cd-insert-status";
-
-    insertBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      if (!hasChromeRuntime()) {
-        statusEl.textContent = "Extension unavailable.";
-        return;
-      }
-      const anchor = Number.parseInt(indexInput.value, 10);
-      if (!Number.isInteger(anchor) || anchor < 1) {
-        statusEl.textContent = "Enter a valid cell index.";
-        return;
-      }
-      insertBtn.disabled = true;
-      statusEl.textContent = "Inserting…";
-      chrome.runtime.sendMessage(
-        {
-          type: "INSERT_CODE_CELL",
-          url: notebookUrl,
-          index: anchor,
-          content: code,
-        },
-        (resp) => {
-          insertBtn.disabled = false;
-          if (chrome.runtime.lastError) {
-            statusEl.textContent = chrome.runtime.lastError.message || "Extension error";
-            return;
-          }
-          if (resp?.ok) {
-            const newIdx = resp?.result?.newCellIndex;
-            statusEl.textContent =
-              newIdx != null ? `New cell at index ${newIdx}` : `Inserted below cell ${anchor}`;
-          } else {
-            statusEl.textContent = String(resp?.error || "Insert failed");
-          }
-        }
-      );
-    });
-
-    insertRow.appendChild(insertLabel);
-    insertRow.appendChild(indexInput);
-    insertRow.appendChild(insertBtn);
-    insertRow.appendChild(statusEl);
-
     header.appendChild(headerTop);
-    header.appendChild(insertRow);
 
     const pre = document.createElement("pre");
     pre.className = "nc-cd-code-pre";
@@ -796,7 +697,7 @@
       const stack = document.createElement("div");
       stack.className = "nc-cd-code-stack";
       for (const seg of codeParts) {
-        stack.appendChild(createCodeSnippetCard(seg.lang, seg.content, defaultCellIndex));
+        stack.appendChild(createCodeSnippetCard(seg.lang, seg.content));
       }
       container.appendChild(stack);
     }

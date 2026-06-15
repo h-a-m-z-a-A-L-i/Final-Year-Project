@@ -89,3 +89,37 @@ def test_enrich_run_cells_from_prompt_expands_queue():
     )
     run_indices = [c.args["cell_index"] for c in out if c.name == "run_cell"]
     assert run_indices == [23, 24, 25]
+
+
+def test_resolve_wanted_run_cells_explicit_cell_overrides_last_n():
+    registry = type("R", (), {})()
+    registry.call = lambda name, args: {
+        "cells": [{"index": i, "type": "code"} for i in range(20, 31)]
+    }
+    calls = [
+        ParsedToolCall("1", "run_cell", {"cell_index": 26, "url": "https://x/edit"}),
+    ]
+    wanted = resolve_wanted_run_cells(
+        "Fix the error in cell 30 and run it after fixing",
+        calls,
+        registry=registry,
+        url="https://x/edit",
+    )
+    assert wanted == [30]
+
+
+def test_enrich_run_cells_replaces_wrong_model_run_with_prompt_cell():
+    registry = type("R", (), {})()
+    registry.call = lambda name, args: {"cells": []}
+    calls = [
+        ParsedToolCall("a", "edit_cell_by_index", {"cell_index": 30, "content": "x", "url": "https://x/edit"}),
+        ParsedToolCall("b", "run_cell", {"cell_index": 26, "url": "https://x/edit"}),
+    ]
+    out = enrich_run_cells_from_prompt(
+        calls,
+        user_prompt="Fix cell 30 and run it",
+        url="https://x/edit",
+        registry=registry,
+    )
+    run_indices = [c.args["cell_index"] for c in out if c.name == "run_cell"]
+    assert run_indices == [30]

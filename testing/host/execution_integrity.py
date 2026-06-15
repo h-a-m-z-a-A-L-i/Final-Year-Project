@@ -105,6 +105,16 @@ def compute_host_goal_verified(
     if verification.get("strict_goal_verified") is False:
         return False, str(verification.get("strict_goal_reason") or "strict_goal_verification_false")
 
+    report = verification.get("execution_report") or {}
+    run_results = report.get("results") or {}
+    for _key, entry in run_results.items():
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("run_verified") is False:
+            return False, "run_not_verified"
+        if entry.get("run_verified") and entry.get("success") is False:
+            return False, "run_execution_failed"
+
     if verification.get("execution_error"):
         return False, "execution_error"
 
@@ -180,11 +190,26 @@ def apply_final_integrity_gate(
     goal: str = "",
     session_id: str | None = None,
     round_index: int = -2,
+    llm_request_failed: bool = False,
 ) -> tuple[str, bool]:
     """
     Block success language unless host goal_verified is True.
     Returns (final_text, success_blocked).
     """
+    raw = str(text or "")
+    if llm_request_failed or raw.strip().startswith("LLM request failed:"):
+        log_integrity_event(
+            goal=goal,
+            session_id=session_id,
+            round_index=round_index,
+            state=state,
+            verification=verification,
+            success_blocked=False,
+            original_claimed_success=False,
+            extra={"skipped": "llm_request_failed"},
+        )
+        return raw, False
+
     goal_ok, reason = compute_host_goal_verified(
         state,
         verification,

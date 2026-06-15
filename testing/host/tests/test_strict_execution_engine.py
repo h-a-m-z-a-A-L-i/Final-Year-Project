@@ -74,6 +74,7 @@ def test_a_fix_failing_cell_31_edit_run_verify():
             cell_index=31,
             started=True,
             finished=True,
+            run_verified=True,
             success=True,
             output="ok\n",
         )
@@ -125,6 +126,7 @@ def test_c_run_cell_error_traceback_in_report():
             cell_index=31,
             started=True,
             finished=True,
+            run_verified=True,
             success=False,
             output="KeyError: 'price'",
             traceback="KeyError: 'price'",
@@ -168,7 +170,7 @@ def test_d_run_cell_never_finishes_pending_no_success():
         executor_called=True,
     )
     assert ok is False
-    assert "pending" in reason
+    assert "pending" in reason or "not_verified" in reason
 
 
 # E — tool batch parsed but executor not called
@@ -217,7 +219,7 @@ def test_g_workaround_cell_target_enforcement_fails():
         edited_cells={32},
     )
     state.run_results.append(
-        RunCellResult(cell_index=32, started=True, finished=True, success=True, output="ok")
+        RunCellResult(cell_index=32, started=True, finished=True, run_verified=True, success=True, output="ok")
     )
     target_ok, target_reason = check_target_cell_enforcement(state, "Fix error in cell 31")
     assert target_ok is False
@@ -237,7 +239,7 @@ def test_execution_report_only_evidence_no_hallucination():
     state = ExecutionQueueState(
         operations=[QueuedOperation(0, "run_cell", {"cell_index": 5})],
         run_results=[
-            RunCellResult(cell_index=5, started=True, finished=True, success=True, output="5\n"),
+            RunCellResult(cell_index=5, started=True, finished=True, run_verified=True, success=True, output="5\n"),
         ],
     )
     report = build_execution_report(state)
@@ -256,6 +258,7 @@ def test_integrity_blocks_success_when_strict_fails():
                     cell_index=30,
                     started=True,
                     finished=True,
+                    run_verified=True,
                     success=False,
                     traceback="KeyError: 'price'",
                 )

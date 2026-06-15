@@ -319,10 +319,10 @@ _register_local_notebook_tools()
 def build_local_tool_descriptions() -> str:
     lines = []
     try:
-        from .local_notebook_tools import LOCAL_TOOL_NAMES
+        from .local_notebook_tools import LLM_LOCAL_TOOL_NAMES
     except Exception:
-        from local_notebook_tools import LOCAL_TOOL_NAMES
-    for name in sorted(LOCAL_TOOL_NAMES):
+        from local_notebook_tools import LLM_LOCAL_TOOL_NAMES
+    for name in sorted(LLM_LOCAL_TOOL_NAMES):
         entry = _REGISTRY.get(name)
         if not entry:
             continue
@@ -372,14 +372,14 @@ def build_cerebras_tools(*, local_only: bool = True, include_browser: bool = Fal
     - local_only=False, include_browser=False: every registered tool.
     """
     try:
-        from .local_notebook_tools import LOCAL_TOOL_NAMES
+        from .local_notebook_tools import LLM_LOCAL_TOOL_NAMES
     except Exception:
-        from local_notebook_tools import LOCAL_TOOL_NAMES
+        from local_notebook_tools import LLM_LOCAL_TOOL_NAMES
 
     if include_browser:
-        allowed = set(LOCAL_TOOL_NAMES) | set(BROWSER_TOOL_NAMES)
+        allowed = set(LLM_LOCAL_TOOL_NAMES) | set(BROWSER_TOOL_NAMES)
     elif local_only:
-        allowed = set(LOCAL_TOOL_NAMES)
+        allowed = set(LLM_LOCAL_TOOL_NAMES)
     else:
         allowed = None
 

@@ -19,6 +19,7 @@ Do **not** claim dataset contents without markdown cells, data-load cells, or se
 | Error / traceback | `notebook_get_cell` output + `notebook_search` hits |
 | Where to put code | `notebook_recommend_placement` + `notebook_find_symbol` |
 | Dependencies / order | `notebook_cell_neighbors` or `notebook_graph_query` |
+| Which cells have output | `notebook_executed_cells` or `notebook_list_cells` (`has_output`) |
 
 ## Reply rules
 - Cite **1-based cell indices** from tool results only.

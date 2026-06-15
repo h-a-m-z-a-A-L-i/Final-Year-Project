@@ -77,10 +77,94 @@ def trim_history_for_api(history: list[dict] | None) -> list[dict]:
 _API_MESSAGE_KEYS = frozenset({"role", "content", "name", "tool_calls", "tool_call_id"})
 
 
+def _assistant_tool_call_ids(msg: dict[str, Any]) -> list[str]:
+    ids: list[str] = []
+    for tc in msg.get("tool_calls") or []:
+        if isinstance(tc, dict) and tc.get("id"):
+            ids.append(str(tc["id"]))
+    return ids
+
+
+def _tool_response_indices_for_batch(
+    messages: list[dict[str, Any]],
+    assistant_idx: int,
+) -> set[int]:
+    """Indices of role=tool messages that answer one assistant tool_calls turn."""
+    protected: set[int] = set()
+    if assistant_idx < 0 or assistant_idx >= len(messages):
+        return protected
+    expected = _assistant_tool_call_ids(messages[assistant_idx])
+    if not expected:
+        return protected
+    found: set[str] = set()
+    j = assistant_idx + 1
+    while j < len(messages) and len(found) < len(expected):
+        msg = messages[j]
+        if msg.get("_react_verification") or VERIFICATION_MARKER in str(msg.get("content") or ""):
+            break
+        if msg.get("role") == "tool" and msg.get("tool_call_id"):
+            protected.add(j)
+            found.add(str(msg["tool_call_id"]))
+            j += 1
+            continue
+        if msg.get("role") == "assistant":
+            break
+        if msg.get("role") == "user" and not msg.get("_react_agent_state"):
+            break
+        j += 1
+    return protected
+
+
+def ensure_tool_call_message_pairs(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """
+    Repair OpenAI/Cerebras message format: every assistant tool_calls turn must be
+    followed by one role=tool message per tool_call_id (insert placeholders if trimmed).
+    """
+    if not messages:
+        return []
+
+    out: list[dict[str, Any]] = []
+    i = 0
+    while i < len(messages):
+        msg = messages[i]
+        if not isinstance(msg, dict):
+            i += 1
+            continue
+        out.append(dict(msg))
+        if msg.get("role") == "assistant" and msg.get("tool_calls"):
+            expected = _assistant_tool_call_ids(msg)
+            found: set[str] = set()
+            i += 1
+            while i < len(messages) and messages[i].get("role") == "tool" and messages[i].get("tool_call_id"):
+                tool_msg = messages[i]
+                out.append(dict(tool_msg))
+                found.add(str(tool_msg["tool_call_id"]))
+                i += 1
+            for tid in expected:
+                if tid not in found:
+                    out.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tid,
+                            "content": json.dumps(
+                                {
+                                    "ok": False,
+                                    "error": "tool result missing from context (trimmed or not recorded)",
+                                },
+                                ensure_ascii=False,
+                            ),
+                        }
+                    )
+            continue
+        i += 1
+    return out
+
+
 def messages_for_api(messages: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
     """Strip internal ReAct markers before provider API calls."""
+    repaired = ensure_tool_call_message_pairs(list(messages or []))
     out: list[dict[str, Any]] = []
-    for msg in messages or []:
+    for msg in repaired:
         if not isinstance(msg, dict):
             continue
         role = str(msg.get("role") or "").strip()
@@ -282,8 +366,12 @@ def compress_react_verification_history(
         at, c = _extract_verification_stats(_parse_verification_payload(msgs[vi]))
         action_types.extend(at)
         cells.extend(c)
-        if vi > 0 and msgs[vi - 1].get("_react_tool_batch"):
-            drop.add(vi - 1)
+        k = vi - 1
+        while k >= 0 and msgs[k].get("role") == "tool" and msgs[k].get("tool_call_id"):
+            drop.add(k)
+            k -= 1
+        if k >= 0 and msgs[k].get("_react_tool_batch"):
+            drop.add(k)
 
     out = [
         m for i, m in enumerate(msgs)
@@ -333,6 +421,7 @@ def _react_protected_indices(
     batch_indices = [i for i, m in enumerate(messages) if m.get("_react_tool_batch")]
     for i in batch_indices[-KEEP_LATEST_VERIFICATIONS:]:
         protected.add(i)
+        protected |= _tool_response_indices_for_batch(messages, i)
 
     if task:
         for i, msg in enumerate(messages):

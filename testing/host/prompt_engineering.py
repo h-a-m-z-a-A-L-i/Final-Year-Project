@@ -231,9 +231,26 @@ def load_tool_prompt_sections(
             if host_batch:
                 react_tool = (react_tool + "\n\n" + host_batch).strip()
             if str(LLM_PROVIDER or "").lower() == "cerebras" and mode == "agentic":
-                cerebras_addon = _read_text(TOOL_PROMPTS_DIR / "react_agent_cerebras.txt")
-                if cerebras_addon:
-                    react_tool = (react_tool + "\n\n" + cerebras_addon).strip()
+                try:
+                    from .config import CEREBRAS_MODEL
+                    from .llm_provider import cerebras_supports_native_parallel_tools
+                except Exception:
+                    from config import CEREBRAS_MODEL
+                    from llm_provider import cerebras_supports_native_parallel_tools
+                if cerebras_supports_native_parallel_tools(CEREBRAS_MODEL):
+                    glm_addon = _read_text(TOOL_PROMPTS_DIR / "react_agent_glm_native.txt")
+                else:
+                    glm_addon = _read_text(TOOL_PROMPTS_DIR / "react_agent_cerebras.txt")
+                if glm_addon:
+                    react_tool = (react_tool + "\n\n" + glm_addon).strip()
+            try:
+                from .execution_metadata import enabled as _exec_meta_on
+            except Exception:
+                from execution_metadata import enabled as _exec_meta_on
+            if _exec_meta_on():
+                kernel_addon = _read_text(TOOL_PROMPTS_DIR / "react_kernel_session.txt")
+                if kernel_addon:
+                    react_tool = (react_tool + "\n\n" + kernel_addon).strip()
         browser_tool = _read_text(TOOL_PROMPTS_DIR / "browser_tools.txt")
         if mode != "agentic":
             workflows = _read_text(TOOL_PROMPTS_DIR / "react_workflows.txt")
@@ -265,14 +282,14 @@ def load_tool_prompt_sections(
         examples = _read_text(TOOL_PROMPTS_DIR / "tool_examples_autogen.txt")
         if examples:
             try:
-                from .local_notebook_tools import LOCAL_TOOL_NAMES
+                from .local_notebook_tools import LLM_LOCAL_TOOL_NAMES
             except Exception:
-                from local_notebook_tools import LOCAL_TOOL_NAMES
+                from local_notebook_tools import LLM_LOCAL_TOOL_NAMES
             try:
                 from .tool_registry import BROWSER_TOOL_NAMES
             except Exception:
                 from tool_registry import BROWSER_TOOL_NAMES
-            allowed = set(LOCAL_TOOL_NAMES)
+            allowed = set(LLM_LOCAL_TOOL_NAMES)
             if react_browser:
                 allowed |= set(BROWSER_TOOL_NAMES)
             ex_lines = []

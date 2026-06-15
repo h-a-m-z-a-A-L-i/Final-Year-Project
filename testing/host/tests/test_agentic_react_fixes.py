@@ -23,6 +23,7 @@ from testing.host.agentic_batch_executor import (
 )
 from testing.host.agentic_verification import (
     append_batch_verification_message,
+    append_native_batch_tool_results,
     build_compact_batch_verification,
     count_verification_messages,
 )
@@ -91,6 +92,56 @@ def _sample_verification():
 def test_verification_deduplication_2_tools():
     msgs: list = []
     append_batch_verification_message(msgs, _sample_verification(), round_idx=0)
+    assert count_verification_messages(msgs) == 1
+
+
+def test_native_batch_tool_results_one_per_tool_call_id():
+    batch_tool_calls = [
+        {
+            "id": "tc_edit",
+            "function": {
+                "name": "edit_cell_by_index",
+                "arguments": json.dumps({"cell_index": 30, "content": "print(1)"}),
+            },
+        },
+        {
+            "id": "tc_run",
+            "function": {
+                "name": "run_cell",
+                "arguments": json.dumps({"cell_index": 30}),
+            },
+        },
+    ]
+    verification = _complete_verification(
+        executed=[
+            {"tool": "edit_cell_by_index", "dispatched": True, "cell_index": 30, "phase": "dispatched"},
+            {"tool": "run_cell", "dispatched": True, "cell_index": 30, "phase": "run_queue"},
+        ],
+        run_waits=[
+            {
+                "cell_index": 30,
+                "ok": True,
+                "run_verified": True,
+                "run_completed": True,
+                "run_succeeded": True,
+                "output": "1\n",
+            }
+        ],
+        queue_cell_evidence={
+            "cells": [{"cell_index": 30, "input": "print(1)", "output": "1\n", "success": True}]
+        },
+        tool_verifications=[
+            {"tool": "edit_cell_by_index", "verification_status": "verified", "evidence": {"cell_index": 30}},
+            {"tool": "run_cell", "verification_status": "verified", "evidence": {"cell_index": 30, "output_preview": "1"}},
+        ],
+    )
+    msgs: list = []
+    append_native_batch_tool_results(msgs, batch_tool_calls, verification, round_idx=0)
+    assert len(msgs) == 2
+    assert all(m.get("role") == "tool" for m in msgs)
+    ids = {m.get("tool_call_id") for m in msgs}
+    assert ids == {"tc_edit", "tc_run"}
+    append_batch_verification_message(msgs, verification, round_idx=0)
     assert count_verification_messages(msgs) == 1
 
 

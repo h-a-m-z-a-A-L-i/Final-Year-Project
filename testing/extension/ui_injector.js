@@ -676,43 +676,7 @@
             border: 1px solid var(--cp-border);
             background: var(--cp-surface);
             color: inherit;
-        }
-        .settings-panel {
-            padding: 12px 14px;
-            font-size: 12px;
-            line-height: 1.5;
-        }
-        .settings-card {
-            border: 1px solid var(--cp-border);
-            border-radius: 10px;
-            padding: 12px;
-            margin-bottom: 12px;
-            background: var(--cp-surface);
-        }
-        .settings-card h3 {
-            margin: 0 0 8px;
-            font-size: 13px;
-        }
-        .settings-toggle-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 10px;
-        }
-        .settings-hint {
-            margin-top: 8px;
-            font-size: 11px;
-            opacity: 0.72;
-        }
-        .settings-status {
-            margin-top: 8px;
-            font-size: 11px;
-            padding: 6px 8px;
-            border-radius: 6px;
-            background: rgba(127, 127, 127, 0.12);
-        }
-        .settings-status.warn { color: #c9a227; }
-        .settings-status.ok { color: #3ecf8e; }`;
+        }`;
     document.head.appendChild(style);
 
     // 2. HTML Structure
@@ -743,7 +707,6 @@
         <nav class="copilot-tabs">
             <button class="tab-item active" data-tab="chat-tab">💬 Chat</button>
             <button class="tab-item" data-tab="debug-tab">🔗 Dependencies</button>
-            <button class="tab-item" data-tab="settings-tab">⚙️ Settings</button>
         </nav>
 
         <!-- Main Content Area -->
@@ -752,7 +715,7 @@
                 <div id="chat-history" class="chat-scroll-area">
                     <div class="message assistant">
                         <div class="bubble">
-                            Hello! I'm your notebook copilot. Use <strong>Ask</strong> for questions, <strong>Code</strong> to generate cells, or enable <strong>Agentic</strong> in Settings to run browser tools.
+                            Hello! I'm your notebook copilot. Use <strong>Ask</strong> for questions, <strong>Code</strong> to generate cells, or <strong>Agentic</strong> to run browser tools.
                         </div>
                     </div>
                 </div>
@@ -768,32 +731,16 @@
                 </div>
             </div>
 
-            <div id="settings-tab" class="tab-content">
-                <div class="settings-panel">
-                    <div class="settings-card">
-                        <h3>Agentic mode</h3>
-                        <div class="settings-toggle-row">
-                            <label for="agentic-dashboard-toggle">Enable Agentic mode</label>
-                            <input type="checkbox" id="agentic-dashboard-toggle" />
-                        </div>
-                        <p class="settings-hint">
-                            When on, select <strong>Agentic</strong> in the chat footer to let the LLM call atomic browser tools
-                            (insert, edit, run, delete). Ask and Code modes stay read-only / advisory.
-                        </p>
-                        <div id="agentic-settings-status" class="settings-status">Loading settings…</div>
-                    </div>
-                </div>
-            </div>
         </main>
 
         <!-- Footer / Input -->
         <footer class="copilot-footer">
             <div class="mode-row">
                 <label for="chat-mode">Mode</label>
-                <select id="chat-mode" class="mode-select" title="Ask = explain; Code = generate; Agentic = browser tools (Settings)">
+                <select id="chat-mode" class="mode-select" title="Ask = explain; Code = generate; Agentic = browser tools">
                     <option value="ask" selected>Ask</option>
                     <option value="code">Code</option>
-                    <option value="agentic" id="chat-mode-agentic" disabled hidden>Agentic</option>
+                    <option value="agentic">Agentic</option>
                 </select>
             </div>
             <div class="input-wrapper">
@@ -822,7 +769,6 @@
     const panes = {
         'chat-tab': wrapper.querySelector('#chat-tab'),
         'debug-tab': wrapper.querySelector('#debug-tab'),
-        'settings-tab': wrapper.querySelector('#settings-tab'),
     };
 
     tabItems.forEach(tab => {
@@ -1041,58 +987,6 @@
 
     const input = wrapper.querySelector('#chat-input');
     const modeSelect = wrapper.querySelector('#chat-mode');
-    const agenticModeOption = wrapper.querySelector('#chat-mode-agentic');
-    const agenticToggle = wrapper.querySelector('#agentic-dashboard-toggle');
-    const agenticStatus = wrapper.querySelector('#agentic-settings-status');
-    let agenticDashboardEnabled = false;
-    let agenticServerAllowed = false;
-
-    function syncAgenticModeUi() {
-        const ready = agenticServerAllowed && agenticDashboardEnabled;
-        if (agenticModeOption) {
-            agenticModeOption.hidden = !agenticServerAllowed;
-            agenticModeOption.disabled = !ready;
-        }
-        if (agenticStatus) {
-            if (!agenticServerAllowed) {
-                agenticStatus.className = 'settings-status warn';
-                agenticStatus.textContent = 'Host has Agentic disabled (set LLM_AGENTIC_ENABLED=1 in .env and restart host.py).';
-            } else if (!agenticDashboardEnabled) {
-                agenticStatus.className = 'settings-status';
-                agenticStatus.textContent = 'Toggle on to unlock the Agentic mode in the chat footer.';
-            } else {
-                agenticStatus.className = 'settings-status ok';
-                agenticStatus.textContent = 'Agentic ready — select Agentic mode below the chat input.';
-            }
-        }
-        if (modeSelect && modeSelect.value === 'agentic' && !ready) {
-            modeSelect.value = 'code';
-        }
-    }
-
-    function applyAgenticSettings(payload) {
-        if (!payload || typeof payload !== 'object') return;
-        agenticServerAllowed = Boolean(payload.server_allowed);
-        agenticDashboardEnabled = Boolean(payload.dashboard_enabled);
-        if (agenticToggle) agenticToggle.checked = agenticDashboardEnabled;
-        syncAgenticModeUi();
-    }
-
-    function requestAgenticSettings() {
-        chrome.runtime.sendMessage({ type: 'GET_AGENTIC_SETTINGS' });
-    }
-
-    if (agenticToggle) {
-        agenticToggle.addEventListener('change', () => {
-            const enabled = Boolean(agenticToggle.checked);
-            chrome.runtime.sendMessage({
-                type: 'SET_AGENTIC_SETTINGS',
-                dashboard_enabled: enabled,
-            });
-        });
-    }
-
-    requestAgenticSettings();
     const sendBtn = wrapper.querySelector('#chat-send');
     const stopBtn = wrapper.querySelector('#chat-stop');
     const chatHistory = wrapper.querySelector('#chat-history');
@@ -1256,6 +1150,19 @@
     }
 
     function finalizeStream(opts = {}) {
+        if (opts.error) {
+            if (streamMessageEl) {
+                streamMessageEl.classList.remove('streaming');
+                mountAssistantContent(streamMessageEl, `Error: ${opts.error}`);
+            } else {
+                appendMessage('assistant', `Error: ${opts.error}`);
+            }
+            setStreamingState(false);
+            streamMessageEl = null;
+            streamPlainEl = null;
+            streamBuffer = '';
+            return;
+        }
         if (streamMessageEl) {
             const finalText = (typeof opts.text === 'string' && opts.text.length > 0)
                 ? opts.text
@@ -1316,15 +1223,18 @@
         const url = normalizeNotebookUrl(identity?.url || window.location.href);
         const nextKey = String(identity?.notebookKey || url).trim() || url;
         const nextId = identity?.notebookId ?? null;
-        const keyChanged = nextKey !== currentNotebookKey();
+        const prevKey = currentNotebookKey();
+        const keyChanged = nextKey !== prevKey;
         const urlChanged = url !== lastObservedNotebookUrl;
+
+        migrateSessionStorageKey(prevKey, nextKey);
+        migrateSessionStorageKey(url, nextKey);
 
         notebookKey = nextKey;
         notebookId = nextId;
         lastObservedNotebookUrl = url;
 
         if (options.reloadHistory && (keyChanged || urlChanged)) {
-            resetChatToDefault();
             requestHistory(getCurrentSessionId());
         }
     }
@@ -1350,12 +1260,32 @@
 
     function notebookScopeMatches(msg) {
         const msgKey = String(msg?.notebookKey || normalizeNotebookUrl(msg?.url || '')).trim();
-        if (!msgKey) return true;
-        return msgKey === currentNotebookKey();
+        const localKey = String(currentNotebookKey() || '').trim();
+        if (!msgKey || !localKey) return true;
+        if (msgKey === localKey) return true;
+        const msgUrl = normalizeNotebookUrl(msg?.url || '');
+        const localUrl = currentNotebookUrl();
+        if (msgUrl && localUrl && msgUrl === localUrl) return true;
+        return false;
     }
 
-    function sessionStorageKey() {
-        return `copilot_session_${currentNotebookKey()}`;
+    function sessionStorageKey(notebookKeyOverride) {
+        const key = String(notebookKeyOverride || currentNotebookKey() || '').trim();
+        return `copilot_session_${key}`;
+    }
+
+    function migrateSessionStorageKey(fromKey, toKey) {
+        const from = String(fromKey || '').trim();
+        const to = String(toKey || '').trim();
+        if (!from || !to || from === to) return;
+        try {
+            const fromStorage = sessionStorageKey(from);
+            const toStorage = sessionStorageKey(to);
+            const existing = localStorage.getItem(fromStorage);
+            if (existing && existing.trim() && !localStorage.getItem(toStorage)) {
+                localStorage.setItem(toStorage, existing.trim());
+            }
+        } catch {}
     }
 
     function createSessionId() {
@@ -1587,10 +1517,6 @@
         ensureStreamMessage();
         
         const mode = modeSelect ? String(modeSelect.value || 'ask') : 'ask';
-        if (mode === 'agentic' && !(agenticServerAllowed && agenticDashboardEnabled)) {
-            finalizeStream({ error: 'Enable Agentic mode in Settings first.' });
-            return;
-        }
 
         chrome.runtime.sendMessage({
             type: 'CHAT_REQUEST',
@@ -1601,8 +1527,9 @@
             prompt: text,
             mode: mode,
         }, (response) => {
-            if (response?.error) {
-                finalizeStream({ error: response.error });
+            const err = chrome.runtime.lastError?.message || response?.error;
+            if (err) {
+                finalizeStream({ error: err });
             }
         });
     };
@@ -1692,24 +1619,20 @@
             return;
         }
 
-        if (msg.type === 'AGENTIC_SETTINGS') {
-            applyAgenticSettings(msg);
-            return;
-        }
-
         if (msg.type === 'HISTORY_DATA') {
             if (msg.notebookKey) {
                 notebookKey = String(msg.notebookKey).trim() || notebookKey;
             }
-            const activeSessionId = String(msg.activeSessionId || getCurrentSessionId());
+            const resolvedSessionId = String(
+                msg.activeSessionId || msg.sessionId || getCurrentSessionId()
+            ).trim();
+            if (resolvedSessionId) {
+                setCurrentSessionId(resolvedSessionId);
+            }
             const history = Array.isArray(msg.history) ? msg.history : [];
             const sessions = Array.isArray(msg.sessions) ? msg.sessions : [];
             syncDeletedSessionIds(sessions);
-            renderConversationList(sessions, activeSessionId);
-
-            if (activeSessionId !== getCurrentSessionId()) {
-                return;
-            }
+            renderConversationList(sessions, resolvedSessionId);
 
             if (history.length > 0) {
                 chatHistory.innerHTML = '';

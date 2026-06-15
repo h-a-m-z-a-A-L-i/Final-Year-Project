@@ -47,20 +47,23 @@ def text_tool_calling_enabled(provider: str, *, agentic: bool) -> bool:
     if env in ("1", "true", "yes"):
         return True
     try:
-        from .llm_provider import normalize_provider
+        from .llm_provider import cerebras_uses_text_tool_batch, normalize_provider
     except Exception:
-        from llm_provider import normalize_provider
-    return normalize_provider(provider) == "cerebras"
+        from llm_provider import cerebras_uses_text_tool_batch, normalize_provider
+    if normalize_provider(provider) != "cerebras":
+        return False
+    # Default: text batch only for gpt-oss (single native tool_call). GLM uses API tools.
+    return cerebras_uses_text_tool_batch()
 
 
 def _allowed_tool_names() -> set[str]:
     try:
         from .tool_registry import BROWSER_TOOL_NAMES
-        from .local_notebook_tools import LOCAL_TOOL_NAMES
+        from .local_notebook_tools import LLM_LOCAL_TOOL_NAMES
     except Exception:
         from tool_registry import BROWSER_TOOL_NAMES
-        from local_notebook_tools import LOCAL_TOOL_NAMES
-    return set(LOCAL_TOOL_NAMES) | set(BROWSER_TOOL_NAMES)
+        from local_notebook_tools import LLM_LOCAL_TOOL_NAMES
+    return set(LLM_LOCAL_TOOL_NAMES) | set(BROWSER_TOOL_NAMES)
 
 
 def _tool_name_from_raw(raw: Any) -> str:

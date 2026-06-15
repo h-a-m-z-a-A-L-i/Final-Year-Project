@@ -43,6 +43,16 @@ def _system_time_label() -> str:
 
 def update_cell_execution(cell_index: int, tab_url: str, exec_timestamp_ms: Optional[int] = None, exec_order: Optional[int] = None):
     """Update cell execution order and title in notebook JSON using extension's timestamp."""
+    try:
+        from execution_metadata import enabled as _exec_meta_on
+    except Exception:
+        try:
+            from testing.host.execution_metadata import enabled as _exec_meta_on
+        except Exception:
+            _exec_meta_on = lambda: False  # type: ignore[misc, assignment]
+    if not _exec_meta_on():
+        log_msg("SKIP execution metadata disabled")
+        return
     if cell_index is None:
         log_msg(f"SKIP cell_index=None")
         return

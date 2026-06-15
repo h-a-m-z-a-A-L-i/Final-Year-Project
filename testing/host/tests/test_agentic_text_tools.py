@@ -36,9 +36,23 @@ def test_strip_tool_batch():
     assert strip_tool_batch_from_text(text) == "helloworld"
 
 
-def test_text_tool_calling_default_cerebras_agentic():
-    assert text_tool_calling_enabled("cerebras", agentic=True) is True
+def test_text_tool_calling_default_glm_native(monkeypatch):
+    monkeypatch.setenv("CEREBRAS_MODEL", "zai-glm-4.7")
+    monkeypatch.delenv("AGENTIC_TEXT_TOOLS", raising=False)
+    assert text_tool_calling_enabled("cerebras", agentic=True) is False
     assert text_tool_calling_enabled("cerebras", agentic=False) is False
+
+
+def test_text_tool_calling_default_gpt_oss_fallback(monkeypatch):
+    monkeypatch.setenv("CEREBRAS_MODEL", "gpt-oss-120b")
+    monkeypatch.delenv("AGENTIC_TEXT_TOOLS", raising=False)
+    assert text_tool_calling_enabled("cerebras", agentic=True) is True
+
+
+def test_text_tool_calling_env_override(monkeypatch):
+    monkeypatch.setenv("CEREBRAS_MODEL", "zai-glm-4.7")
+    monkeypatch.setenv("AGENTIC_TEXT_TOOLS", "1")
+    assert text_tool_calling_enabled("cerebras", agentic=True) is True
 
 
 def test_inject_defaults():

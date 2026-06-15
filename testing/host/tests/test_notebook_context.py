@@ -133,7 +133,6 @@ def test_pack_full_includes_all_cells(tmp_path, monkeypatch):
     assert "### Cell [1]" in pack.text
     assert "### Cell [2]" in pack.text
     assert "### Cell [3]" in pack.text
-    assert "execution_order" in pack.text or "metadata:" in pack.text
     assert "NameError" in pack.text or "Traceback" in pack.text
     assert pack.manifest.get("listed_cells") == [1, 2, 3]
 
@@ -164,7 +163,7 @@ def test_format_full_cell_block_metadata():
         }
     )
     assert "### Cell [4]" in block
-    assert "execution_order: 3" in block
-    assert "execution_status: executed" in block
+    assert "execution_order" not in block
+    assert "execution_status" not in block
     assert "x = 1" in block
     assert "ok" in block

@@ -688,6 +688,18 @@ def _format_llm_error(exc: Exception) -> str:
         )
     if "context_length" in low or "too long" in low:
         return "Prompt too large for the model. Set CONTEXT_PACK_MODE=intent or narrow notebook scope."
+    if "timed out" in low or "timeout" in low:
+        return (
+            "LLM request failed: Request timed out. "
+            "The host retried automatically. Check network/API status and retry, "
+            "or increase CEREBRAS_REQUEST_TIMEOUT in .env."
+        )
+    if "connection error" in low or "connection reset" in low or "connection refused" in low:
+        return (
+            "LLM request failed: Connection error. "
+            "Check internet/VPN/firewall and Cerebras API status, then retry. "
+            "The host retried with backoff automatically."
+        )
     return f"LLM request failed: {err}"
 
 
@@ -744,6 +756,19 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
             from prompt_engineering import agentic_runtime_enabled
         agentic_active = agentic_runtime_enabled(resolved_mode)
         try:
+            from .tool_call_terminal import trace_session_start
+        except Exception:
+            try:
+                from tool_call_terminal import trace_session_start
+            except Exception:
+                trace_session_start = None  # type: ignore
+        if trace_session_start:
+            trace_session_start(
+                mode=resolved_mode,
+                session_id=memory_session_id,
+                url=snapshot_url,
+            )
+        try:
             from .config import LLM_PROVIDER
             from .agentic_text_tools import text_tool_calling_enabled
         except Exception:
@@ -778,10 +803,19 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                             "(reads, edit_cell_by_index, run_cell)."
                         )
                 else:
-                    action_tail = (
-                        "Respond with ONE assistant message containing ALL tool_calls required "
-                        "(every insert, edit, run_cell, etc.). Do not use one tool per round."
-                    )
+                    if target_ci is not None:
+                        action_tail = (
+                            f"Target cell is {int(target_ci)} (from notebook context). "
+                            f"Respond with ONE assistant message containing ALL native tool_calls: "
+                            f"notebook_get_cell if needed, edit_cell_by_index cell_index={int(target_ci)}, "
+                            f"then run_cell if the user asked to run/fix."
+                        )
+                    else:
+                        action_tail = (
+                            "Respond with ONE assistant message containing ALL native tool_calls "
+                            "(parallel_tool_calls enabled): every read, insert_cell, edit_cell_by_index, "
+                            "and run_cell required for this task."
+                        )
                 turn_tail = f"{action_tail}\n\n{turn_tail}".strip() if turn_tail else action_tail
         turn_usage: dict[str, int] = {
             "prompt_tokens": 0,
@@ -1088,6 +1122,8 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
         except Exception:
             from execution_integrity import ExecutionIntegrityState
         integrity_state = ExecutionIntegrityState()
+        llm_request_failed = False
+        llm_failure_message = ""
 
         def _audit_tool_names(calls: list | None) -> list[str]:
             try:
@@ -1210,6 +1246,15 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                     for _round in range(max_tool_rounds):
                         if _is_stopped():
                             break
+                        try:
+                            from .tool_call_terminal import trace_react_round
+                        except Exception:
+                            try:
+                                from tool_call_terminal import trace_react_round
+                            except Exception:
+                                trace_react_round = None  # type: ignore
+                        if trace_react_round:
+                            trace_react_round(_round)
                         round_attempt = _begin_llm_request(_is_stopped)
                         if not round_attempt:
                             break
@@ -1295,14 +1340,25 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                         except Exception as e:
                             _finalize_request_attempt(round_attempt, 0)
                             log(f"Tool-enabled model call failed: {e}")
+                            llm_request_failed = True
+                            llm_failure_message = _format_llm_error(e)
+                            try:
+                                from .tool_call_terminal import trace_llm_error
+                            except Exception:
+                                try:
+                                    from tool_call_terminal import trace_llm_error
+                                except Exception:
+                                    trace_llm_error = None  # type: ignore
+                            if trace_llm_error:
+                                trace_llm_error(_round, llm_failure_message)
                             if agentic_active:
-                                final_text = _apply_agentic_failure_text(final_text, e)
+                                final_text = llm_failure_message
                                 _emit_stream_delta(
                                     tab_id=tab_id,
                                     snapshot_url=snapshot_url,
                                     history_key=history_key,
                                     session_id=session_id,
-                                    delta=("\n\n" if full_text else "") + _format_llm_error(e),
+                                    delta=("\n\n" if full_text else "") + llm_failure_message,
                                 )
                             break
 
@@ -1310,6 +1366,19 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                         choice = (dumped.get("choices") or [{}])[0]
                         assistant_msg = choice.get("message") or {}
                         tool_calls = assistant_msg.get("tool_calls") or []
+
+                        if not use_text_tools and tool_calls and agentic_active:
+                            try:
+                                from .agentic_text_tools import inject_tool_defaults
+                            except Exception:
+                                from agentic_text_tools import inject_tool_defaults
+                            tool_calls = inject_tool_defaults(
+                                tool_calls,
+                                url=snapshot_url,
+                                tab_id=tab_id if isinstance(tab_id, int) else None,
+                            )
+                            assistant_msg = dict(assistant_msg)
+                            assistant_msg["tool_calls"] = tool_calls
 
                         if use_text_tools:
                             try:
@@ -1376,7 +1445,7 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                                     tab_id=tab_id if isinstance(tab_id, int) else None,
                                 )
                                 assistant_msg = {
-                                    "content": strip_tool_batch_from_text(raw_content),
+                                    "content": "",
                                     "tool_calls": tool_calls,
                                 }
                                 log(f"Text tool batch parsed: {len(tool_calls)} tool(s)")
@@ -1391,6 +1460,27 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                                 if feedback:
                                     tool_messages.append({"role": "user", "content": feedback})
                                     log(f"Unknown/invalid tools: {parse_result.unknown_tools}")
+                            elif agentic_active and _action_required and not tool_calls:
+                                try:
+                                    from .agentic_output_guard import (
+                                        build_structured_output_nudge,
+                                        contains_manual_code_without_tools,
+                                    )
+                                except Exception:
+                                    from agentic_output_guard import (
+                                        build_structured_output_nudge,
+                                        contains_manual_code_without_tools,
+                                    )
+                                if contains_manual_code_without_tools(raw_content):
+                                    tool_messages.append({
+                                        "role": "user",
+                                        "content": build_structured_output_nudge(
+                                            prompt=prompt,
+                                            reason="Manual code without <agent_tool_batch>",
+                                            use_text_tools=True,
+                                        ),
+                                    })
+                                    log("Rejected manual code block — structured tool batch required")
 
                             if use_text_tools and agentic_active:
                                 try:
@@ -1484,6 +1574,52 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                                     plan_generation_pending = False
                                     log("Planner: no PLAN block — proceeding with tools directly")
 
+                        elif (
+                            not use_text_tools
+                            and agentic_active
+                            and not tool_calls
+                            and is_actionable_notebook_request(prompt)
+                        ):
+                            raw_native = _final_text_from_response(tool_resp)
+                            try:
+                                from .agentic_output_guard import (
+                                    build_structured_output_nudge,
+                                    contains_manual_code_without_tools,
+                                )
+                            except Exception:
+                                from agentic_output_guard import (
+                                    build_structured_output_nudge,
+                                    contains_manual_code_without_tools,
+                                )
+                            if contains_manual_code_without_tools(raw_native):
+                                tool_messages.append({
+                                    "role": "user",
+                                    "content": build_structured_output_nudge(
+                                        prompt=prompt,
+                                        reason="Manual code without native tool_calls",
+                                        use_text_tools=False,
+                                    ),
+                                })
+                                log("Rejected manual code block — native tool_calls required")
+
+                        try:
+                            from .tool_call_terminal import trace_tools_parsed
+                        except Exception:
+                            try:
+                                from tool_call_terminal import trace_tools_parsed
+                            except Exception:
+                                trace_tools_parsed = None  # type: ignore
+                        if trace_tools_parsed:
+                            _recovery = bool(getattr(last_parse_result, "recovery_used", False))
+                            _parse_errors = list(getattr(last_parse_result, "parse_errors", None) or [])
+                            trace_tools_parsed(
+                                _round,
+                                tool_calls,
+                                source="text" if use_text_tools else "native",
+                                recovery=_recovery,
+                                parse_errors=_parse_errors if not tool_calls else None,
+                            )
+
                         if not tool_calls:
                             followup = _final_text_from_response(tool_resp).strip()
                             if plan_generation_pending:
@@ -1531,6 +1667,15 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                                 event="prose_only",
                                 increment={"prose_only_events": 1, "turns_total": 1},
                             )
+                            try:
+                                from .tool_call_terminal import trace_prose_only
+                            except Exception:
+                                try:
+                                    from tool_call_terminal import trace_prose_only
+                                except Exception:
+                                    trace_prose_only = None  # type: ignore
+                            if trace_prose_only:
+                                trace_prose_only(_round, prose_only_streak + 1)
 
                             pipeline_active = bool(
                                 pipeline_state
@@ -1589,7 +1734,9 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                                 prose_only_streak += 1
                                 if prose_only_streak >= MAX_PROSE_ONLY_ROUNDS:
                                     final_text = build_prose_only_exhausted_message(
-                                        prompt, streak=prose_only_streak
+                                        prompt,
+                                        streak=prose_only_streak,
+                                        use_text_tools=use_text_tools,
                                     )
                                     record_turn_metric(
                                         event="prose_only_early_stop",
@@ -1633,6 +1780,11 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                                         nudge += (
                                             "\n\nUse <agent_tool_batch>[...]</agent_tool_batch> with every "
                                             "required tool in one JSON array."
+                                        )
+                                    else:
+                                        nudge += (
+                                            "\n\nUse native API tool_calls with every required function "
+                                            "in one assistant message (parallel_tool_calls enabled)."
                                         )
                                 tool_messages.append({"role": "user", "content": nudge})
                                 _emit_stream_delta(
@@ -1687,6 +1839,37 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                                 )
                                 continue
                             if followup:
+                                try:
+                                    from .agentic_output_guard import should_reject_prose_final
+                                except Exception:
+                                    from agentic_output_guard import should_reject_prose_final
+                                if agentic_active and should_reject_prose_final(
+                                    followup,
+                                    prompt=prompt,
+                                    verification=last_batch_verification,
+                                    tools_executed=agentic_tools_executed,
+                                ) and _round < max_tool_rounds - 1:
+                                    try:
+                                        from .agentic_output_guard import build_structured_output_nudge
+                                    except Exception:
+                                        from agentic_output_guard import build_structured_output_nudge
+                                    tool_messages.append({"role": "assistant", "content": followup})
+                                    tool_messages.append({
+                                        "role": "user",
+                                        "content": build_structured_output_nudge(
+                                            prompt=prompt,
+                                            reason="Task not verified — tools required",
+                                            use_text_tools=use_text_tools,
+                                        ),
+                                    })
+                                    _emit_stream_delta(
+                                        tab_id=tab_id,
+                                        snapshot_url=snapshot_url,
+                                        history_key=history_key,
+                                        session_id=session_id,
+                                        delta="\nExecution not verified — requesting tool batch…\n",
+                                    )
+                                    continue
                                 final_text = followup
                                 if _agentic_status_only(full_text):
                                     full_text = followup + ("\n" if not followup.endswith("\n") else "")
@@ -1736,6 +1919,18 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                         if agentic_active and should_use_batch_executor(tool_calls, agentic_active=True):
                             batch_tool_calls = list(tool_calls)
                             try:
+                                from .tool_call_terminal import trace_batch_start, trace_dispatch_path
+                            except Exception:
+                                try:
+                                    from tool_call_terminal import trace_batch_start, trace_dispatch_path
+                                except Exception:
+                                    trace_batch_start = None  # type: ignore
+                                    trace_dispatch_path = None  # type: ignore
+                            if trace_dispatch_path:
+                                trace_dispatch_path("batch_executor", f"{len(batch_tool_calls)} tools")
+                            if trace_batch_start:
+                                trace_batch_start(_round, batch_tool_calls)
+                            try:
                                 from .agentic_action_guard import queue_error_active
                             except Exception:
                                 from agentic_action_guard import queue_error_active
@@ -1750,6 +1945,15 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                                 pipeline_state=pipeline_state,
                                 cancel_check=_is_stopped,
                             )
+                            try:
+                                from .tool_call_terminal import trace_verification
+                            except Exception:
+                                try:
+                                    from tool_call_terminal import trace_verification
+                                except Exception:
+                                    trace_verification = None  # type: ignore
+                            if trace_verification:
+                                trace_verification(_round, verification)
                             if verification.get("cancelled") or _is_stopped():
                                 break
                             pipeline_state = verification.get("pipeline") or pipeline_state
@@ -1788,9 +1992,24 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                                     increment={"tool_batch_repair_attempts": 1},
                                 )
                             try:
-                                from .agentic_verification import append_batch_verification_message, build_compact_batch_verification
+                                from .agentic_verification import (
+                                    append_batch_verification_message,
+                                    append_native_batch_tool_results,
+                                    build_compact_batch_verification,
+                                )
                             except Exception:
-                                from agentic_verification import append_batch_verification_message, build_compact_batch_verification
+                                from agentic_verification import (
+                                    append_batch_verification_message,
+                                    append_native_batch_tool_results,
+                                    build_compact_batch_verification,
+                                )
+                            if not use_text_tools:
+                                append_native_batch_tool_results(
+                                    tool_messages,
+                                    batch_tool_calls,
+                                    verification,
+                                    round_idx=_round,
+                                )
                             append_batch_verification_message(
                                 tool_messages,
                                 verification,
@@ -2030,9 +2249,30 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                                     "streaming.py:~1870 react_stop break",
                                 ],
                             )
+                            try:
+                                from .tool_call_terminal import trace_react_stop
+                            except Exception:
+                                try:
+                                    from tool_call_terminal import trace_react_stop
+                                except Exception:
+                                    trace_react_stop = None  # type: ignore
+                            if trace_react_stop:
+                                trace_react_stop(
+                                    _round,
+                                    workflow_followup_reason(verification) or "batch complete",
+                                )
                             break
 
                         _seq_executed: list[dict] = []
+                        try:
+                            from .tool_call_terminal import trace_dispatch_path
+                        except Exception:
+                            try:
+                                from tool_call_terminal import trace_dispatch_path
+                            except Exception:
+                                trace_dispatch_path = None  # type: ignore
+                        if trace_dispatch_path:
+                            trace_dispatch_path("sequential", f"{len(tool_calls)} tools")
                         for tc_idx, tc in enumerate(tool_calls):
                             fn = (tc.get("function") or {}) if isinstance(tc, dict) else {}
                             fname = fn.get("name")
@@ -2053,6 +2293,21 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                                     result = reg.call(fname, parsed_args)
                             except Exception as exc:
                                 result = {"ok": False, "error": str(exc)}
+
+                            try:
+                                from .tool_call_terminal import trace_tool_exec
+                            except Exception:
+                                try:
+                                    from tool_call_terminal import trace_tool_exec
+                                except Exception:
+                                    trace_tool_exec = None  # type: ignore
+                            if trace_tool_exec:
+                                trace_tool_exec(
+                                    str(fname or "?"),
+                                    parsed_args,
+                                    result if isinstance(result, dict) else {"ok": False},
+                                    phase="sequential",
+                                )
 
                             _seq_executed.append(
                                 {
@@ -2236,7 +2491,9 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
         except Exception as e:
             log(f"Orchestration error: {e}")
 
-        if agentic_active and not final_text.strip():
+        if llm_request_failed and llm_failure_message.strip():
+            final_text = llm_failure_message
+        elif agentic_active and not final_text.strip():
             final_text = (
                 "Agentic request finished without a response. "
                 "Restart the host after code updates and check host.log for API/tool errors."
@@ -2344,6 +2601,7 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                 goal=prompt,
                 session_id=memory_session_id,
                 round_index=-2,
+                llm_request_failed=llm_request_failed,
             )
             if _integrity_blocked:
                 log(

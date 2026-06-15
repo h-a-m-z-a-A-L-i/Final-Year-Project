@@ -120,8 +120,8 @@ def test_e_run_queue_stops_on_middle_error(mock_sleep, mock_snap, mock_dispatch,
     mock_snap.return_value = ({}, "live")
     mock_dispatch.return_value = {"ok": True}
     mock_wait.side_effect = [
-        {"ok": True, "output": "ok\n", "run_succeeded": True},
-        {"ok": True, "output": "NameError: x\n", "run_succeeded": False, "has_error": True},
+        {"ok": True, "output": "ok\n", "run_verified": True, "run_succeeded": True},
+        {"ok": True, "output": "NameError: x\n", "run_verified": True, "run_succeeded": False, "has_error": True},
     ]
     completed, waits, pending = execute_run_queue_sequential(
         [10, 11, 12],
@@ -157,9 +157,9 @@ def test_f_run_queue_error_on_last_cell(mock_sleep, mock_snap, mock_dispatch, mo
     mock_snap.return_value = ({}, "live")
     mock_dispatch.return_value = {"ok": True}
     mock_wait.side_effect = [
-        {"ok": True, "output": "1\n", "run_succeeded": True},
-        {"ok": True, "output": "2\n", "run_succeeded": True},
-        {"ok": True, "output": "SyntaxError\n", "run_succeeded": False, "has_error": True},
+        {"ok": True, "output": "1\n", "run_verified": True, "run_succeeded": True},
+        {"ok": True, "output": "2\n", "run_verified": True, "run_succeeded": True},
+        {"ok": True, "output": "SyntaxError\n", "run_verified": True, "run_succeeded": False, "has_error": True},
     ]
     completed, waits, pending = execute_run_queue_sequential(
         [10, 11, 12],

@@ -106,6 +106,15 @@ def resolve_wanted_run_cells(
     Infer full run queue from user prompt (e.g. last N code cells).
     Merges with explicit run_cell indices from the LLM batch.
     """
+    try:
+        from .agent_goal_verification import extract_cell_index_from_prompt
+    except Exception:
+        from agent_goal_verification import extract_cell_index_from_prompt
+
+    prompt_cell = extract_cell_index_from_prompt(user_prompt)
+    if prompt_cell is not None and user_requests_run(user_prompt):
+        return [int(prompt_cell)]
+
     explicit: list[int] = []
     for call in parsed_calls or []:
         name = getattr(call, "name", None) or (call.get("name") if isinstance(call, dict) else None)
@@ -129,7 +138,15 @@ def resolve_wanted_run_cells(
 
 def looks_like_instruction_only_response(text: str) -> bool:
     body = str(text or "").strip()
-    if len(body) < 80:
+    if len(body) < 40:
+        return False
+    try:
+        from .agentic_output_guard import contains_manual_code_without_tools, has_tool_batch_marker
+    except Exception:
+        from agentic_output_guard import contains_manual_code_without_tools, has_tool_batch_marker
+    if contains_manual_code_without_tools(body):
+        return True
+    if has_tool_batch_marker(body):
         return False
     low = body.lower()
     hits = sum(1 for m in _INSTRUCTION_MARKERS if m in low)
@@ -146,24 +163,34 @@ def build_prose_only_corrective_nudge(
     streak: int,
     use_text_tools: bool = False,
 ) -> str:
-    lines = [
-        "Your last reply had NO valid tool batch.",
-        f"Original task: {prompt.strip()}",
-        "You MUST emit a valid <agent_tool_batch>[...]</agent_tool_batch> JSON array "
-        "with every required tool — not prose or manual instructions.",
-    ]
     if use_text_tools:
-        lines.append(
-            "Example: <agent_tool_batch>[{\"tool\":\"edit_cell_by_index\",\"args\":{...}}]</agent_tool_batch>"
-        )
+        lines = [
+            "Your last reply had NO valid tool batch.",
+            f"Original task: {prompt.strip()}",
+            "You MUST emit a valid <agent_tool_batch>[...]</agent_tool_batch> JSON array "
+            "with every required tool — not prose or manual instructions.",
+            'Example: <agent_tool_batch>[{"tool":"edit_cell_by_index","args":{...}}]</agent_tool_batch>',
+        ]
+    else:
+        lines = [
+            "Your last reply had NO tool_calls.",
+            f"Original task: {prompt.strip()}",
+            "You MUST respond with native API tool_calls — every insert, edit, and run_cell "
+            "in ONE assistant message. No prose, no manual code blocks.",
+            "Use parallel tool_calls: multiple function entries in the same response.",
+        ]
     lines.append(f"Prose-only attempt {streak} of {MAX_PROSE_ONLY_ROUNDS}. Next failure stops the agent.")
     return "\n".join(lines)
 
 
-def build_prose_only_exhausted_message(prompt: str, *, streak: int) -> str:
+def build_prose_only_exhausted_message(prompt: str, *, streak: int, use_text_tools: bool = False) -> str:
+    if use_text_tools:
+        fmt = "Emit <agent_tool_batch> with edit_cell_by_index / run_cell / insert_cell as needed."
+    else:
+        fmt = "Emit native tool_calls (insert_cell, edit_cell_by_index, run_cell) in one response."
     return (
-        f"Agent stopped: model returned prose without a tool batch after {streak} attempt(s). "
-        f"Emit <agent_tool_batch> with edit_cell_by_index / run_cell / insert_cell as needed. "
+        f"Agent stopped: model returned prose without tools after {streak} attempt(s). "
+        f"{fmt} "
         f"Original task: {prompt.strip()[:300]}"
     )
 
@@ -230,7 +257,10 @@ def build_error_recovery_nudge(
             "edit_cell_by_index / run_cell fixes in one JSON array."
         )
     else:
-        lines.append("Respond with tool_calls — not manual notebook instructions.")
+        lines.append(
+            "Respond with native tool_calls in one message — reads (if needed), "
+            "edit_cell_by_index, and run_cell fixes together."
+        )
     gate = verification.get("user_response_gate")
     if gate:
         lines.append(str(gate))
@@ -286,11 +316,13 @@ def build_action_nudge(
     round_idx: int,
     use_text_tools: bool = False,
 ) -> str:
-    fmt = (
-        "Emit <agent_tool_batch>[...]</agent_tool_batch> with required tools."
-        if use_text_tools
-        else "Respond with tool_calls, not manual notebook instructions."
-    )
+    if use_text_tools:
+        fmt = "Emit <agent_tool_batch>[...]</agent_tool_batch> with required tools."
+    else:
+        fmt = (
+            "Respond with native API tool_calls in ONE message (parallel enabled) — "
+            "not prose or manual instructions."
+        )
     return (
         f"Agentic mode: {fmt} "
         f"tools_executed={tools_executed}, round={round_idx}.\n"

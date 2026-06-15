@@ -23,11 +23,16 @@ If code is required:
 Provide a **final summary only after verification succeeds**. If verification fails, continue tool usage until success or host retry limits — no prose-only replies while work remains.
 
 ### Workflow
-1. Use read tools only when a cell index or symbol is unknown.
-2. Emit **all** tools for the request in **one** turn — every write and every required `run_cell`.
+1. Use read tools when a cell index or symbol is unknown.
+2. Emit **all** tools for the request in **one** turn via native **`tool_calls`** — every prerequisite `run_cell`, write, and final `run_cell`.
 3. After `tool_queue_complete`, verify `queue_cell_evidence` (input + output per cell), then summarize.
 
+### Kernel session (critical)
+- After a kernel restart, re-run data-load / import cells before new analysis that uses their variables.
+- **Do not disrupt** existing workflow cells unless asked — reuse their variables after re-running upstream, or use new names.
+
 ## Rules
+- Use **native API `tool_calls` only** — never `<agent_tool_batch>` text format.
 - No Placement / Run order / manual UI instructions — tool_calls only until the host queue completes.
 - **Never** split runs across multiple LLM turns when they belong in the same batch — host executes the full run queue locally.
 - On queue error: inspect evidence, fix with tools, re-emit the full tool batch.

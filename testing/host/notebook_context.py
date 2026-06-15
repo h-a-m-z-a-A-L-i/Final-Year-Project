@@ -58,43 +58,52 @@ def _cells_from_data(data: dict | None) -> list[dict]:
     except Exception:
         from cell_index import normalize_notebook_cells
     normalize_notebook_cells(cells)
+    try:
+        from .execution_metadata import enabled as _exec_meta_on, strip_cells
+    except Exception:
+        try:
+            from execution_metadata import enabled as _exec_meta_on, strip_cells
+        except Exception:
+            from testing.host.execution_metadata import enabled as _exec_meta_on, strip_cells
+    if not _exec_meta_on():
+        return strip_cells(cells)
     return cells
 
 
-def load_notebook_snapshot(url: str) -> tuple[dict | None, str]:
-    """Return (data, source) preferring live then persistent."""
+def load_notebook_snapshot(url: str, notebook_id=None) -> tuple[dict | None, str]:
+    """Return (data, source) preferring live then persistent (keyed by stable kernel id)."""
     if not url:
         return None, "none"
-    scraped = _scraped_dir()
-    filename = get_safe_filename(url)
-    live_path = scraped / "live" / filename
-    persistent_path = scraped / "persistent" / filename
-
-    live_data = read_json_file(live_path) if live_path.is_file() else None
-    if _cells_from_data(live_data):
-        return live_data, "live"
-
-    persistent_data = read_json_file(persistent_path) if persistent_path.is_file() else None
-    if _cells_from_data(persistent_data):
-        return persistent_data, "persistent"
-
-    legacy_path = scraped / filename
-    legacy_data = read_json_file(legacy_path) if legacy_path.is_file() else None
-    if _cells_from_data(legacy_data):
-        return legacy_data, "persistent"
-
-    return None, "none"
+    try:
+        from .notebook_storage import load_notebook_snapshot_for_url
+    except Exception:
+        try:
+            from notebook_storage import load_notebook_snapshot_for_url
+        except Exception:
+            from testing.host.notebook_storage import load_notebook_snapshot_for_url
+    return load_notebook_snapshot_for_url(url, notebook_id)
 
 
-def _snapshot_mtime(url: str, source: str) -> str | None:
+def _snapshot_mtime(url: str, source: str, notebook_id=None) -> str | None:
     if not url or source == "none":
         return None
-    filename = get_safe_filename(url)
-    scraped = _scraped_dir()
+    try:
+        from .notebook_storage import resolve_storage_key, notebook_paths
+    except Exception:
+        try:
+            from notebook_storage import resolve_storage_key, notebook_paths
+        except Exception:
+            from testing.host.notebook_storage import resolve_storage_key, notebook_paths
+    storage_key = resolve_storage_key(url, notebook_id)
+    paths = notebook_paths(storage_key)
     if source == "live":
-        path = scraped / "live" / filename
+        path = paths["live"]
+    elif source == "legacy-url":
+        path = _scraped_dir() / get_safe_filename(url)
+        if not path.is_file():
+            path = paths["persistent"]
     else:
-        path = scraped / "persistent" / filename
+        path = paths["persistent"]
     if not path.is_file():
         return None
     try:
@@ -229,7 +238,7 @@ def _empty_cell_context_note(cells: list[dict], cell_index: int | None) -> str:
 
 
 def _format_full_cell_block(cell: dict) -> str:
-    """Full snapshot block: index, type, execution metadata, input, and output."""
+    """Full snapshot block: index, type, input, and output."""
     try:
         idx = int(cell.get("index", 0))
     except Exception:
@@ -239,13 +248,7 @@ def _format_full_cell_block(cell: dict) -> str:
     lines = [f"### Cell [{idx}] ({ctype})", "metadata:"]
     if _cell_is_empty(cell) and ctype == "code":
         lines.append("  cell_state: empty (no input code)")
-    for key in (
-        "execution_order",
-        "execution_status",
-        "execution_title",
-        "execution_signal",
-        "state",
-    ):
+    for key in ("state",):
         val = cell.get(key)
         if val is not None and str(val).strip() != "":
             lines.append(f"  {key}: {val}")
@@ -274,11 +277,11 @@ def _pack_full_notebook(
     meta: dict,
     cell_index: int | None,
 ) -> tuple[str, list[int]]:
-    """Include every scraped cell with index, input, execution metadata, and output."""
+    """Include every scraped cell with index, input, and output (code cells)."""
     listed: list[int] = []
     sections: list[str] = [
         "## Full notebook snapshot",
-        "All cells below include index, input, execution metadata, and output (code cells).",
+        "All cells below include index, input, and output (code cells).",
     ]
     for cell in sorted(cells, key=lambda c: int(c.get("index", 0) or 0)):
         try:
@@ -296,7 +299,7 @@ def _pack_full_notebook(
     )
     extra_rules = (
         "\nrules: Full snapshot mode — every cell is listed. "
-        "Cite cells by 1-based index. Use execution_order and output when reasoning about runs."
+        "Cite cells by 1-based index. Use cell output when reasoning about prior runs."
     )
     return manifest + extra_rules + "\n\n" + body, listed
 
@@ -337,10 +340,6 @@ def _format_cell_block(
     if max_input is not None and len(inp) > max_input:
         inp = inp[:max_input] + "\n... [input truncated]"
     lines = [f"### Cell [{idx}] ({ctype})"]
-    if cell.get("execution_order") is not None:
-        lines.append(f"execution_order: {cell.get('execution_order')}")
-    if cell.get("execution_title"):
-        lines.append(f"execution_title: {cell.get('execution_title')}")
     lines.append("```python")
     lines.append(inp or "# empty")
     lines.append("```")
@@ -848,7 +847,7 @@ def pack_context(
             )
 
     if meta.get("editor_loading"):
-        body += "\n\nNOTE: Kernel/editor is loading — execution metadata may be stale."
+        body += "\n\nNOTE: Kernel/editor is loading — notebook snapshot may be stale."
 
     empty_note = _empty_cell_context_note(cells, cell_index)
     if empty_note:
@@ -909,7 +908,6 @@ def cell_slice_from_snapshot(url: str, cell_index: int) -> str:
                 "type": cell.get("type"),
                 "input": cell.get("input"),
                 "output": cell.get("output"),
-                "execution_order": cell.get("execution_order"),
             },
         },
         ensure_ascii=False,

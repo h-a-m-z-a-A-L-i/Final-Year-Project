@@ -30,21 +30,35 @@ def test_edit_verification_mismatch():
 
 
 def test_run_verification_success():
-    tv = verify_run_cell(29, run_wait={"ok": True, "output": "hello\n"}, cell_output="hello\n")
+    tv = verify_run_cell(
+        29,
+        run_wait={"ok": True, "run_verified": True, "output": "hello\n", "run_succeeded": True},
+        cell_output="hello\n",
+    )
     assert tv["verification_status"] == "verified"
     assert tv["evidence"]["execution_state"] == "completed"
 
 
 def test_run_verification_exception():
     out = "Traceback (most recent call last):\nKeyError: 'price'"
-    tv = verify_run_cell(29, run_wait={"ok": True, "output": out}, cell_output=out)
+    tv = verify_run_cell(
+        29,
+        run_wait={"ok": True, "run_verified": True, "output": out, "run_succeeded": False, "has_error": True},
+        cell_output=out,
+    )
     assert tv["verification_status"] == "failed"
     assert tv["evidence"]["execution_state"] == "error"
 
 
 def test_visualization_goal_verified():
     evidence = {"cells": [{"cell_index": 5, "output": "Figure(640x480)\n"}]}
-    tool_v = [verify_run_cell(5, cell_output=evidence["cells"][0]["output"])]
+    tool_v = [
+        verify_run_cell(
+            5,
+            run_wait={"ok": True, "run_verified": True, "output": evidence["cells"][0]["output"], "run_succeeded": True},
+            cell_output=evidence["cells"][0]["output"],
+        )
+    ]
     goal = verify_user_goal("Generate visualization", tool_verifications=tool_v, evidence=evidence, run_completed=[5])
     assert goal["goal_verified"] is True
 
