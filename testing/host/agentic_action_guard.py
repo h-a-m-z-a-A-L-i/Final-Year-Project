@@ -7,8 +7,33 @@ import re
 _ACTION_VERBS = (
     "write", "insert", "add", "create", "edit", "fix", "run", "execute",
     "import", "load", "print", "remove", "delete", "clean", "show", "display",
-    "put", "implement", "code", "verify",
+    "put", "implement", "code", "verify", "make", "predict", "train", "build",
 )
+
+_QUERY_ONLY_TOOLS = frozenset({
+    "notebook_get_cell",
+    "notebook_get_cells",
+    "notebook_find_symbol",
+    "notebook_recommend_placement",
+    "notebook_list_cells",
+    "notebook_graph_query",
+    "notebook_search",
+    "notebook_overview",
+    "notebook_executed_cells",
+    "notebook_snapshot_status",
+    "notebook_cell_neighbors",
+})
+
+_WRITE_TOOLS = frozenset({
+    "insert_cell",
+    "edit_cell_by_index",
+    "delete_by_index",
+    "creating_markdown_by_index",
+    "run_cell",
+    "run_all_cells",
+    "select_cell_by_index",
+    "click_cell",
+})
 
 _INSTRUCTION_MARKERS = (
     "placement",
@@ -52,6 +77,273 @@ def user_requests_run(prompt: str) -> bool:
 
 def is_write_only_request(prompt: str) -> bool:
     return is_actionable_notebook_request(prompt) and not user_requests_run(prompt)
+
+
+def prompt_requests_split_cell(prompt: str) -> bool:
+    try:
+        from .agentic_tool_chain import prompt_requests_split_cell as _split
+    except Exception:
+        from agentic_tool_chain import prompt_requests_split_cell as _split
+    return _split(prompt)
+
+
+def _split_source_cell_index(prompt: str) -> int | None:
+    try:
+        from .agentic_tool_chain import (
+            extract_insert_anchor_from_prompt,
+            extract_target_cell_index,
+        )
+    except Exception:
+        from agentic_tool_chain import (
+            extract_insert_anchor_from_prompt,
+            extract_target_cell_index,
+        )
+    return extract_target_cell_index(prompt) or extract_insert_anchor_from_prompt(prompt)
+
+
+def batch_has_split_source_read(prompt: str, tool_calls: list | None) -> bool:
+    """True when a split/divide batch already read the source cell (or context is enough)."""
+    if not prompt_requests_split_cell(prompt):
+        return True
+    target = _split_source_cell_index(prompt)
+    if target is None:
+        return False
+    for call in tool_calls or []:
+        name = getattr(call, "name", None) or (
+            call.get("name") if isinstance(call, dict) else None
+        )
+        args = getattr(call, "args", None) or (
+            call.get("args") if isinstance(call, dict) else {}
+        ) or {}
+        if name == "notebook_get_cell":
+            try:
+                if int(args.get("cell_index")) == int(target):
+                    return True
+            except (TypeError, ValueError):
+                pass
+        elif name == "notebook_get_cells":
+            raw_indices = args.get("cell_indices") or []
+            try:
+                indices = {int(i) for i in raw_indices}
+            except (TypeError, ValueError):
+                indices = set()
+            if int(target) in indices:
+                return True
+    return False
+
+
+def split_cell_write_without_source(prompt: str, tool_calls: list | None) -> bool:
+    """Split/divide requests with writes but no read of the source cell."""
+    if not prompt_requests_split_cell(prompt):
+        return False
+    names = []
+    for call in tool_calls or []:
+        name = getattr(call, "name", None) or (
+            call.get("name") if isinstance(call, dict) else None
+        )
+        if name:
+            names.append(str(name))
+    if not any(n in _WRITE_TOOLS for n in names):
+        return False
+    return not batch_has_split_source_read(prompt, tool_calls)
+
+
+def build_split_cell_source_nudge(prompt: str) -> str:
+    target = _split_source_cell_index(prompt)
+    cell_hint = f"cell {target}" if target is not None else "the source cell"
+    return (
+        f"Split/divide request requires the original source from {cell_hint}. "
+        "Call notebook_get_cell on that index first (or use full source already in Context), "
+        "then insert_cell (empty) and edit_cell_by_index with portions of the ORIGINAL code. "
+        "Never use print(1), print(2) placeholders or invent new code.\n"
+        f"Task: {prompt.strip()[:300]}"
+    )
+
+
+def is_query_only_tool_batch(parsed_tools: list[str] | None) -> bool:
+    """True when every parsed tool is a local read/query tool (no writes or runs)."""
+    names = [str(t).strip() for t in (parsed_tools or []) if str(t).strip()]
+    if not names:
+        return False
+    return all(n in _QUERY_ONLY_TOOLS for n in names)
+
+
+def batch_lacks_write_tools(parsed_tools: list[str] | None) -> bool:
+    names = [str(t).strip() for t in (parsed_tools or []) if str(t).strip()]
+    if not names:
+        return True
+    return not any(n in _WRITE_TOOLS for n in names)
+
+
+def is_implementation_request(prompt: str) -> bool:
+    """Actionable notebook work that must modify cells — not pure Q&A."""
+    if not is_actionable_notebook_request(prompt):
+        return False
+    low = str(prompt or "").strip().lower()
+    build_signals = (
+        "import", "load", "model", "regression", "predict", "train",
+        "insert", "create", "make", "add", "edit", "fix", "implement",
+        "linear", "sklearn", "performance", "accuracy", "metric",
+    )
+    return any(sig in low for sig in build_signals)
+
+
+def count_implied_tool_actions(prompt: str) -> int:
+    """Heuristic: how many distinct write/run tools the user message implies."""
+    text = str(prompt or "").strip()
+    if not text:
+        return 0
+    low = text.lower()
+    count = 0
+    try:
+        from .agentic_tool_chain import (
+            prompt_requests_delete,
+            prompt_requests_insert,
+        )
+    except Exception:
+        from agentic_tool_chain import (
+            prompt_requests_delete,
+            prompt_requests_insert,
+        )
+    if prompt_requests_delete(text):
+        count += 1
+    new_cell_hits = len(
+        re.findall(r"\b(?:make|create|add)\s+(?:a\s+)?new\s+cell\b", low)
+    )
+    if new_cell_hits:
+        count += new_cell_hits
+    elif prompt_requests_insert(text):
+        count += 1
+    if re.search(r"\b(?:edit|fix|update|change|modify)\b.*\bcell\b", low) or re.search(
+        r"\bcell\s*\d+\b.*\b(?:edit|fix|update|change|modify)\b", low
+    ):
+        count += 1
+    if user_requests_run(text):
+        count += 1
+    if is_implementation_request(text) and count < 2:
+        workflow_hits = sum(
+            1
+            for sig in (
+                "import", "load", "model", "regression", "predict",
+                "performance", "metric", "train", "sklearn",
+            )
+            if sig in low
+        )
+        if workflow_hits >= 2:
+            count = max(count, 3)
+        elif workflow_hits == 1 and ("cell" in low or "new cell" in low):
+            count = max(count, 2)
+    return count
+
+
+def build_query_only_rejection_message(
+    prompt: str,
+    *,
+    parsed_tools: list[str] | None = None,
+) -> str:
+    got = ", ".join(parsed_tools or []) or "read tools only"
+    return (
+        "Implementation requests must use write tools "
+        "(insert_cell, edit_cell_by_index, run_cell) in one batch — "
+        f"not {got} alone. Context already includes cell indices; "
+        "skip notebook_list_cells. Retry the request.\n"
+        f"Task: {prompt.strip()[:300]}"
+    )
+
+
+def is_query_tool(name: str) -> bool:
+    return str(name or "").strip() in _QUERY_ONLY_TOOLS
+
+
+def cumulative_has_write_tools(executed: list[dict] | None) -> bool:
+    """True when any dispatched tool in cumulative fire-and-forget state was a write/run."""
+    write_names = _WRITE_TOOLS
+    for row in executed or []:
+        if not isinstance(row, dict):
+            continue
+        tool = str(row.get("tool") or "").strip()
+        if tool in write_names:
+            return True
+    return False
+
+
+def should_force_implementation_batch(
+    *,
+    prompt: str,
+    parsed_tools: list[str] | None,
+    query_rounds_used: int,
+    max_query_rounds: int,
+    cumulative_has_writes: bool,
+    round_idx: int | None = None,
+    max_tool_rounds: int | None = None,
+) -> bool:
+    """Replace query-only LLM batches with host writes after query budget or on final API call."""
+    if cumulative_has_writes:
+        return False
+    if not is_actionable_notebook_request(prompt):
+        return False
+    if not is_query_only_tool_batch(parsed_tools):
+        return False
+    if int(query_rounds_used) >= int(max_query_rounds):
+        return True
+    if round_idx is not None and max_tool_rounds is not None:
+        if int(round_idx) >= int(max_tool_rounds) - 1:
+            return True
+    return False
+
+
+def build_query_budget_exhausted_nudge(
+    prompt: str,
+    *,
+    parsed_tools: list[str] | None = None,
+) -> str:
+    got = ", ".join(parsed_tools or []) or "read tools only"
+    return (
+        "Query budget exhausted — you already used your one optional read round. "
+        f"Do not call {got} again. "
+        "Dispatch insert_cell, edit_cell_by_index, and run_cell now in one tool_calls batch.\n"
+        f"Task: {prompt.strip()[:300]}"
+    )
+
+
+def build_query_loop_exhausted_message(prompt: str) -> str:
+    return (
+        "Could not plan implementation — query-only rounds exhausted without dispatching "
+        "insert_cell, edit_cell_by_index, or run_cell. "
+        "Retry with explicit cell indices or a smaller task.\n"
+        f"Task: {prompt.strip()[:300]}"
+    )
+
+
+MAX_INCOMPLETE_BATCH_NUDGES = 1
+
+
+def build_incomplete_batch_nudge(
+    prompt: str,
+    *,
+    parsed_count: int,
+    implied_count: int,
+    parsed_tools: list[str] | None = None,
+    use_text_tools: bool = False,
+) -> str:
+    missing = max(0, implied_count - parsed_count)
+    got = ", ".join(parsed_tools or []) or "(none)"
+    lines = [
+        f"Incomplete tool batch: user request implies ~{implied_count} tool action(s), "
+        f"but you returned {parsed_count} ({got}).",
+        f"Original task: {prompt.strip()}",
+        f"Emit ALL {implied_count}+ required tools in ONE response — {missing} more still needed.",
+    ]
+    if use_text_tools:
+        lines.append(
+            "Use <agent_tool_batch>[...]</agent_tool_batch> with every missing tool in one JSON array."
+        )
+    else:
+        lines.append(
+            "Use native API tool_calls with every missing function in one assistant message "
+            "(parallel_tool_calls enabled)."
+        )
+    return "\n".join(lines)
 
 
 def is_run_verify_request(prompt: str) -> bool:
@@ -265,6 +557,17 @@ def build_error_recovery_nudge(
     if gate:
         lines.append(str(gate))
     audit = verification.get("batch_audit") or {}
+    batch_err = verification.get("batch_error_context") or {}
+    succeeded = batch_err.get("succeeded_operations") or []
+    if succeeded:
+        lines.append("Other operations in this batch that succeeded:")
+        for op in succeeded[:8]:
+            if not isinstance(op, dict):
+                continue
+            ci = op.get("cell_index")
+            tool = op.get("tool") or "?"
+            preview = op.get("output_preview") or op.get("input_preview") or op.get("args_preview") or ""
+            lines.append(f"  - {tool} cell {ci}: {str(preview)[:200]}")
     if verification.get("goal_verified") is False:
         lines.append(f"GOAL NOT VERIFIED: {verification.get('goal_reason') or audit.get('next_required_action') or 'continue repairing'}")
         failed = audit.get("failed_cells") or []

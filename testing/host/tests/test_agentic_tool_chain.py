@@ -26,6 +26,12 @@ def test_infer_new_cell_below():
     assert infer_new_cell_index(args, {"new_cell_index": 4}) == 4
 
 
+def test_infer_new_cell_below_anchor_38():
+    args = {"index": 38, "direction": "below"}
+    assert infer_new_cell_index(args, {}) == 39
+    assert infer_new_cell_index(args, {"new_cell_index": 39}) == 39
+
+
 def test_build_edit_after_insert_on_timeout():
     args = {"index": 2, "direction": "below", "url": "https://example.com/edit"}
     result = {"ok": False, "error": "timeout"}

@@ -160,9 +160,49 @@ def ensure_tool_call_message_pairs(messages: list[dict[str, Any]]) -> list[dict[
     return out
 
 
+def sanitize_tool_message_chain(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """
+    Drop orphan role=tool messages (e.g. after ReAct trim removed assistant tool_calls).
+    Then repair missing tool responses for each assistant tool_calls turn.
+    """
+    if not messages:
+        return []
+
+    out: list[dict[str, Any]] = []
+    i = 0
+    while i < len(messages):
+        msg = messages[i]
+        if not isinstance(msg, dict):
+            i += 1
+            continue
+        if msg.get("role") == "tool":
+            i += 1
+            continue
+        out.append(dict(msg))
+        if msg.get("role") == "assistant" and msg.get("tool_calls"):
+            expected = set(_assistant_tool_call_ids(msg))
+            i += 1
+            while i < len(messages):
+                nxt = messages[i]
+                if not isinstance(nxt, dict):
+                    break
+                if nxt.get("_react_verification") or VERIFICATION_MARKER in str(nxt.get("content") or ""):
+                    break
+                if nxt.get("role") == "tool" and nxt.get("tool_call_id"):
+                    tid = str(nxt["tool_call_id"])
+                    if tid in expected:
+                        out.append(dict(nxt))
+                    i += 1
+                    continue
+                break
+            continue
+        i += 1
+    return ensure_tool_call_message_pairs(out)
+
+
 def messages_for_api(messages: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
     """Strip internal ReAct markers before provider API calls."""
-    repaired = ensure_tool_call_message_pairs(list(messages or []))
+    repaired = sanitize_tool_message_chain(list(messages or []))
     out: list[dict[str, Any]] = []
     for msg in repaired:
         if not isinstance(msg, dict):

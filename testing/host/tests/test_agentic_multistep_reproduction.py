@@ -82,14 +82,14 @@ def test_c_insert_edit_run_index_remap():
 
 
 def test_d_five_consecutive_inserts_anchor_chain():
-    """Expected: anchors 10,11,12,13,14 — new cells at 11,12,13,14,15."""
+    """Expected: all inserts reuse anchor 10 — new cells at 11..15 without live re-index."""
     calls = [
         ParsedToolCall(f"i{i}", "insert_cell", {"index": 10, "direction": "below"})
         for i in range(5)
     ]
     out = normalize_sequential_insert_anchors(calls)
     anchors = [c.args["index"] for c in out]
-    assert anchors == [10, 11, 12, 13, 14]
+    assert anchors == [10, 10, 10, 10, 10]
     # normalize_batch_indices only remaps edit/run for SINGLE insert batches.
     multi = normalize_batch_indices(out)
     assert len([c for c in multi if c.name == "insert_cell"]) == 5

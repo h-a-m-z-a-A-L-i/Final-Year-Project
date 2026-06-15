@@ -280,11 +280,13 @@ def map_command_to_native(cmd: dict) -> dict | None:
             mapped["cellIndex"] = dom_index
             mapped["dom_index"] = dom_index
         wait_ms = cmd.get("maxWaitMs") if cmd.get("maxWaitMs") is not None else cmd.get("max_wait_ms")
-        if wait_ms is not None:
+        if wait_ms is None:
+            mapped["maxWaitMs"] = 1500
+        else:
             try:
                 mapped["maxWaitMs"] = int(wait_ms)
             except Exception:
-                pass
+                mapped["maxWaitMs"] = 1500
         return mapped
 
     if action in {"send_key", "sendkey"}:
@@ -559,13 +561,21 @@ def run_insert_cell_flow(cmd: dict, timeout: float = 12.0) -> dict:
         )
         if dom_idx is not None:
             try:
+                from .cell_index import dom_to_app
+            except Exception:
+                from cell_index import dom_to_app
+            try:
                 inner = dict(inner)
                 if direction == "above":
                     new_dom = int(dom_idx)
                 else:
                     new_dom = int(dom_idx) + 1
-                inner.setdefault("cellIndex", new_dom)
-                inner.setdefault("domIndex", new_dom)
+                new_app = dom_to_app(new_dom)
+                inner["newDomIndex"] = new_dom
+                inner["domIndex"] = new_dom
+                inner["cellIndex"] = new_app
+                inner["new_cell_index"] = new_app
+                inner["appIndex"] = new_app
                 inner.setdefault("insertedBelow", int(dom_idx))
                 flow_extra = inner
             except Exception:
@@ -719,6 +729,11 @@ def run_insert_code_below_flow(cmd: dict, timeout: float = 12.0) -> dict:
             "insert succeeded but setting cell content failed",
         )
 
+    try:
+        from .cell_index import dom_to_app
+    except Exception:
+        from cell_index import dom_to_app
+    new_app = dom_to_app(int(new_dom))
     return build_result_event(
         cmd,
         True,
@@ -728,7 +743,8 @@ def run_insert_code_below_flow(cmd: dict, timeout: float = 12.0) -> dict:
             "insertedBelow": int(dom_anchor),
             "anchorDomIndex": int(dom_anchor),
             "newDomIndex": int(new_dom),
-            "new_cell_index": int(new_dom),
+            "new_cell_index": new_app,
+            "cell_index": new_app,
             "chars": len(content),
             "direction": direction,
         },

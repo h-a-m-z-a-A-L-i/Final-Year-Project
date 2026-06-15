@@ -69,6 +69,72 @@ def _legacy_url_filenames(url: str) -> list[str]:
     return [get_safe_filename(url)]
 
 
+def _normalize_tab_url(url: str) -> str:
+    raw = str(url or "").strip()
+    if not raw:
+        return ""
+    try:
+        from urllib.parse import urlparse, urlunparse
+
+        parsed = urlparse(raw)
+        if not parsed.scheme or not parsed.netloc:
+            return raw.split("#", 1)[0].split("?", 1)[0].rstrip("/")
+        return urlunparse(
+            (parsed.scheme.lower(), parsed.netloc.lower(), (parsed.path or "").rstrip("/"), "", "", "")
+        )
+    except Exception:
+        return raw.split("#", 1)[0].split("?", 1)[0].rstrip("/")
+
+
+def _tab_url_variants(url: str) -> set[str]:
+    normalized = _normalize_tab_url(url)
+    if not normalized:
+        return set()
+    variants = {normalized}
+    if normalized.endswith("/edit"):
+        variants.add(normalized[: -len("/edit")])
+    else:
+        variants.add(f"{normalized}/edit")
+    return variants
+
+
+def find_snapshot_by_tab_url(url: str) -> tuple[dict | None, str]:
+    """Scan live/persistent/legacy JSON for a matching tabUrl when key lookup fails."""
+    variants = _tab_url_variants(url)
+    if not variants:
+        return None, "none"
+
+    scraped = _scraped_dir()
+    search_dirs = (
+        ("live", scraped / "live"),
+        ("persistent", scraped / "persistent"),
+        ("legacy", scraped),
+    )
+    best_data: dict | None = None
+    best_source = "none"
+    best_score = (-1, "")
+    for source, subdir in search_dirs:
+        if not subdir.is_dir():
+            continue
+        for path in subdir.glob("*.json"):
+            raw = read_json_file(path)
+            if not _snapshot_has_cells(raw):
+                continue
+            tab = _normalize_tab_url(str((raw or {}).get("tabUrl") or ""))
+            if tab not in variants:
+                continue
+            updated = str((raw or {}).get("lastUpdated") or "")
+            cell_count = len((raw or {}).get("cells") or [])
+            score = (cell_count, updated)
+            if score > best_score:
+                best_score = score
+                best_data = raw
+                best_source = source if source != "legacy" else "legacy-url"
+    if _snapshot_has_cells(best_data):
+        return _clean_notebook_payload(best_data, tab_url=url), best_source
+    return None, "none"
+
+
 def _snapshot_has_cells(data: dict | None) -> bool:
     return bool(isinstance(data, dict) and isinstance(data.get("cells"), list) and data.get("cells"))
 
@@ -156,6 +222,10 @@ def load_notebook_snapshot_for_url(url: str, notebook_id=None, *, memory_store=N
     if _snapshot_has_cells(raw) and found is not None:
         cleaned = _clean_notebook_payload(raw, tab_url=url)
         return cleaned, "legacy-url"
+
+    data, source = find_snapshot_by_tab_url(url)
+    if _snapshot_has_cells(data):
+        return data, source
     return None, "none"
 
 

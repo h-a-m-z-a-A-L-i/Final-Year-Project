@@ -286,7 +286,14 @@ def compute_strict_goal_verified(
         return False, "verification_missing"
 
     if state.operations and not queue_complete and not v.get("tool_queue_complete"):
-        return False, "queue_incomplete"
+        write_only_verified = (
+            v.get("verified")
+            and v.get("batch_executed")
+            and not any(op.tool == "run_cell" for op in state.operations)
+            and not v.get("execution_error")
+        )
+        if not write_only_verified:
+            return False, "queue_incomplete"
 
     if not v and state.operations:
         return False, "verification_missing"
@@ -413,6 +420,12 @@ def attach_strict_execution(
 ) -> dict[str, Any]:
     """Merge strict queue state into verification and recompute goal_verified."""
     out = dict(verification or {})
+    if out.get("fire_and_forget"):
+        out["continue_react_loop"] = False
+        out["close_react_loop"] = True
+        out["await_llm_summary"] = False
+        return out
+
     queue_state.queue_complete = bool(
         out.get("tool_queue_complete")
         or out.get("run_queue_complete")

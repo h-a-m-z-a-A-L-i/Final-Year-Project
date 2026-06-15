@@ -83,13 +83,19 @@ def apply_execution_metadata_clear(data: dict) -> dict:
     return cleared
 
 
-def evaluate_persistent_update(existing: dict | None, incoming: dict) -> PersistentUpdateDecision:
+def evaluate_persistent_update(
+    existing: dict | None,
+    incoming: dict,
+    *,
+    sync_from_live: bool = False,
+) -> PersistentUpdateDecision:
     """
     Decide whether a persistent snapshot should be written.
 
     Safety rules:
     - Never replace a populated snapshot with an empty one.
-    - Never accept partial scrapes with fewer code cells than the stored snapshot.
+    - Never accept partial scrapes with fewer code cells than the stored snapshot
+      (unless sync_from_live: paired live write is authoritative for this scrape).
     - Only write when normalized notebook content actually changed.
     """
     incoming_cells = cells_from_snapshot(incoming)
@@ -106,7 +112,7 @@ def evaluate_persistent_update(existing: dict | None, incoming: dict) -> Persist
     if incoming_code == 0 and existing_code > 0:
         return PersistentUpdateDecision(False, False, "reject_empty_incoming")
 
-    if incoming_code < existing_code:
+    if incoming_code < existing_code and not sync_from_live:
         return PersistentUpdateDecision(
             False,
             False,

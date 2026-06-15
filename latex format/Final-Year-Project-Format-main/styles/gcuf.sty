@@ -1,0 +1,104 @@
+% author Muhammad Usman
+% created on   31-01-2026
+
+% modified: Muhammad Usman
+% modified on: 31-01-2026
+
+
+%\renewcommand{\figurename}{Fig.}
+%\renewcommand{\tablename}{Tab.}
+\renewcommand{\contentsname}{Contents}
+
+
+% Theorem and Algorithm commands
+\newtheorem{theorem}{Theorem}[chapter]
+\newtheorem{algorithm}{Algorithm}[chapter]
+\newtheorem{definition}{Definition}[chapter]
+
+% Subtitle, Authors Registration Number and Address
+\newcommand{\subtitle}[1]{\gdef\@subtitle{#1}}
+\subtitle{} %Default empty sub-title
+\newcommand{\regno}[1]{\gdef\@regno{#1}}
+\newcommand{\address}[1]{\gdef\@address{#1}}
+
+% Title of the degree
+% Some of the degree program are defined below
+\newcommand{\degree}[1]{\gdef\@degree{#1}}
+
+\def\BSDS{Bachelor of Science in Data Science (BS DS) }
+\def\BSDA{Bachelor of Science in Data Analytics (BS DA) }
+
+
+% Dept name
+% Some of the departments are defined below
+\newcommand{\dept}[1]{\gdef\@dept{#1}}
+\def\CDS{Center of Data Science (CDS) }
+
+
+
+% Superviser's name and affiliation
+\newcommand{\supervisor}[1]{\gdef\@supervisor{#1}}
+\newcommand{\supervisorAffiliation}[1]{\gdef\@supervisorAffiliation{#1}}
+\supervisorAffiliation{} % Default empty affiliation
+
+% Reset page numbering to 'arabic'
+\newcommand{\resetpagenumbering}{
+	\cleardoublepage
+	\pagenumbering{arabic}
+}
+
+
+
+
+
+% Redefine 'maketitle' command to make use of supervisor details and GCUF emblem
+\renewcommand{\maketitle}{
+
+\begin{titlepage}
+\begin{center}
+    {\LARGE\textbf{\@title}}\\
+    {\large\textbf\@subtitle}\\
+    
+    \vspace*{\stretch{2}}
+    
+    \includegraphics[width=0.30\textwidth]{img/gcuf.png}
+    
+    \vspace*{\stretch{2}}
+    
+    \begin{large}
+   	By\\
+   	\textbf{\@author}\\
+   	\expandafter\textbf{\@regno} \\
+    	
+   	\vspace*{\stretch{2}}
+     	
+   	Supervisor\\
+   	\textbf{\@adviser} \\
+
+    \vspace*{\stretch{2}}
+   	
+   	\textbf{\@adviserAffiliation}\\
+   	\end{large}
+
+    \vspace*{\stretch{3}}
+ 
+   	A FYP/thesis submitted in partial fulfillment of the requirements
+   	for the degree of {\@degree}\\
+ 
+   	\vspace*{\stretch{2}}
+   	
+   	\begin{large}
+   	In\\
+   	{\@dept},\\
+   	Government College University Faisalabad (GCUF),\\
+   	Faisalabad, Pakistan.
+     	
+   	\vspace*{\stretch{2}}
+    	
+   	(\@date)
+    \end{large}
+	
+\end{center}
+\end{titlepage}
+\pagenumbering{roman}
+}

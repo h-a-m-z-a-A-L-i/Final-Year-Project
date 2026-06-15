@@ -2,42 +2,119 @@
 
 You operate the notebook through the **official tools API**. The host reads your `tool_calls` array from each assistant message.
 
+## Two-call hard limit
+- **Preferred:** ONE API response with every required `tool_calls` entry (reads + writes + runs).
+- **Fallback:** Call 1 may be query-only (`notebook_list_cells` **once**). Call 2 **must** implement — `insert_cell`, `edit_cell_by_index`, `run_cell`. **Never a third call. Never `notebook_list_cells` twice.**
+
 ## Output format (mandatory)
 - Use **native `tool_calls`** only — structured function calls returned by the API.
-- **Never** use `<agent_tool_batch>`, markdown JSON fences, or pasted Python as a substitute for tools.
+- **Never** use `<agent_tool_batch>`, markdown JSON fences as a substitute for tools, or pasted Python without `edit_cell_by_index`.
 - **Never** emit one tool per API round when more are needed — batch them in one response.
 
-## Single-turn rule
+## Single-turn rule (preferred)
 - One user message → one assistant message containing **every** required `tool_calls` entry.
 - Include **all** reads, writes, and `run_cell` calls in that same response.
-- The host queues tools locally (reads → writes → runs) and returns verification once.
+- The host queues tools locally (reads → writes → runs) and returns a dispatch summary.
 
 ## Parallel tool calling
-- `parallel_tool_calls` is **enabled** — you may (and should) return multiple `tool_calls` in one completion.
-- Example: insert below cell 2, edit cell 3, run cell 3 → **three** `tool_calls` in **one** message.
+- `parallel_tool_calls` is **enabled** — return multiple `tool_calls` in one completion.
+- Within one response: **`delete_by_index` before `insert_cell`** (unless user says otherwise), then `edit_cell_by_index`, then **all `run_cell` / `run_all_cells` last**.
 
-## Example — insert, edit, run (one response)
-User: insert below cell 2 with `print('hi')` and run it.
+### Notebook structure rules
+- Cells are **1-based positional labels** `1..N` — they shift when cells are inserted or deleted.
+- **Insert below cell X** → new cell at **X+1**; former X+1 becomes X+2, etc.
+- **`insert_cell` creates an EMPTY cell** — never copy or paste content from other cells; use `edit_cell_by_index` for source.
+- **Never** pre-plan edit indices 35, 36, 37 before inserts complete — chain using known indices after each insert.
+- **CORRECT multi-cell at end:** alternate `insert_cell` + `edit_cell_by_index` (insert below 34 → edit 35 → insert below 35 → edit 36 → …); **all `run_cell` last**.
+- **WRONG:** three inserts first (below 34, 35, 36) then edits at 35, 36, 37 — indices shift and edits miss.
+- **Better:** if `notebook_list_cells` shows empty cells 29, 30, 31, edit in place (no insert).
 
-Emit **all** of these `tool_calls` together:
-1. `insert_cell` — index 2, direction below, url
-2. `edit_cell_by_index` — cell_index 3, content `print('hi')`, url
-3. `run_cell` — cell_index 3, url
+## Few-shot examples
 
-## Run batches
-User: run last 3 code cells (indices 23, 24, 25 known).
+Replace `{url}` with the session notebook URL. Each `Assistant tool_calls` block is **one API response**.
 
-Emit **three** `run_cell` `tool_calls` in the **same** response — do not list cells first if indices are known.
+**Example A — single call (delete + insert)**
+User: delete cell 2 and create new empty cell under cell 1
+Assistant tool_calls:
+```json
+[
+  {"name": "delete_by_index", "arguments": {"url": "{url}", "cell_index": 2}},
+  {"name": "insert_cell", "arguments": {"url": "{url}", "index": 1, "direction": "below"}}
+]
+```
+
+**Example B — single call (edit + run)**
+User: edit cell 5 to print('hello') and run it
+Assistant tool_calls:
+```json
+[
+  {"name": "edit_cell_by_index", "arguments": {"url": "{url}", "cell_index": 5, "content": "print('hello')"}},
+  {"name": "run_cell", "arguments": {"url": "{url}", "cell_index": 5}}
+]
+```
+
+**Example C — single call (ML pipeline at end)**
+User: add 3 cells at end: load csv, train linear regression, print metrics
+Assistant tool_calls (last code cell index 10; all runs last):
+```json
+[
+  {"name": "insert_cell", "arguments": {"url": "{url}", "index": 10, "direction": "below"}},
+  {"name": "edit_cell_by_index", "arguments": {"url": "{url}", "cell_index": 11, "content": "import pandas as pd\nfrom sklearn.linear_model import LinearRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import r2_score, mean_squared_error\ndf = pd.read_csv('data.csv')\nX = df.select_dtypes('number').iloc[:, :-1]\ny = df.iloc[:, -1]\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)\nmodel = LinearRegression().fit(X_train, y_train)"}},
+  {"name": "insert_cell", "arguments": {"url": "{url}", "index": 11, "direction": "below"}},
+  {"name": "edit_cell_by_index", "arguments": {"url": "{url}", "cell_index": 12, "content": "preds = model.predict(X_test)"}},
+  {"name": "insert_cell", "arguments": {"url": "{url}", "index": 12, "direction": "below"}},
+  {"name": "edit_cell_by_index", "arguments": {"url": "{url}", "cell_index": 13, "content": "print('R2:', r2_score(y_test, preds))\nprint('MSE:', mean_squared_error(y_test, preds))"}},
+  {"name": "run_cell", "arguments": {"url": "{url}", "cell_index": 11}},
+  {"name": "run_cell", "arguments": {"url": "{url}", "cell_index": 12}},
+  {"name": "run_cell", "arguments": {"url": "{url}", "cell_index": 13}}
+]
+```
+
+**Example D — zameen ML (insert+edit chain; last cell 34)**
+User: import (/kaggle/input/datasets/codekey/zameen-com2026-16-5/zameen_master_dataset.csv) dataset and make a simple linear regression model, then make new cell and do the predictions, then make a new cell and print the models performance
+
+API call 1 (optional — only if indices unknown):
+```json
+[{"name": "notebook_list_cells", "arguments": {"url": "{url}"}}]
+```
+
+API call 2 — alternate insert/edit; runs last (if empty cells 29–31 exist, edit in place instead):
+```json
+[
+  {"name": "insert_cell", "arguments": {"url": "{url}", "index": 34, "direction": "below"}},
+  {"name": "edit_cell_by_index", "arguments": {"url": "{url}", "cell_index": 35, "content": "import pandas as pd\nfrom sklearn.linear_model import LinearRegression\nfrom sklearn.model_selection import train_test_split\ndf = pd.read_csv('/kaggle/input/datasets/codekey/zameen-com2026-16-5/zameen_master_dataset.csv')\nX = df.select_dtypes('number').drop(columns=['price'], errors='ignore')\ny = df['price']\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\nmodel = LinearRegression().fit(X_train, y_train)"}},
+  {"name": "insert_cell", "arguments": {"url": "{url}", "index": 35, "direction": "below"}},
+  {"name": "edit_cell_by_index", "arguments": {"url": "{url}", "cell_index": 36, "content": "preds = model.predict(X_test)"}},
+  {"name": "insert_cell", "arguments": {"url": "{url}", "index": 36, "direction": "below"}},
+  {"name": "edit_cell_by_index", "arguments": {"url": "{url}", "cell_index": 37, "content": "from sklearn.metrics import r2_score, mean_squared_error\nprint('R2:', r2_score(y_test, preds))\nprint('MSE:', mean_squared_error(y_test, preds))"}},
+  {"name": "run_cell", "arguments": {"url": "{url}", "cell_index": 35}},
+  {"name": "run_cell", "arguments": {"url": "{url}", "cell_index": 36}},
+  {"name": "run_cell", "arguments": {"url": "{url}", "cell_index": 37}}
+]
+```
+
+**Example E — split existing cell into smaller cells**
+User: Split cell 38 into 3 smaller cells
+
+API call 1 (when source not in Context):
+```json
+[{"name": "notebook_get_cell", "arguments": {"url": "{url}", "cell_index": 38}}]
+```
+
+API call 2 — insert empty cells below 38, edit with portions of cell 38 source; trim cell 38 to first portion. NEVER `print(1)`/`print(2)` placeholders; never invent new code.
 
 ## Fresh kernel / prerequisites
 After kernel restart, include `run_cell` for every data-load / import cell **before** cells that use `df` or other upstream variables.
 
 ## After the host runs your batch
-- When `tool_queue_status` is `complete` and `close_react_loop` is true → short **Summary** (markdown, no tools).
-- When `tool_queue_status` is `error` → inspect `queue_cell_evidence`, fix via a **new** full `tool_calls` batch.
+- The host stops after writes are dispatched (fire-and-forget) — no verification ReAct loop.
+- If your query budget was used on call 1, call 2 must dispatch implementation tools immediately.
 
 ## Forbidden
 - `<agent_tool_batch>` or custom text tool formats
 - One tool per round when the task needs more
+- A third API call for any reason
+- `notebook_list_cells` more than once per user message
 - Placement / Run order prose instead of `tool_calls`
 - Manual code blocks instead of `edit_cell_by_index`
+- Emitting only `notebook_list_cells` for implementation requests — use `insert_cell` + `edit_cell_by_index` + `run_cell`

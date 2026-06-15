@@ -33,6 +33,33 @@ except Exception:
         def _content_matches(expected: str, actual: str) -> bool:
             return str(expected or "").strip() in str(actual or "")
 
+try:
+    from .cell_structure_observer import (
+        verify_cell_count_decreased,
+        verify_cell_count_increased,
+    )
+except Exception:
+    try:
+        from cell_structure_observer import (
+            verify_cell_count_decreased,
+            verify_cell_count_increased,
+        )
+    except Exception:
+        def verify_cell_count_increased(*_a, **_k) -> dict[str, Any]:
+            return {"ok": False, "verified": False}
+
+        def verify_cell_count_decreased(*_a, **_k) -> dict[str, Any]:
+            return {"ok": False, "verified": False}
+
+try:
+    from .cell_execution_observer import verify_cell_ran
+except Exception:
+    try:
+        from cell_execution_observer import verify_cell_ran
+    except Exception:
+        def verify_cell_ran(*_a, **_k) -> dict[str, Any]:
+            return {"ok": False, "verified": False}
+
 VERIFICATION_LOG_PATH = DATA_ROOT / "logs" / "agent_verification.log"
 _LOG_LOCK = threading.Lock()
 
@@ -105,11 +132,79 @@ def verify_edit_cell(
     )
 
 
+def verify_insert_cell(
+    *,
+    before_cells: list[dict[str, Any]] | None,
+    after_cells: list[dict[str, Any]] | None,
+    expected_delta: int = 1,
+    expected_indices: list[int] | None = None,
+) -> dict[str, Any]:
+    check = verify_cell_count_increased(
+        before_cells,
+        after_cells,
+        expected_delta=expected_delta,
+        expected_indices=expected_indices,
+    )
+    ok = bool(check.get("ok")) or len(check.get("new_indices") or []) >= int(expected_delta)
+    status = "verified" if ok else "failed"
+    return tool_verification_record(
+        "insert_cell",
+        tool_succeeded=True,
+        verification_status=status,
+        evidence={
+            "expected_delta": expected_delta,
+            "new_indices": check.get("new_indices"),
+            "count_before": check.get("count_before"),
+            "count_after": check.get("count_after"),
+            "count_delta": check.get("count_delta"),
+            "missing_expected_indices": check.get("missing_expected_indices"),
+        },
+        reason="" if ok else "Insert did not increase notebook cell count",
+        next_action_required=not ok,
+    )
+
+
+def verify_delete_cell(
+    *,
+    before_cells: list[dict[str, Any]] | None,
+    after_cells: list[dict[str, Any]] | None,
+    cell_index: int | None = None,
+    expected_delta: int = 1,
+) -> dict[str, Any]:
+    expected_indices = [int(cell_index)] if cell_index is not None else None
+    check = verify_cell_count_decreased(
+        before_cells,
+        after_cells,
+        expected_delta=expected_delta,
+        expected_indices=expected_indices,
+    )
+    ok = bool(check.get("ok")) or len(check.get("removed_indices") or []) >= int(expected_delta)
+    status = "verified" if ok else "failed"
+    return tool_verification_record(
+        "delete_by_index",
+        tool_succeeded=True,
+        verification_status=status,
+        evidence={
+            "cell_index": cell_index,
+            "expected_delta": expected_delta,
+            "removed_indices": check.get("removed_indices"),
+            "count_before": check.get("count_before"),
+            "count_after": check.get("count_after"),
+            "count_delta": check.get("count_delta"),
+            "missing_expected_indices": check.get("missing_expected_indices"),
+        },
+        reason="" if ok else f"Delete did not remove cell(s) from notebook",
+        next_action_required=not ok,
+    )
+
+
 def verify_run_cell(
     cell_index: int,
     *,
     run_wait: dict[str, Any] | None = None,
     cell_output: str | None = None,
+    before_cells: list[dict[str, Any]] | None = None,
+    after_cells: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     output = str(cell_output if cell_output is not None else (run_wait or {}).get("output") or "")
     analysis = analyze_cell_output(output)
@@ -117,6 +212,12 @@ def verify_run_cell(
     run_verified = bool((run_wait or {}).get("run_verified"))
     if (run_wait or {}).get("run_cell_result"):
         run_verified = bool(run_wait["run_cell_result"].get("run_verified"))
+    if before_cells is not None and after_cells is not None:
+        observer = verify_cell_ran(before_cells, after_cells, int(cell_index))
+        if observer.get("verified"):
+            run_verified = True
+        elif run_verified and not observer.get("verified"):
+            run_verified = False
     executed = dispatched and (
         run_verified
         or bool(output or (run_wait or {}).get("run_completed"))
@@ -371,6 +472,17 @@ def verify_user_goal(
         if unverified_edits:
             return {"goal_verified": False, "goal_reason": unverified_edits[0].get("reason") or "Edit not verified", "goal_type": goal_type}
         return {"goal_verified": True, "goal_reason": "Edits verified (no run required)", "goal_type": goal_type}
+    structure_verified = [
+        tv for tv in tool_verifications
+        if tv.get("tool") in ("insert_cell", "delete_by_index", "creating_markdown_by_index")
+        and tv.get("verification_status") == "verified"
+    ]
+    if structure_verified:
+        return {
+            "goal_verified": True,
+            "goal_reason": "Notebook structure changes verified (no run required)",
+            "goal_type": goal_type,
+        }
     return {"goal_verified": True, "goal_reason": "No executable goal constraints", "goal_type": goal_type}
 
 
@@ -386,7 +498,42 @@ def build_tool_verifications(
     waits = list(run_waits or [])
     evidence = verification.get("queue_cell_evidence") or {}
     cell_map = _cell_evidence_map(evidence)
+    before_cells = verification.get("structure_before")
+    after_cells = verification.get("structure_after")
     out: list[dict[str, Any]] = []
+
+    insert_count = sum(
+        1 for row in (verification.get("executed") or [])
+        if isinstance(row, dict) and row.get("tool") == "insert_cell"
+    )
+    if insert_count and before_cells is not None and after_cells is not None:
+        out.append(
+            verify_insert_cell(
+                before_cells=before_cells,
+                after_cells=after_cells,
+                expected_delta=insert_count,
+            )
+        )
+
+    delete_rows = [
+        row for row in (verification.get("executed") or [])
+        if isinstance(row, dict) and row.get("tool") == "delete_by_index"
+    ]
+    if delete_rows and before_cells is not None and after_cells is not None:
+        for row in delete_rows:
+            ci = (row.get("cell_index") or row.get("index"))
+            try:
+                ci = int(ci) if ci is not None else None
+            except (TypeError, ValueError):
+                ci = None
+            out.append(
+                verify_delete_cell(
+                    before_cells=before_cells,
+                    after_cells=after_cells,
+                    cell_index=ci,
+                    expected_delta=1,
+                )
+            )
 
     for ci, content in edits.items():
         cell = cell_map.get(int(ci)) or {}
@@ -397,7 +544,15 @@ def build_tool_verifications(
         wait = waits[idx] if idx < len(waits) else {}
         cell = cell_map.get(int(ci)) or {}
         output = cell.get("output") if cell.get("output") is not None else wait.get("output")
-        out.append(verify_run_cell(int(ci), run_wait=wait, cell_output=str(output or "")))
+        out.append(
+            verify_run_cell(
+                int(ci),
+                run_wait=wait,
+                cell_output=str(output or ""),
+                before_cells=before_cells,
+                after_cells=after_cells,
+            )
+        )
 
     for row in verification.get("batch") or []:
         if not isinstance(row, dict):
@@ -407,12 +562,44 @@ def build_tool_verifications(
             ci = row.get("cell_index")
             if ci is not None:
                 cell = cell_map.get(int(ci)) or {}
-                out.append(verify_run_cell(int(ci), cell_output=str(cell.get("output") or "")))
+                out.append(
+                    verify_run_cell(
+                        int(ci),
+                        cell_output=str(cell.get("output") or ""),
+                        before_cells=before_cells,
+                        after_cells=after_cells,
+                    )
+                )
         if tool == "edit_cell_by_index" and row.get("cell_index") is not None:
             ci = int(row["cell_index"])
             if not any(tv.get("tool") == "edit_cell_by_index" and (tv.get("evidence") or {}).get("cell_index") == ci for tv in out):
                 cell = cell_map.get(ci) or {}
                 out.append(verify_edit_cell(ci, "", str(cell.get("input") or "")))
+        if tool == "insert_cell" and not any(tv.get("tool") == "insert_cell" for tv in out):
+            if before_cells is not None and after_cells is not None:
+                out.append(
+                    verify_insert_cell(
+                        before_cells=before_cells,
+                        after_cells=after_cells,
+                        expected_delta=1,
+                    )
+                )
+        if tool == "delete_by_index" and row.get("cell_index") is not None:
+            ci = row.get("cell_index")
+            if not any(
+                tv.get("tool") == "delete_by_index"
+                and (tv.get("evidence") or {}).get("cell_index") == ci
+                for tv in out
+            ):
+                if before_cells is not None and after_cells is not None:
+                    out.append(
+                        verify_delete_cell(
+                            before_cells=before_cells,
+                            after_cells=after_cells,
+                            cell_index=int(ci),
+                            expected_delta=1,
+                        )
+                    )
 
     return out
 

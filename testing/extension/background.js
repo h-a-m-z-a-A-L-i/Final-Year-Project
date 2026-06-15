@@ -111,8 +111,8 @@ function scrapeNotebook() {
 
   collectFromRoot(document);
   const extractExecutionMeta = (cell) => {
-    // Disabled until host execution-metadata pipeline is stable (see KERNEL_EXECUTION_METADATA_ENABLED).
-    const KERNEL_EXECUTION_METADATA_ENABLED = false;
+    // Scrape execution metadata from Jupyter DOM (prompt numbers, run buttons, titles).
+    const KERNEL_EXECUTION_METADATA_ENABLED = true;
     if (!KERNEL_EXECUTION_METADATA_ENABLED) {
       return {
         execution_order: null,
@@ -396,7 +396,7 @@ function pingContentScript(tabId, retryCount = 0) {
         // On the first failure, try injecting the content script into the tab (helps already-open tabs)
         if (retryCount === 0) {
           try {
-            chrome.scripting.executeScript({ target: { tabId: tabId, allFrames: true }, files: ["kernel_state_listener.js"] })
+            chrome.scripting.executeScript({ target: { tabId: tabId, allFrames: true }, files: ["cell_index_utils.js", "kernel_state_listener.js"] })
               .then(() => {
                 console.log(`[Ping] Injected kernel_state_listener into tab ${tabId}, retrying ping...`);
                 setTimeout(() => pingContentScript(tabId, retryCount + 1).then(resolve), 200);
@@ -439,7 +439,7 @@ async function sendKernelStateToTab(tabId, kernelData) {
           console.log(`[SendState] Tab ${tabId} failed (attempt ${retryCount + 1}): ${errorMsg}`);
           // Try injecting content script on first failure (helps already-open tabs)
           if (retryCount === 0) {
-            chrome.scripting.executeScript({ target: { tabId: tabId, allFrames: true }, files: ["kernel_state_listener.js"] })
+            chrome.scripting.executeScript({ target: { tabId: tabId, allFrames: true }, files: ["cell_index_utils.js", "kernel_state_listener.js"] })
               .then(() => {
                 console.log(`[SendState] Injected kernel_state_listener into tab ${tabId}, retrying send...`);
                 retryCount++;
@@ -836,6 +836,24 @@ const NOTEBOOK_SCOPED_MSG_TYPES = new Set([
   "SET_AGENTIC_SETTINGS",
 ]);
 
+/** UI uses sendMessage callbacks; ack immediately and stream/reply via tab broadcasts. */
+const ASYNC_NATIVE_MSG_TYPES = new Set([
+  "CHAT_REQUEST",
+  "STOP_CHAT",
+  "GET_HISTORY",
+  "CLEAR_HISTORY",
+  "GET_GRAPH",
+  "GET_AGENTIC_SETTINGS",
+  "SET_AGENTIC_SETTINGS",
+]);
+
+function ackRuntimeMessage(sendResponse, payload = { ok: true, accepted: true }) {
+  if (typeof sendResponse !== "function") return;
+  try {
+    sendResponse(payload);
+  } catch (_) {}
+}
+
 const TAB_BROADCAST_TYPES = new Set([
   "CHAT_STREAM",
   "CHAT_STREAM_END",
@@ -935,18 +953,19 @@ function getPort() {
 
         const isDeleteOp = payload?.type === 'DELETE_CELL';
         const isSelectOp = payload?.type === 'SELECT_CELL_BY_INDEX';
+        const isInsertOp = payload?.type === 'INSERT_CELL';
         const isClickEditOp =
           payload?.type === 'CLICK_CELL_BY_INDEX' && payload?.runCell !== true;
         const isFastCellOp =
-          payload?.type === 'CLICK_CELL_BY_INDEX'
-          && payload?.runCell === true
-          || payload?.type === 'INSERT_CELL'
+          (payload?.type === 'CLICK_CELL_BY_INDEX' && payload?.runCell === true)
           || payload?.type === 'RUN_CELL_BY_INDEX'
           || payload?.type === 'CREATING_MARKDOWN_BY_INDEX';
         const isRunOp =
           payload?.type === 'RUN_CELL_BY_INDEX'
           || (payload?.type === 'CLICK_CELL_BY_INDEX' && payload?.runCell === true);
-        const frameTimeoutMs = isDeleteOp || isSelectOp || isClickEditOp
+        const frameTimeoutMs = isInsertOp
+          ? Math.max(10000, Number(payload?.maxWaitMs) || 1500) + 2500 + backgroundBoostMs
+          : isDeleteOp || isSelectOp || isClickEditOp
           ? Math.max(800, Number(payload?.maxWaitMs) || 400) + 400 + backgroundBoostMs
           : isFastCellOp
             ? Math.max(160, Number(payload?.maxWaitMs) || 160) + 80 + backgroundBoostMs
@@ -955,7 +974,7 @@ function getPort() {
               : isRunOp
                 ? Math.max(600, Number(payload?.maxWaitMs) || 240) + 500 + backgroundBoostMs
                 : 12000;
-        const useFrameRace = (isFastCellOp || isEditOp || isRunOp || isDeleteOp || isSelectOp || isClickEditOp) && orderedFrames.length > 0;
+        const useFrameRace = (isInsertOp || isFastCellOp || isEditOp || isRunOp || isDeleteOp || isSelectOp || isClickEditOp) && orderedFrames.length > 0;
 
         const raceFramesForSuccess = (frames) =>
           new Promise((resolve) => {
@@ -1209,7 +1228,11 @@ function getPort() {
           markdownDelayMs: msg.markdownDelayMs,
           requestId: msg.requestId,
           url: effectiveUrl,
+          maxWaitMs: msg.maxWaitMs || 1500,
         };
+        if (msg.content !== undefined && msg.content !== null) {
+          payload.content = msg.content;
+        }
 
         dispatchToFrames(tabId, payload, (result) => {
           getPort().postMessage({
@@ -1571,7 +1594,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   // Handle prompt observer signals locally to trigger an immediate re-scan (throttled)
   if (msg?.type === 'PROMPT_SIGNAL') {
-    console.log(`[BG-SIGNAL] Received: "${msg.text}" from cell ${msg.cellIndex || '?'}`);
+    console.log(`[BG-SIGNAL] Received: "${msg.text}" from cell ${msg.cellIndex || '?'} phase=${msg.phase || '?'}`);
     const p = getPort();
     if (p) {
       p.postMessage({
@@ -1580,12 +1603,37 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         tabUrl: sender.tab?.url,
       });
     }
+    const tabId = sender.tab?.id;
+    const tabUrl = sender.tab?.url;
     const now = Date.now();
-    if (now - __lastPromptSignal > 250) {
+    if (now - __lastPromptSignal > 50) {
       __lastPromptSignal = now;
+      if (typeof tabId === "number" && isTargetUrl(tabUrl)) {
+        chrome.tabs.get(tabId, (tab) => {
+          if (!chrome.runtime.lastError && tab) {
+            scrapeTargetTabFast(tab, notebookIdentityByTab[tabId]);
+          }
+        });
+      }
       try { sendTabs(); } catch (e) { /* ignore */ }
     }
-    return true;
+    if (typeof tabId === "number" && isTargetUrl(tabUrl)) {
+      setTimeout(() => {
+        chrome.tabs.get(tabId, (tab) => {
+          if (!chrome.runtime.lastError && tab) {
+            scrapeTargetTabFast(tab, notebookIdentityByTab[tabId]);
+          }
+        });
+      }, 120);
+      setTimeout(() => {
+        chrome.tabs.get(tabId, (tab) => {
+          if (!chrome.runtime.lastError && tab) {
+            scrapeTargetTabFast(tab, notebookIdentityByTab[tabId]);
+          }
+        });
+      }, 350);
+    }
+    return false;
   }
 
   const p = getPort();
@@ -1606,16 +1654,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (sendResponse) {
       sendResponse({ error: hostError });
     }
-    return true;
+    return false;
   }
   if (p) {
     if (msg?.type === "GET_GRAPH" && typeof msg?.tabId !== "number") {
+      ackRuntimeMessage(sendResponse);
       resolveTabIdForUrl(msg?.url, sender, (tabId) => {
         if (typeof tabId === "number") {
           p.postMessage({ ...msg, tabId });
         }
       });
-      return true;
+      return false;
     }
 
     // Notebook data/history is keyed by the tab's /edit URL, not the Jupyter iframe URL.
@@ -1629,14 +1678,29 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     // Tag the message with the sender's tabId so we know where to send the AI's reply
     msg.tabId = sender.tab?.id;
+    if (ASYNC_NATIVE_MSG_TYPES.has(msg?.type)) {
+      ackRuntimeMessage(sendResponse);
+    }
     p.postMessage(msg);
   }
-  return true; // Keep channel open for async
+  return false;
 });
 
 // ── Main scan logic (includes UI check) ──────────────────────────────────────
+const SCRAPE_MS_ACTIVE = 300;
+const SCRAPE_MS_IDLE = 5000;
+const SCRAPE_MS_AFTER_SIGNAL = 80;
+let __scrapeTimer = null;
+let __activeTabId = null;
+let __scrapeInFlight = false;
+
+function hasActiveTargetTab(targets) {
+  if (typeof __activeTabId !== "number") return false;
+  return (targets || []).some((t) => t.id === __activeTabId);
+}
+
 function scheduleNotebookScrape(delayMs = 2000) {
-  const wait = Math.max(500, Number(delayMs) || 2000);
+  const wait = Math.max(SCRAPE_MS_AFTER_SIGNAL, Number(delayMs) || SCRAPE_MS_AFTER_SIGNAL);
   setTimeout(() => {
     try {
       sendTabs();
@@ -1644,22 +1708,110 @@ function scheduleNotebookScrape(delayMs = 2000) {
   }, wait);
 }
 
+function scheduleNextScrapeCycle(activeTargetVisible) {
+  if (__scrapeTimer) {
+    clearTimeout(__scrapeTimer);
+    __scrapeTimer = null;
+  }
+  const delay = activeTargetVisible ? SCRAPE_MS_ACTIVE : SCRAPE_MS_IDLE;
+  __scrapeTimer = setTimeout(() => {
+    try {
+      sendTabs();
+    } catch (_) {}
+  }, delay);
+}
+
 function maybeScheduleScrapeAfterRun(payload, result) {
   if (
     result?.ok
     && (payload?.type === "RUN_CELL_BY_INDEX" || payload?.runCell === true)
   ) {
-    scheduleNotebookScrape(2000);
+    scheduleNotebookScrape(SCRAPE_MS_AFTER_SIGNAL);
+    setTimeout(() => { try { sendTabs(); } catch (_) {} }, 250);
+    setTimeout(() => { try { sendTabs(); } catch (_) {} }, 600);
   }
 }
 
+function scrapeTargetTabFast(tab, cachedIdentity) {
+  if (!tab || typeof tab.id !== "number") return;
+  const identity = cachedIdentity || notebookIdentityByTab[tab.id] || fallbackNotebookIdentity(tab.url);
+
+  chrome.scripting.executeScript({
+    target: { tabId: tab.id, allFrames: true },
+    func: scrapeNotebook,
+  }, (scrapeResults) => {
+    if (chrome.runtime.lastError) {
+      console.log(`[fastScrape] Tab ${tab.id} error:`, chrome.runtime.lastError);
+      return;
+    }
+    const allCells = [];
+    const seenCells = new Set();
+    let notebookTitle = "";
+    for (const r of (scrapeResults || [])) {
+      if (r?.result?.cellCount > 0) {
+        for (const cell of r.result.cells) {
+          const key = [
+            String(cell?.index ?? ""),
+            String(cell?.type ?? ""),
+            String(cell?.input ?? ""),
+            String(cell?.output ?? ""),
+            String(cell?.execution_status ?? ""),
+          ].join("||");
+          if (seenCells.has(key)) continue;
+          seenCells.add(key);
+          allCells.push(cell);
+        }
+        if (r.result.title) notebookTitle = r.result.title;
+      }
+    }
+    const kernelEntry = kernelStateByTab[tab.id] || {};
+    const scenario = kernelEntry.scenario || KERNEL_SCENARIO_ON;
+    getPort().postMessage({
+      type: "NOTEBOOK_DATA",
+      tabUrl: tab.url,
+      tabId: tab.id,
+      notebookId: identity.notebookId,
+      notebookKey: identity.notebookKey,
+      title: notebookTitle,
+      cellCount: allCells.length,
+      cells: allCells,
+      kernelStatus: kernelEntry.lastStatus || "running",
+      kernelScenario: scenario,
+      kernelState: { fastScrape: true },
+    });
+  });
+}
+
 function sendTabs() {
+  if (__scrapeInFlight) {
+    scheduleNextScrapeCycle(false);
+    return;
+  }
+  __scrapeInFlight = true;
+
   chrome.tabs.query({}, (tabs) => {
     const targets = tabs.filter(t => {
       return isTargetUrl(t.url);
     });
 
     console.log(`[sendTabs] Found ${targets.length} target tabs to process`);
+    const activeTargetVisible = hasActiveTargetTab(targets);
+
+    if (targets.length === 0) {
+      __scrapeInFlight = false;
+      scheduleNextScrapeCycle(false);
+      return;
+    }
+
+    let pending = targets.length;
+
+    const finishOne = () => {
+      pending -= 1;
+      if (pending <= 0) {
+        __scrapeInFlight = false;
+        scheduleNextScrapeCycle(activeTargetVisible);
+      }
+    };
 
     for (const tab of targets) {
       console.log(`[sendTabs] Processing tab ${tab.id}: ${tab.url}`);
@@ -1693,6 +1845,7 @@ function sendTabs() {
       }, (results) => {
           if (chrome.runtime.lastError) {
             console.log(`[sendTabs] Tab ${tab.id} - iframe query error:`, chrome.runtime.lastError);
+            finishOne();
             return;
           }
           const iframes = results?.[0]?.result || [];
@@ -1702,6 +1855,7 @@ function sendTabs() {
           }, (scrapeResults) => {
               if (chrome.runtime.lastError) {
                 console.log(`[sendTabs] Tab ${tab.id} - scrape error:`, chrome.runtime.lastError);
+                finishOne();
                 return;
               }
               const allCells = [];
@@ -1715,6 +1869,7 @@ function sendTabs() {
                       String(cell?.type ?? ""),
                       String(cell?.input ?? ""),
                       String(cell?.output ?? ""),
+                      String(cell?.execution_status ?? ""),
                     ].join("||");
                     if (seenCells.has(key)) continue;
                     seenCells.add(key);
@@ -1779,6 +1934,7 @@ function sendTabs() {
                   } else {
                     console.log(`[Background] Tab ${tab.id} content script never became ready`);
                   }
+                  finishOne();
                 })();
               });
           });
@@ -1799,7 +1955,15 @@ chrome.runtime.onStartup.addListener(() => {
   sendTabs();
 });
 
-setInterval(sendTabs, 5000);
+chrome.tabs.onActivated.addListener(({ tabId }) => {
+  __activeTabId = tabId;
+});
+
+chrome.windows.onFocusChanged.addListener(() => {
+  chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
+    if (tabs && tabs[0]) __activeTabId = tabs[0].id;
+  });
+});
 
 chrome.tabs.onUpdated.addListener((id, info) => {
   console.log(`[Tab ${id}] Updated: ${info.status}`);

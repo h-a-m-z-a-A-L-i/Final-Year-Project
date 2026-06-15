@@ -2,27 +2,99 @@
 
 You MUST return **multiple** `tool_calls` in **one** assistant message when the task needs multiple steps.
 
+**Hard limit: at most 2 LLM API calls per user message.** Preferred: ONE call with all tools. Fallback: one query call (`notebook_list_cells` once), then one implementation call — never a third.
+
 ## Mandatory
 - One user message → one assistant message containing **all** required `tool_calls` (array).
 - Do **not** wait for tool results before emitting the next call — the host runs the full queue locally.
-- If the task needs 7 steps, your response must contain **7** entries in `tool_calls`.
+- Within one response: **`delete_by_index` before `insert_cell`**, then `edit_cell_by_index`, then **all `run_cell` last**.
 
-## Example (one response, 4 tool_calls)
-User: insert below cell 2 with print('hi') and run it.
+### Notebook structure rules
+- Cells are **1-based positional labels** `1..N` — they shift on insert/delete.
+- **Insert below X** → new cell at **X+1**; former X+1 becomes X+2.
+- **`insert_cell` creates an EMPTY cell** — never copy content; use `edit_cell_by_index` for source.
+- **Never** pre-plan edits at 35, 36, 37 before inserts finish — alternate insert + edit.
+- **CORRECT:** insert below 34 → edit 35 → insert below 35 → edit 36 → insert below 36 → edit 37 → runs last.
+- **WRONG:** three inserts (34, 35, 36) then edits (35, 36, 37).
+- **Better:** use empty cells from `notebook_list_cells` (e.g. 29–31) and edit in place.
 
-Your assistant message must include tool_calls **all at once**:
-1. `insert_cell` — index 2, direction below
-2. `edit_cell_by_index` — cell_index 3, content `print('hi')`
-3. `run_cell` — cell_index 3
+## Few-shot examples
 
-Skip `notebook_list_cells` when indices are already in Context or the user message.
+Replace `{url}` with the session notebook URL. Each `Assistant tool_calls` block is **one API response**.
 
-## Run batches
-User: run last 3 code cells.
+**Example A — single call (delete + insert)**
+User: delete cell 2 and create new empty cell under cell 1
+Assistant tool_calls:
+```json
+[
+  {"name": "delete_by_index", "arguments": {"url": "{url}", "cell_index": 2}},
+  {"name": "insert_cell", "arguments": {"url": "{url}", "index": 1, "direction": "below"}}
+]
+```
 
-If indices are known (e.g. 23, 24, 25), emit **three** `run_cell` calls in the **same** response — no list step first.
+**Example B — single call (edit + run)**
+User: edit cell 5 to print('hello') and run it
+Assistant tool_calls:
+```json
+[
+  {"name": "edit_cell_by_index", "arguments": {"url": "{url}", "cell_index": 5, "content": "print('hello')"}},
+  {"name": "run_cell", "arguments": {"url": "{url}", "cell_index": 5}}
+]
+```
+
+**Example C — single call (ML pipeline at end)**
+User: add 3 cells at end: load csv, train linear regression, print metrics
+Assistant tool_calls (last code cell index 10; all runs last):
+```json
+[
+  {"name": "insert_cell", "arguments": {"url": "{url}", "index": 10, "direction": "below"}},
+  {"name": "edit_cell_by_index", "arguments": {"url": "{url}", "cell_index": 11, "content": "import pandas as pd\nfrom sklearn.linear_model import LinearRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import r2_score, mean_squared_error\ndf = pd.read_csv('data.csv')\nX = df.select_dtypes('number').iloc[:, :-1]\ny = df.iloc[:, -1]\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)\nmodel = LinearRegression().fit(X_train, y_train)"}},
+  {"name": "insert_cell", "arguments": {"url": "{url}", "index": 11, "direction": "below"}},
+  {"name": "edit_cell_by_index", "arguments": {"url": "{url}", "cell_index": 12, "content": "preds = model.predict(X_test)"}},
+  {"name": "insert_cell", "arguments": {"url": "{url}", "index": 12, "direction": "below"}},
+  {"name": "edit_cell_by_index", "arguments": {"url": "{url}", "cell_index": 13, "content": "print('R2:', r2_score(y_test, preds))\nprint('MSE:', mean_squared_error(y_test, preds))"}},
+  {"name": "run_cell", "arguments": {"url": "{url}", "cell_index": 11}},
+  {"name": "run_cell", "arguments": {"url": "{url}", "cell_index": 12}},
+  {"name": "run_cell", "arguments": {"url": "{url}", "cell_index": 13}}
+]
+```
+
+**Example D — zameen ML (insert+edit chain; last cell 34)**
+User: import (/kaggle/input/datasets/codekey/zameen-com2026-16-5/zameen_master_dataset.csv) dataset and make a simple linear regression model, then make new cell and do the predictions, then make a new cell and print the models performance
+
+API call 1 (optional — only if indices unknown):
+```json
+[{"name": "notebook_list_cells", "arguments": {"url": "{url}"}}]
+```
+
+API call 2 — alternate insert/edit; runs last:
+```json
+[
+  {"name": "insert_cell", "arguments": {"url": "{url}", "index": 34, "direction": "below"}},
+  {"name": "edit_cell_by_index", "arguments": {"url": "{url}", "cell_index": 35, "content": "import pandas as pd\nfrom sklearn.linear_model import LinearRegression\nfrom sklearn.model_selection import train_test_split\ndf = pd.read_csv('/kaggle/input/datasets/codekey/zameen-com2026-16-5/zameen_master_dataset.csv')\nX = df.select_dtypes('number').drop(columns=['price'], errors='ignore')\ny = df['price']\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\nmodel = LinearRegression().fit(X_train, y_train)"}},
+  {"name": "insert_cell", "arguments": {"url": "{url}", "index": 35, "direction": "below"}},
+  {"name": "edit_cell_by_index", "arguments": {"url": "{url}", "cell_index": 36, "content": "preds = model.predict(X_test)"}},
+  {"name": "insert_cell", "arguments": {"url": "{url}", "index": 36, "direction": "below"}},
+  {"name": "edit_cell_by_index", "arguments": {"url": "{url}", "cell_index": 37, "content": "from sklearn.metrics import r2_score, mean_squared_error\nprint('R2:', r2_score(y_test, preds))\nprint('MSE:', mean_squared_error(y_test, preds))"}},
+  {"name": "run_cell", "arguments": {"url": "{url}", "cell_index": 35}},
+  {"name": "run_cell", "arguments": {"url": "{url}", "cell_index": 36}},
+  {"name": "run_cell", "arguments": {"url": "{url}", "cell_index": 37}}
+]
+```
+
+**Example E — split existing cell into smaller cells**
+User: Split cell 38 into 3 smaller cells
+
+API call 1 (when source not in Context):
+```json
+[{"name": "notebook_get_cell", "arguments": {"url": "{url}", "cell_index": 38}}]
+```
+
+API call 2 — insert empty cells below 38, edit with portions of cell 38 source; trim cell 38 to first portion. NEVER `print(1)`/`print(2)` placeholders; never invent new code.
 
 ## Forbidden
 - One tool per API round
+- A third API call for any reason
+- `notebook_list_cells` more than once per user message
 - "Placement" / "Run order" prose instead of tool_calls
-- Emitting only `notebook_list_cells` when the user gave explicit indices
+- Emitting only `notebook_list_cells` for implementation requests — use `insert_cell` + `edit_cell_by_index` + `run_cell`

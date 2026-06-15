@@ -42,7 +42,7 @@ def build_compact_batch_verification(verification: dict[str, Any]) -> dict[str, 
         if len(cells) > 8:
             compact_cells.append({"note": f"+{len(cells) - 8} more cells in snapshot tools"})
 
-    return {
+    compact = {
         "batch_status": verification.get("tool_queue_status")
         or ("verified" if verification.get("verified") else "pending"),
         "verified": verification.get("verified"),
@@ -89,6 +89,11 @@ def build_compact_batch_verification(verification: dict[str, Any]) -> dict[str, 
             if isinstance(verification.get("batch_audit"), dict)
         } or None,
     }
+    if verification.get("batch_error_context"):
+        compact["batch_error_context"] = verification["batch_error_context"]
+    if verification.get("batch_success_verification"):
+        compact["batch_success_verification"] = verification["batch_success_verification"]
+    return compact
 
 
 def _parse_tool_call_entry(tc: dict[str, Any]) -> tuple[str, dict[str, Any], str | None]:
@@ -190,10 +195,44 @@ def _build_single_tool_result(
             result["input_preview"] = str(preview)[:200]
 
     if not executed and not tv and tool_name in {"insert_cell", "delete_by_index", "creating_markdown_by_index"}:
-        # Writes may not have per-tool verification rows — infer from batch status.
-        batch_ok = verification.get("batch_executed") and not verification.get("needs_fix")
-        result["ok"] = bool(batch_ok)
-        result["phase"] = "batch_write"
+        if tv is None and tool_name in {"insert_cell", "delete_by_index"}:
+            batch_rows = verification.get("batch") or []
+            for row in batch_rows:
+                if not isinstance(row, dict) or row.get("tool") != tool_name:
+                    continue
+                if tool_name == "delete_by_index" and row.get("cell_index") != cell_index:
+                    continue
+                if row.get("structure_observer"):
+                    obs = row["structure_observer"]
+                    result["ok"] = bool(obs.get("ok"))
+                    result["verification_status"] = "verified" if obs.get("ok") else "failed"
+                    break
+        if result.get("verification_status") is None:
+            batch_ok = verification.get("batch_executed") and not verification.get("needs_fix")
+            result["ok"] = bool(batch_ok)
+            result["phase"] = "batch_write"
+
+    if verification.get("fire_and_forget"):
+        if executed and executed.get("dispatched"):
+            result["ok"] = True
+            result["dispatched"] = True
+            result["note"] = "Dispatched (fire-and-forget). Monitor trace for outcomes."
+        for rr in verification.get("read_results") or []:
+            if not isinstance(rr, dict) or rr.get("tool") != tool_name:
+                continue
+            inner = rr.get("result")
+            if not isinstance(inner, dict):
+                break
+            result["ok"] = bool(inner.get("ok"))
+            result["phase"] = "read"
+            for key in ("cells", "cell", "output", "summary", "error"):
+                if inner.get(key) is not None:
+                    val = inner[key]
+                    if isinstance(val, (list, dict)):
+                        result[key] = val
+                    else:
+                        result[key] = str(val)[:2000]
+            break
 
     return result
 
@@ -329,6 +368,18 @@ def append_batch_verification_message(
     content_parts = [VERIFICATION_MARKER, payload]
     if report_text:
         content_parts.append(str(report_text))
+    batch_err = verification.get("batch_error_context")
+    if isinstance(batch_err, dict) and batch_err.get("message"):
+        content_parts.append(f"BATCH_ERROR: {batch_err['message']}")
+        content_parts.append(
+            _compact_tool_result_content(json.dumps(batch_err, ensure_ascii=False))
+        )
+    batch_ok = verification.get("batch_success_verification")
+    if isinstance(batch_ok, dict) and batch_ok.get("message"):
+        content_parts.append(f"BATCH_SUCCESS: {batch_ok['message']}")
+        content_parts.append(
+            _compact_tool_result_content(json.dumps(batch_ok, ensure_ascii=False))
+        )
     tool_messages.append(
         {
             "role": "user",

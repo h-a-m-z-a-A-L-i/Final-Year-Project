@@ -1527,6 +1527,10 @@
             prompt: text,
             mode: mode,
         }, (response) => {
+            const portClosed = /message port closed before a response was received/i.test(
+                chrome.runtime.lastError?.message || ''
+            );
+            if (portClosed) return;
             const err = chrome.runtime.lastError?.message || response?.error;
             if (err) {
                 finalizeStream({ error: err });

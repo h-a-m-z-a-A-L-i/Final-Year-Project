@@ -213,7 +213,8 @@ def _register_default_tools():
                 },
                 "required": ["index", "url"],
             },
-            "Insert an empty code cell above/below a 1-based anchor cell",
+            "Insert an empty code cell above/below a 1-based anchor cell. "
+            "Creates a blank cell only — never pass content; use edit_cell_by_index for source.",
         ),
         (
             "edit_cell_by_index",

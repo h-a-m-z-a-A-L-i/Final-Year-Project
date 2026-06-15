@@ -133,6 +133,52 @@ def test_normalize_insert_cell_args_success():
     assert cmd["direction"] == "above"
 
 
+def test_normalize_insert_cell_args_ignores_content():
+    cmd, err = btu.normalize_insert_cell_args(
+        {
+            "url": "https://example.com/edit",
+            "index": 1,
+            "direction": "below",
+            "content": "print(42)",
+        }
+    )
+    assert err is None
+    assert "content" not in cmd
+
+
+def test_map_insert_cell_does_not_forward_content():
+    from testing.host import bot_command as bc
+
+    mapped = bc.map_command_to_native(
+        {
+            "action": "insert_cell",
+            "url": "https://example.com/edit",
+            "cellIndex": 0,
+            "direction": "below",
+            "content": "x = 1",
+        }
+    )
+    assert mapped is not None
+    assert mapped["type"] == "INSERT_CELL"
+    assert "content" not in mapped
+
+
+def test_map_insert_cell_default_max_wait_ms():
+    from testing.host import bot_command as bc
+
+    mapped = bc.map_command_to_native(
+        {
+            "action": "insert_cell",
+            "url": "https://example.com/edit",
+            "cellIndex": 0,
+            "direction": "below",
+        }
+    )
+    assert mapped is not None
+    assert mapped["maxWaitMs"] == 1500
+    assert "content" not in mapped
+
+
 def test_normalize_delete_cell_args_includes_tool_on_error():
     cmd, err = btu.normalize_delete_cell_args({"cell_index": 1})
     assert cmd is None

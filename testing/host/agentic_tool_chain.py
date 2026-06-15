@@ -140,10 +140,28 @@ def build_direct_edit_from_prompt(
     return out
 
 
+def prompt_requests_split_cell(prompt: str) -> bool:
+    """True when the user wants to reorganize existing cell source across cells."""
+    text = str(prompt or "").strip().lower()
+    if not text:
+        return False
+    split_verbs = (
+        "split", "divide", "break up", "break apart", "separate", "partition",
+        "refactor", "reorganize", "re-organize",
+    )
+    if not any(v in text for v in split_verbs):
+        return False
+    if re.search(r"\b(?:cell|code|source|content)\b", text):
+        return True
+    return extract_target_cell_index(prompt) is not None
+
+
 def extract_cell_count_from_prompt(prompt: str) -> int | None:
     """Parse 'create 5 cells', 'add 3 new cells', etc."""
     text = str(prompt or "").strip()
     if not text:
+        return None
+    if prompt_requests_split_cell(text):
         return None
     patterns = (
         r"\b(?:create|add|insert|make)\s+(\d+)\s+(?:new\s+)?cells?\b",
@@ -159,6 +177,50 @@ def extract_cell_count_from_prompt(prompt: str) -> int | None:
             except (TypeError, ValueError):
                 pass
     return None
+
+
+def extract_delete_cell_index(prompt: str) -> int | None:
+    """Parse 'delete cell 2', 'remove cell 3' from user prompt."""
+    text = str(prompt or "").strip()
+    if not text:
+        return None
+    patterns = (
+        r"\b(?:delete|remove)\s+cell\s*(?:index)?\s*#?\s*(\d+)\b",
+        r"\b(?:delete|remove)\s+(?:the\s+)?cell\s+at\s+(?:index\s+)?#?\s*(\d+)\b",
+    )
+    for pat in patterns:
+        m = re.search(pat, text, re.I)
+        if m:
+            try:
+                return int(m.group(1))
+            except (TypeError, ValueError):
+                pass
+    return None
+
+
+def prompt_requests_insert(prompt: str) -> bool:
+    text = str(prompt or "").lower()
+    needles = (
+        "insert",
+        "create new cell",
+        "create a new cell",
+        "add new cell",
+        "add a new cell",
+        "make new cell",
+        "make a new cell",
+        "new cell under",
+        "new cell below",
+        "new cell after",
+    )
+    return any(n in text for n in needles)
+
+
+def prompt_requests_delete(prompt: str) -> bool:
+    text = str(prompt or "").lower()
+    return bool(
+        re.search(r"\b(?:delete|remove)\b", text)
+        and re.search(r"\bcell\b", text)
+    )
 
 
 def extract_insert_anchor_from_prompt(prompt: str) -> int | None:
@@ -210,6 +272,6 @@ def parse_multi_cell_contents(prompt: str, count: int) -> list[str]:
             contents.append(f"print({i})")
 
     while len(contents) < count:
-        contents.append(f"print({len(contents) + 1})")
+        contents.append("")
 
     return contents[:count]

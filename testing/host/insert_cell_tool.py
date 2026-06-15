@@ -44,9 +44,18 @@ def run_insert_cell(args: dict) -> dict:
     if event.get("ok"):
         inner = event.get("result") if isinstance(event.get("result"), dict) else {}
         anchor_dom = inner.get("insertedBelow", cmd.get("dom_index"))
+        raw_new_app = inner.get("new_cell_index")
+        if raw_new_app is not None:
+            try:
+                new_app = int(raw_new_app)
+            except (TypeError, ValueError):
+                new_app = None
+        else:
+            new_app = None
         new_dom = inner.get("newDomIndex") or inner.get("domIndex")
+        if new_app is None and new_dom is not None:
+            new_app = dom_to_app(int(new_dom))
         anchor_app = dom_to_app(int(anchor_dom)) if anchor_dom is not None else cmd.get("app_index")
-        new_app = dom_to_app(int(new_dom)) if new_dom is not None else None
         return tool_success(
             TOOL,
             anchor_cell_index=anchor_app,

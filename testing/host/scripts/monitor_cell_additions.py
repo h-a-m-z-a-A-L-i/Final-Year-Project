@@ -116,7 +116,7 @@ def monitor(
 
     *,
 
-    interval: float = 0.1,
+    interval: float = 0.001,
 
     settle_reads: int = 2,
 
@@ -252,7 +252,7 @@ def main() -> int:
 
     parser.add_argument("--url", default="", help="Notebook /edit URL")
 
-    parser.add_argument("--interval", type=float, default=0.1, help="Poll seconds (default 0.1)")
+    parser.add_argument("--interval", type=float, default=0.001, help="Poll seconds (default 0.001)")
 
     parser.add_argument(
 
@@ -292,7 +292,7 @@ def main() -> int:
 
             url,
 
-            interval=max(0.05, float(args.interval)),
+            interval=max(0.001, float(args.interval)),
 
             settle_reads=max(1, int(args.settle_reads)),
 

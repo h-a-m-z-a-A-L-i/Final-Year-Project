@@ -446,21 +446,32 @@ def main():
             print(f"[RECV-SIGNAL] cell={cell_index}, order={exec_order}, ts={exec_ts}, text='{text}'")
             log(f"PROMPT_SIGNAL cell={cell_index if cell_index is not None else '?'} order={exec_order} text={text} ts={exec_ts}")
             if cell_index is not None and tab_url:
-                try:
+                def run_prompt_signal_updates():
                     try:
-                        from update_cell_execution import update_cell_execution
-                    except Exception:
-                        from testing.host.update_cell_execution import update_cell_execution
-
-                    def run_update():
                         try:
-                            update_cell_execution(cell_index, tab_url, exec_ts, exec_order)
-                        except Exception as e:
-                            log(f"Error in update_cell_execution background thread: {e}")
+                            from execution_signal_patch import patch_prompt_execution_signal
+                        except Exception:
+                            from testing.host.execution_signal_patch import patch_prompt_execution_signal
+                        patch_prompt_execution_signal(
+                            cell_index,
+                            tab_url,
+                            text,
+                            exec_order=exec_order,
+                            exec_ts=exec_ts,
+                            log=log,
+                        )
+                    except Exception as e:
+                        log(f"Error in patch_prompt_execution_signal: {e}")
+                    try:
+                        try:
+                            from update_cell_execution import update_cell_execution
+                        except Exception:
+                            from testing.host.update_cell_execution import update_cell_execution
+                        update_cell_execution(cell_index, tab_url, exec_ts, exec_order)
+                    except Exception as e:
+                        log(f"Error in update_cell_execution background thread: {e}")
 
-                    threading.Thread(target=run_update, daemon=True).start()
-                except Exception:
-                    pass
+                threading.Thread(target=run_prompt_signal_updates, daemon=True).start()
             send_msg({"ok": True, "type": "PROMPT_SIGNAL", "cellIndex": cell_index, "tabUrl": tab_url})
             continue
 

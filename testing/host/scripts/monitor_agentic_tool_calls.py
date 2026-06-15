@@ -13,11 +13,15 @@ Run in a dedicated terminal alongside host.py:
   # Terminal 2
   python testing/host/scripts/monitor_agentic_tool_calls.py
 
+  # Filter by notebook slug
+  python testing/host/scripts/monitor_agentic_tool_calls.py testing-ol
+
 Then open the copilot, select Agentic mode, and send a message.
 
 Options:
   --from-start   Replay existing log lines, then follow new ones
   --poll SEC     Poll interval when waiting for the log file (default 0.25)
+  --verbose      Pretty-print full payload JSON under each CALL/RESULT/EXEC
   --no-color     Plain text output
 """
 
@@ -44,32 +48,114 @@ _MAGENTA = "\033[35m"
 _BLUE = "\033[34m"
 
 
-def _short_args(args: dict | None, *, max_len: int = 100) -> str:
-    if not isinstance(args, dict) or not args:
+def _priority_keys_for_tool(tool: str) -> tuple[str, ...]:
+    name = str(tool or "").strip().lower()
+    if name == "delete_by_index":
+        return ("cell_index", "tab_id", "tabId")
+    if name == "insert_cell":
+        return ("index", "direction", "content", "cell_type")
+    if name in ("edit_cell_by_index", "edit_cell"):
+        return ("cell_index", "content", "mode")
+    if name in ("run_cell", "run_cell_by_index"):
+        return ("cell_index", "tab_id", "tabId")
+    if name.startswith("notebook_"):
+        return ("url", "cell_index", "index", "slug", "tab_id", "tabId")
+    return ("cell_index", "index", "direction", "content", "url", "mode", "tab_id", "tabId")
+
+
+_RESULT_PRIORITY_KEYS = ("ok", "cell_index", "index", "error", "message", "status", "detail")
+
+
+def _format_scalar(val: object, *, key: str = "") -> str:
+    if key == "content" and isinstance(val, str):
+        text = val.replace("\n", "\\n")
+        if len(text) > 80:
+            text = text[:79] + "…"
+        return json.dumps(text, ensure_ascii=False)
+    return json.dumps(val, ensure_ascii=False, default=str)
+
+
+def _format_payload_block(
+    tool: str,
+    data: dict,
+    *,
+    verbose: bool,
+    label: str = "payload",
+    indent: str = "  ",
+) -> str:
+    if not isinstance(data, dict) or not data:
         return ""
-    skip = {"url", "tab_id", "tabId"}
-    parts: list[str] = []
-    for key in ("cell_index", "index", "direction", "content", "mode"):
-        if key in args and args[key] not in (None, ""):
-            val = args[key]
-            if key == "content" and isinstance(val, str):
-                val = val.replace("\n", "\\n")[:40]
-            parts.append(f"{key}={val!r}")
-    for key, val in args.items():
-        if key in skip or key in ("cell_index", "index", "direction", "content", "mode"):
+    if verbose:
+        body = json.dumps(data, ensure_ascii=False, indent=2, default=str)
+        indented = "\n".join(f"{indent}  {line}" for line in body.splitlines())
+        return f"{indent}{label}:\n{indented}"
+
+    priority = (
+        _priority_keys_for_tool(tool)
+        if label == "payload"
+        else _RESULT_PRIORITY_KEYS
+    )
+    lines = [f"{indent}{label}:"]
+    shown: set[str] = set()
+    for key in priority:
+        if key in data and data[key] not in (None, ""):
+            lines.append(f"{indent}  {key}: {_format_scalar(data[key], key=key)}")
+            shown.add(key)
+    for key, val in data.items():
+        if key in shown or val in (None, ""):
             continue
-        if val in (None, ""):
-            continue
-        parts.append(f"{key}={val!r}")
-        if len(parts) >= 4:
-            break
-    text = " ".join(parts)
-    if len(text) > max_len:
-        return text[: max_len - 1] + "…"
-    return text
+        lines.append(f"{indent}  {key}: {_format_scalar(val, key=key)}")
+    return "\n".join(lines)
 
 
-def _fmt_line(row: dict, *, use_color: bool) -> str:
+def _format_payload_sections(tool: str, row: dict, *, verbose: bool) -> str:
+    sections: list[str] = []
+    args = row.get("args") if isinstance(row.get("args"), dict) else {}
+    if args:
+        block = _format_payload_block(tool, args, verbose=verbose, label="payload")
+        if block:
+            sections.append(block)
+    if row.get("event") in ("result", "exec"):
+        result_data = row.get("result") if isinstance(row.get("result"), dict) else {}
+        if result_data:
+            block = _format_payload_block(
+                tool,
+                result_data,
+                verbose=verbose,
+                label="result",
+            )
+            if block:
+                sections.append(block)
+    return "\n".join(sections)
+
+
+def _round_tag(row: dict) -> str:
+    rnd = row.get("round")
+    if rnd is None:
+        batch_id = str(row.get("batch_id") or "").strip()
+        if batch_id:
+            return f" {batch_id}"
+        return ""
+    return f" r{rnd}"
+
+
+def _slug_matches(row: dict, needle: str) -> bool:
+    if not needle:
+        return True
+    n = needle.lower().strip()
+    if not n:
+        return True
+    slug = str(row.get("notebook_slug") or "").lower()
+    url = str(row.get("url") or "").lower()
+    if slug and (n in slug or slug in n):
+        return True
+    if url and n in url:
+        return True
+    variants = {n, n.replace("-", "_"), n.replace("_", "-")}
+    return any(v in slug or v in url for v in variants if v)
+
+
+def _fmt_line(row: dict, *, use_color: bool, verbose: bool = False) -> str:
     event = str(row.get("event") or "").strip()
     ts = str(row.get("local_time") or row.get("ts") or "")[:19]
     prefix = f"[{ts}] " if ts else ""
@@ -81,9 +167,11 @@ def _fmt_line(row: dict, *, use_color: bool) -> str:
         mode = row.get("mode") or "?"
         sid = row.get("session_id") or "default"
         url = str(row.get("url") or "")[:90]
+        slug = str(row.get("notebook_slug") or "").strip()
+        slug_tag = f" [{slug}]" if slug else ""
         lines = [c(f"{prefix}══ CHAT {mode} session={sid} ══", _BOLD + _CYAN)]
         if url:
-            lines.append(c(f"{prefix}       notebook: {url}", _DIM))
+            lines.append(c(f"{prefix}       notebook{slug_tag}: {url}", _DIM))
         return "\n".join(lines)
 
     if event == "react_round":
@@ -117,25 +205,65 @@ def _fmt_line(row: dict, *, use_color: bool) -> str:
     if event == "batch_start":
         tools = row.get("tools") or []
         rnd = row.get("round", "?")
+        batch_id = row.get("batch_id") or f"r{rnd}"
         return c(
-            f"{prefix}BATCH  r{rnd} | executing {len(tools)} tool(s) on host",
+            f"{prefix}BATCH  {batch_id} | executing {len(tools)} tool(s) on host",
             _CYAN,
         )
+
+    if event == "batch_end":
+        rnd = row.get("round", "?")
+        batch_id = row.get("batch_id") or f"r{rnd}"
+        ok = row.get("ok")
+        status = ""
+        if ok is True:
+            status = " OK"
+        elif ok is False:
+            status = " FAIL"
+        line = f"{prefix}BATCH  {batch_id} | done{status}"
+        detail = str(row.get("detail") or "").strip()
+        if detail:
+            line += f" | {detail[:120]}"
+        return c(line, _GREEN if ok else (_RED if ok is False else _CYAN))
+
+    if event == "dispatch":
+        tool = row.get("tool") or "?"
+        phase = str(row.get("phase") or "").strip()
+        phase_tag = f" [{phase}]" if phase else ""
+        line = f"{prefix}CALL{phase_tag}{_round_tag(row)}  {tool}"
+        payload = _format_payload_sections(tool, row, verbose=verbose)
+        if payload:
+            return c(line, _MAGENTA) + "\n" + c(payload, _DIM)
+        return c(line, _MAGENTA)
+
+    if event == "result":
+        tool = row.get("tool") or "?"
+        ok = bool(row.get("ok"))
+        phase = str(row.get("phase") or "").strip()
+        phase_tag = f" [{phase}]" if phase else ""
+        status = "OK" if ok else "FAIL"
+        line = f"{prefix}RESULT{phase_tag}{_round_tag(row)}  {tool} → {status}"
+        err = str(row.get("error") or "").strip()
+        if err:
+            line += f" | {err[:120]}"
+        payload = _format_payload_sections(tool, row, verbose=verbose)
+        if payload:
+            return c(line, _GREEN if ok else _RED) + "\n" + c(payload, _DIM)
+        return c(line, _GREEN if ok else _RED)
 
     if event == "exec":
         tool = row.get("tool") or "?"
         ok = bool(row.get("ok"))
         phase = str(row.get("phase") or "").strip()
         phase_tag = f" [{phase}]" if phase else ""
-        arg_text = _short_args(row.get("args") if isinstance(row.get("args"), dict) else {})
         status = "OK" if ok else "FAIL"
-        line = f"{prefix}EXEC{phase_tag}  {tool}"
-        if arg_text:
-            line += f" ({arg_text})"
-        line += f" → {status}"
+        line = f"{prefix}EXEC{phase_tag}{_round_tag(row)}  {tool} → {status}"
         err = str(row.get("error") or "").strip()
         if err:
             line += f" | {err[:120]}"
+        payload = _format_payload_sections(tool, row, verbose=verbose)
+        if payload:
+            return c(line, _GREEN if ok else _RED) + "\n" + c(payload, _DIM)
         return c(line, _GREEN if ok else _RED)
 
     if event == "verify":
@@ -189,20 +317,36 @@ def _fmt_line(row: dict, *, use_color: bool) -> str:
     return c(f"{prefix}{event} {json.dumps(row, ensure_ascii=False, default=str)[:200]}", _DIM)
 
 
-def _print_banner(trace_log: Path, *, use_color: bool) -> None:
+def _print_banner(trace_log: Path, *, use_color: bool, notebook_filter: str) -> None:
     def c(t: str, code: str) -> str:
         return f"{code}{t}{_RESET}" if use_color else t
 
     print(c("Agentic tool-call monitor", _BOLD + _CYAN))
     print(c(f"Tailing: {trace_log}", _DIM))
-    print(c("Use Agentic mode in the copilot chat. Events: PARSE → BATCH/PATH → EXEC → VERIFY", _DIM))
+    if notebook_filter:
+        print(c(f"Filter: notebook slug contains {notebook_filter!r}", _DIM))
+    print(
+        c(
+            "Use Agentic mode in the copilot chat. "
+            "Events: PARSE → BATCH → CALL → RESULT → VERIFY",
+            _DIM,
+        )
+    )
     print(c("Disable trace: TOOL_CALL_TERMINAL_TRACE=0 in .env", _DIM))
     print(c("─" * 72, _DIM))
     sys.stdout.flush()
 
 
-def _follow(trace_log: Path, *, from_start: bool, poll: float, use_color: bool) -> None:
-    _print_banner(trace_log, use_color=use_color)
+def _follow(
+    trace_log: Path,
+    *,
+    from_start: bool,
+    poll: float,
+    use_color: bool,
+    verbose: bool,
+    notebook_filter: str,
+) -> None:
+    _print_banner(trace_log, use_color=use_color, notebook_filter=notebook_filter)
     offset = 0
     if not from_start and trace_log.is_file():
         offset = trace_log.stat().st_size
@@ -229,7 +373,9 @@ def _follow(trace_log: Path, *, from_start: bool, poll: float, use_color: bool) 
                         continue
                     if not isinstance(row, dict):
                         continue
-                    formatted = _fmt_line(row, use_color=use_color)
+                    if notebook_filter and not _slug_matches(row, notebook_filter):
+                        continue
+                    formatted = _fmt_line(row, use_color=use_color, verbose=verbose)
                     if formatted:
                         print(formatted, flush=True)
         except OSError as exc:
@@ -240,6 +386,12 @@ def _follow(trace_log: Path, *, from_start: bool, poll: float, use_color: bool) 
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Live terminal view of agentic tool calls from the chat UI.",
+    )
+    parser.add_argument(
+        "notebook",
+        nargs="?",
+        default="",
+        help="Optional notebook slug filter (e.g. testing-ol)",
     )
     parser.add_argument(
         "--log",
@@ -259,6 +411,11 @@ def main() -> int:
         help="Seconds between polls when idle (default: 0.25)",
     )
     parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Pretty-print full payload JSON under each CALL/RESULT/EXEC",
+    )
+    parser.add_argument(
         "--no-color",
         action="store_true",
         help="Plain text output",
@@ -272,6 +429,8 @@ def main() -> int:
             from_start=args.from_start,
             poll=max(0.05, float(args.poll)),
             use_color=use_color,
+            verbose=args.verbose,
+            notebook_filter=str(args.notebook or "").strip(),
         )
     except KeyboardInterrupt:
         print("\n[monitor] stopped", flush=True)

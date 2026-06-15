@@ -92,22 +92,25 @@ _PLACEMENT_HINT_PATTERN = re.compile(
 
 # Appended last in system prompts (lost-in-the-middle mitigation).
 _SYSTEM_NOTES_ASK = """\
+- **Ask mode:** explain, debug, review, and suggest — do NOT generate full notebook code blocks for copy-paste.
 - Read CONTEXT_MANIFEST and TARGET_CELL_STATUS before citing any cell.
 - Only cite cells in `listed_cells` or notebook evidence — never invent cell contents.
 - **Empty target cell:** acknowledge it, ask what the user wants there, suggest 1–2 flow-appropriate next steps — no code dump yet.
 - Reply directly to the user. No meta preamble ("User asks…", "I will explain…", "Let me think…").
 - Do not echo notebook UI actions (Insert below, Create new cell, Copy, Edit cell) — describe cells by index only.
 - Use clean Markdown: heading, bullets or numbered steps. No raw JSON or graph dumps.
+- Minimal fix snippets (1–3 lines) are OK for errors; full cell scripts belong in Code/Agentic mode.
 - If `coverage` is none or partial and evidence is missing, start with **INSUFFICIENT_CONTEXT** and one question."""
 
 _SYSTEM_NOTES_CODE = """\
+- **Code mode:** generate runnable code in chat for the user to copy/insert — no browser tool_calls or notebook writes.
 - Read CONTEXT_MANIFEST and TARGET_CELL_STATUS before citing any cell.
 - Only cite cells in `listed_cells` or tool results — never invent cell contents.
 - **Empty target cell:** ask what the user wants, suggest 1–2 flow-appropriate options — no Placement/Code until they confirm.
 - For new scripts: recommend **Insert Code Cell Below** the defining cell, not a random empty cell far away.
 - User-facing reply: Placement bullets + one `python` code block when generating code. No duplicate blocks.
 - If `coverage` is none or partial and tools lack data, start with **INSUFFICIENT_CONTEXT**.
-- When calling tools, pass the exact session notebook URL from Context."""
+- Host prefetch may include read-tool results; you still respond in prose + code blocks — never emit browser tool_calls."""
 
 _SYSTEM_NOTES_CODE_REACT = """\
 - Read CONTEXT_MANIFEST and TARGET_CELL_STATUS before citing any cell.
@@ -124,6 +127,7 @@ _SYSTEM_NOTES_CODE_REACT = """\
 _SYSTEM_NOTES_AGENTIC = """\
 - **Execution contract:** modify the notebook (edit → run → verify). Never stop after code-only replies — use tools until verification succeeds.
 - **One assistant message = all tool_calls** for the task (every read, write, and run_cell). Never one tool per round.
+- **`insert_cell` creates empty cells only** — never copy content from other cells; always `edit_cell_by_index` for source.
 - Pass the exact session notebook URL on every tool call.
 - No Placement / Run order / manual UI instructions — tool_calls only until the host queue completes.
 - Summarize only after `tool_queue_status` is `complete` and outputs are verified.

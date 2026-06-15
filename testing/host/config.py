@@ -148,6 +148,17 @@ TOOL_CALL_TERMINAL_TRACE = os.environ.get("TOOL_CALL_TERMINAL_TRACE", "1").strip
     "off",
 )
 
+# Delay between consecutive tool dispatches within one LLM batch round (writes/run queue).
+TOOL_QUEUE_DELAY_SEC = float(os.environ.get("TOOL_QUEUE_DELAY_SEC", "0.5"))
+
+# Agentic fire-and-forget: dispatch tools immediately per round (no snapshot wait / goal verify).
+# Hard cap: at most AGENTIC_MAX_TOOL_ROUNDS LLM API calls per user message (default 2 = query + implement).
+_AGENTIC_FIRE_AND_FORGET_RAW = os.environ.get("AGENTIC_FIRE_AND_FORGET", "1").strip().lower()
+AGENTIC_FIRE_AND_FORGET = _AGENTIC_FIRE_AND_FORGET_RAW not in ("0", "false", "no", "off")
+AGENTIC_MAX_TOOL_ROUNDS = max(1, int(os.environ.get("AGENTIC_MAX_TOOL_ROUNDS", "2")))
+# Max read-only tool rounds (list_cells, snapshot_status, get_cell) per user message before writes are required.
+AGENTIC_MAX_QUERY_ROUNDS = max(0, int(os.environ.get("AGENTIC_MAX_QUERY_ROUNDS", "1")))
+
 # Compact frozen baseline for Cerebras prefix cache (outputs truncated; full state via deltas/tools).
 BASELINE_MAX_CELL_INPUT_CHARS = int(os.environ.get("BASELINE_MAX_CELL_INPUT_CHARS", "1500"))
 BASELINE_MAX_CELL_OUTPUT_CHARS = int(os.environ.get("BASELINE_MAX_CELL_OUTPUT_CHARS", "350"))

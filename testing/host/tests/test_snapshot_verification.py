@@ -50,6 +50,19 @@ def test_partial_scrape_blocked():
     assert decision.reason.startswith("reject_partial_scrape")
 
 
+def test_partial_scrape_allowed_when_syncing_from_live():
+    existing = _sample(
+        [
+            {"index": 1, "input": "a"},
+            {"index": 2, "input": "b"},
+        ]
+    )
+    incoming = _sample([{"index": 1, "input": "a"}])
+    decision = evaluate_persistent_update(existing, incoming, sync_from_live=True)
+    assert decision.allow_write is True
+    assert decision.reason == "content_changed"
+
+
 def test_empty_incoming_blocked():
     existing = _sample([{"index": 1, "input": "a"}])
     incoming = _sample([])

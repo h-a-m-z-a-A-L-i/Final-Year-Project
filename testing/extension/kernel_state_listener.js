@@ -1,6 +1,6 @@
 // Content script to relay kernel state updates from background to page scripts
 (function initKernelStateListener() {
-  const LISTENER_VERSION = '2026-06-14-edit-replace-all';
+  const LISTENER_VERSION = '2026-06-16-insert-cell-clear-retry';
   if (window.__kernelStateListenerVersion === LISTENER_VERSION) {
     return;
   }
@@ -1324,6 +1324,131 @@
     return { app, notebook, commands };
   }
 
+  function getNotebookCellCount() {
+    const { notebook } = getNotebookApp();
+    try {
+      const cells = notebook?.model?.cells;
+      if (cells && typeof cells.length === 'number') {
+        return cells.length;
+      }
+      if (cells && typeof cells.size === 'number') {
+        return cells.size;
+      }
+    } catch (error) {
+      console.warn('[getNotebookCellCount] model read failed:', error?.message || error);
+    }
+    const indices = collectVisibleDomIndices(document);
+    if (indices.length) {
+      return Math.max(...indices) + 1;
+    }
+    return 0;
+  }
+
+  async function waitForCellCountAtLeast(targetCount, options = {}) {
+    const expected = Number(targetCount);
+    const maxWaitMs = Number.isFinite(Number(options.maxWaitMs)) ? Number(options.maxWaitMs) : 2500;
+    const deadline = Date.now() + Math.max(300, maxWaitMs);
+    let lastCount = getNotebookCellCount();
+    while (Date.now() < deadline) {
+      lastCount = getNotebookCellCount();
+      if (Number.isInteger(expected) && lastCount >= expected) {
+        return { ok: true, count: lastCount, phase: 'cell_count_ready' };
+      }
+      await sleep(40);
+    }
+    return {
+      ok: false,
+      count: lastCount,
+      expected,
+      phase: 'cell_count_timeout',
+      error: `Cell count ${lastCount} did not reach expected ${expected}.`,
+    };
+  }
+
+  function readCellContentAtDomIndex(domIdx) {
+    const viaModel = (() => {
+      const { notebook } = getNotebookApp();
+      if (!notebook?.model?.cells || typeof notebook.model.cells.get !== 'function') {
+        return null;
+      }
+      try {
+        const cellModel = notebook.model.cells.get(domIdx);
+        const shared = cellModel?.sharedModel || cellModel?.model?.sharedModel;
+        if (shared && typeof shared.getSource === 'function') {
+          return String(shared.getSource() || '');
+        }
+        if (cellModel?.value && typeof cellModel.value.text === 'string') {
+          return cellModel.value.text;
+        }
+      } catch (_) {
+        /* ignore */
+      }
+      return null;
+    })();
+    if (viaModel !== null) {
+      return viaModel;
+    }
+    const wrapper = findCellByDomIndex(document, domIdx);
+    const editor = wrapper ? findCellEditorSurface(wrapper) : null;
+    return editor ? readEditorContent(editor) : '';
+  }
+
+  function cellContentMatchesAtDomIndex(domIdx, payload) {
+    return normalizeEditorText(readCellContentAtDomIndex(domIdx)) === normalizeEditorText(payload);
+  }
+
+  async function clearInsertedCellContent(newDomIndex, options = {}) {
+    const domIdx = Number(newDomIndex);
+    const payload = String(options.content ?? '');
+    const retries = Math.max(1, Number(options.retries) || 3);
+    const retryDelays = Array.isArray(options.retryDelays) ? options.retryDelays : [200, 400, 600];
+    const maxWaitMs = Number.isFinite(Number(options.maxWaitMs)) ? Number(options.maxWaitMs) : 1200;
+    const attempts = [];
+
+    for (let attempt = 0; attempt < retries; attempt += 1) {
+      if (attempt > 0) {
+        const delay = retryDelays[Math.min(attempt - 1, retryDelays.length - 1)] || 300;
+        await sleep(delay);
+      }
+
+      const phase = `clear_attempt_${attempt + 1}`;
+      console.log('[insert_cell]', phase, 'domIndex=', domIdx, 'targetChars=', payload.length);
+
+      const selected = await selectCellAtDomIndexAsync(domIdx, {
+        scrollIntoView: true,
+        maxWaitMs: Math.max(500, maxWaitMs),
+      });
+      if (!selected?.ok) {
+        attempts.push({ phase, ok: false, error: selected?.error || 'select failed', select: selected });
+        continue;
+      }
+
+      await clickCellAtDomIndexAsync(domIdx, { maxWaitMs: Math.max(500, maxWaitMs) });
+      await sleep(100);
+
+      const viaModel = setCellSourceViaNotebookModel(domIdx, payload);
+      if (viaModel?.ok && cellContentMatchesAtDomIndex(domIdx, payload)) {
+        attempts.push({ phase, ok: true, strategy: viaModel.strategy, path: 'model' });
+        return { ...viaModel, attempts, phase: 'content_cleared' };
+      }
+
+      const contentSet = await setCellEditorContent(domIdx, payload, { maxWaitMs });
+      attempts.push({ phase, ...contentSet, path: 'editor' });
+      if (contentSet?.ok && cellContentMatchesAtDomIndex(domIdx, payload)) {
+        return { ...contentSet, attempts, phase: 'content_cleared' };
+      }
+    }
+
+    return {
+      ok: false,
+      error: 'Failed to clear duplicated cell content after insert.',
+      domIndex: domIdx,
+      phase: 'content_clear_failed',
+      attempts,
+      partial: normalizeEditorText(readCellContentAtDomIndex(domIdx)).slice(0, 200),
+    };
+  }
+
   function findElementInFrameTree(rootDocument, predicate, seen = new Set()) {
     if (!rootDocument || seen.has(rootDocument)) {
       return null;
@@ -1509,7 +1634,10 @@
   async function insertCellAtAnchor(domIdx, direction, options = {}) {
     const idx = Number(domIdx);
     const normalizedDirection = String(direction || '').trim().toLowerCase();
-    const maxWaitMs = Number.isFinite(Number(options.maxWaitMs)) ? Number(options.maxWaitMs) : 400;
+    const maxWaitMs = Number.isFinite(Number(options.maxWaitMs)) ? Number(options.maxWaitMs) : 1500;
+    const countBefore = getNotebookCellCount();
+    console.log('[insert_cell] phase=pre_insert', { domIndex: idx, direction: normalizedDirection, countBefore });
+
     if (Number.isInteger(idx) && idx >= 0) {
       const selected = await selectCellAtDomIndexAsync(idx, options);
       if (!selected?.ok) {
@@ -1517,28 +1645,69 @@
           ok: false,
           error: selected?.error || 'Failed to select anchor cell before insert.',
           domIndex: idx,
+          phase: 'select_failed',
         };
       }
     }
 
     const insert = await insertCellByDirection(normalizedDirection, { maxWaitMs });
     if (!insert?.ok) {
-      return insert;
+      return { ...insert, phase: insert.phase || 'insert_failed' };
+    }
+    insert.phase = 'insert_command_sent';
+
+    const expectedCount = countBefore + 1;
+    const countWait = await waitForCellCountAtLeast(expectedCount, { maxWaitMs: Math.max(2000, maxWaitMs) });
+    console.log('[insert_cell] phase=post_insert_wait', countWait);
+    if (!countWait?.ok) {
+      console.warn('[insert_cell] proceeding without confirmed cell-count increase:', countWait?.error);
     }
 
-    // Let Jupyter finish rendering the new cell before edit/select.
-    await sleep(350);
+    await sleep(200);
 
     const newDomIndex = normalizedDirection === 'below' ? idx + 1 : idx;
+    const newCellIndex = newDomIndex + 1;
+    const contentToApply = '';
+    const contentSet = await clearInsertedCellContent(newDomIndex, {
+      content: contentToApply,
+      maxWaitMs: Math.max(maxWaitMs, 1200),
+      retries: 3,
+      retryDelays: [200, 400, 600],
+    });
+    if (!contentSet?.ok) {
+      return {
+        ...insert,
+        ok: false,
+        anchorDomIndex: idx,
+        insertedBelow: normalizedDirection === 'below' ? idx : Math.max(0, idx - 1),
+        newDomIndex,
+        domIndex: newDomIndex,
+        appIndex: newCellIndex,
+        cellIndex: newCellIndex,
+        new_cell_index: newCellIndex,
+        phase: 'content_set_failed',
+        countBefore,
+        countWait,
+        contentSet,
+        error: contentSet?.error || 'Failed to clear duplicated cell content after insert.',
+      };
+    }
+
     const result = {
       ...insert,
       anchorDomIndex: idx,
       insertedBelow: normalizedDirection === 'below' ? idx : Math.max(0, idx - 1),
       newDomIndex,
       domIndex: newDomIndex,
-      appIndex: newDomIndex + 1,
-      cellIndex: newDomIndex + 1,
+      appIndex: newCellIndex,
+      cellIndex: newCellIndex,
+      new_cell_index: newCellIndex,
       phase: 'insert_complete',
+      countBefore,
+      countAfter: getNotebookCellCount(),
+      countWait,
+      contentSet,
+      contentChars: contentToApply.length,
     };
 
     if (options.toMarkdown === true) {

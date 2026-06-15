@@ -437,6 +437,19 @@ def _parallel_tool_calls_flag(*, agentic: bool = False) -> bool:
     return parallel_tool_calls_enabled(LLM_PROVIDER, agentic=agentic)
 
 
+def filter_tool_calls_for_mode(tool_calls: list | None, mode: str) -> list:
+    """Drop LLM tool_calls outside Agentic mode (Ask/Code are prose-only on the host)."""
+    if not tool_calls:
+        return []
+    try:
+        from .prompt_engineering import agentic_runtime_enabled
+    except Exception:
+        from prompt_engineering import agentic_runtime_enabled
+    if agentic_runtime_enabled(mode):
+        return list(tool_calls)
+    return []
+
+
 def _llm_react_throttle() -> None:
     """Enforce minimum spacing between LLM calls (5/min for Cerebras)."""
     try:
@@ -790,12 +803,23 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                 from agentic_action_guard import is_actionable_notebook_request
             if is_actionable_notebook_request(prompt):
                 target_ci = context_meta.get("cell_index")
+                try:
+                    from .agentic_action_guard import count_implied_tool_actions
+                except Exception:
+                    from agentic_action_guard import count_implied_tool_actions
+                implied_actions = count_implied_tool_actions(prompt)
                 if use_text_tools:
                     if target_ci is not None:
                         action_tail = (
                             f"Target cell is {int(target_ci)} (from notebook context). "
                             f"Emit one <agent_tool_batch>: notebook_get_cell if needed, "
                             f"edit_cell_by_index cell_index={int(target_ci)}, then run_cell if user asked to run/fix."
+                        )
+                    elif implied_actions >= 2:
+                        action_tail = (
+                            f"This request needs {implied_actions} tool actions. "
+                            f"Emit one <agent_tool_batch> with ALL {implied_actions}+ tools in one JSON array "
+                            f"(every delete_by_index, insert_cell, edit_cell_by_index, run_cell required)."
                         )
                     else:
                         action_tail = (
@@ -809,6 +833,13 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                             f"Respond with ONE assistant message containing ALL native tool_calls: "
                             f"notebook_get_cell if needed, edit_cell_by_index cell_index={int(target_ci)}, "
                             f"then run_cell if the user asked to run/fix."
+                        )
+                    elif implied_actions >= 2:
+                        action_tail = (
+                            f"This request needs {implied_actions} tool actions. "
+                            f"Respond with ONE assistant message containing ALL native tool_calls "
+                            f"(parallel_tool_calls enabled): every delete_by_index, insert_cell, "
+                            f"edit_cell_by_index, and run_cell required — not one tool per API round."
                         )
                     else:
                         action_tail = (
@@ -1155,7 +1186,10 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
             from .agentic_mode import browser_tool_allowed
 
             tools = build_cerebras_tools(include_browser=agentic_active) if not use_text_tools else []
-            max_tool_rounds = LLM_REACT_MAX_ROUNDS if agentic_active else 0
+            if agentic_active and AGENTIC_FIRE_AND_FORGET:
+                max_tool_rounds = AGENTIC_MAX_TOOL_ROUNDS
+            else:
+                max_tool_rounds = LLM_REACT_MAX_ROUNDS if agentic_active else 0
             parallel_tools = _parallel_tool_calls_flag(agentic=agentic_active) if agentic_active else False
             if (tools or use_text_tools) and not was_stopped and not skip_post_stream_tools and not _is_stopped():
                 tool_messages = list(messages)
@@ -1210,9 +1244,15 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                     error_recovery_attempts = 0
                     react_llm_calls = 0
                     try:
-                        from .agentic_action_guard import MAX_ERROR_RECOVERY_ROUNDS
+                        from .agentic_action_guard import (
+                            MAX_ERROR_RECOVERY_ROUNDS,
+                            MAX_INCOMPLETE_BATCH_NUDGES,
+                        )
                     except Exception:
-                        from agentic_action_guard import MAX_ERROR_RECOVERY_ROUNDS
+                        from agentic_action_guard import (
+                            MAX_ERROR_RECOVERY_ROUNDS,
+                            MAX_INCOMPLETE_BATCH_NUDGES,
+                        )
                     try:
                         from .agent_state import empty_agent_state, inject_agent_state_message, update_agent_state_from_verification
                         from .agent_planner import (
@@ -1242,7 +1282,15 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                     plan_generation_pending = planning_phase_active(agent_state, prompt=prompt)
                     plan_nudge_sent = False
                     prose_only_streak = 0
+                    incomplete_batch_nudges = 0
                     last_parse_result = None
+                    agentic_fire_and_forget_done = False
+                    agentic_turn_resolved = False
+                    _seq_executed: list[dict] = []
+                    _ff_cumulative_executed: list[dict] = []
+                    _ff_rounds_dispatched = 0
+                    query_rounds_used = 0
+                    consecutive_query_only_rounds = 0
                     for _round in range(max_tool_rounds):
                         if _is_stopped():
                             break
@@ -1291,6 +1339,11 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                                 pre_trim_messages=pre_fit,
                                 removed_fps=removed_fps,
                             )
+                            try:
+                                from .context_budget import sanitize_tool_message_chain
+                            except Exception:
+                                from context_budget import sanitize_tool_message_chain
+                            tool_messages = sanitize_tool_message_chain(tool_messages)
                             protected = _react_protected_indices(tool_messages, original_user_prompt=prompt)
                             trace_react_event(
                                 event="pre_llm_call",
@@ -1365,7 +1418,14 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                         dumped = tool_resp.model_dump() if hasattr(tool_resp, "model_dump") else {}
                         choice = (dumped.get("choices") or [{}])[0]
                         assistant_msg = choice.get("message") or {}
-                        tool_calls = assistant_msg.get("tool_calls") or []
+                        tool_calls = filter_tool_calls_for_mode(
+                            assistant_msg.get("tool_calls") or [], resolved_mode
+                        )
+                        if (assistant_msg.get("tool_calls") or []) and not tool_calls:
+                            log(
+                                f"Ignored {len(assistant_msg.get('tool_calls') or [])} tool_calls "
+                                f"— mode={resolved_mode} (browser tools require Agentic)"
+                            )
 
                         if not use_text_tools and tool_calls and agentic_active:
                             try:
@@ -1620,8 +1680,176 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                                 parse_errors=_parse_errors if not tool_calls else None,
                             )
 
+                        if (
+                            agentic_active
+                            and tool_calls
+                            and not use_text_tools
+                        ):
+                            try:
+                                from .agentic_action_guard import (
+                                    batch_lacks_write_tools,
+                                    build_query_only_rejection_message,
+                                    is_implementation_request,
+                                    is_query_only_tool_batch,
+                                )
+                            except Exception:
+                                from agentic_action_guard import (
+                                    batch_lacks_write_tools,
+                                    build_query_only_rejection_message,
+                                    is_implementation_request,
+                                    is_query_only_tool_batch,
+                                )
+                            _parsed_names = _audit_tool_names(tool_calls)
+                            if (
+                                is_implementation_request(prompt)
+                                and is_query_only_tool_batch(_parsed_names)
+                                and batch_lacks_write_tools(_parsed_names)
+                                and not AGENTIC_FIRE_AND_FORGET
+                            ):
+                                reject_msg = build_query_only_rejection_message(
+                                    prompt,
+                                    parsed_tools=_parsed_names,
+                                )
+                                final_text = reject_msg
+                                _turn_final_assistant_text = reject_msg
+                                agentic_turn_resolved = True
+                                _emit_stream_delta(
+                                    tab_id=tab_id,
+                                    snapshot_url=snapshot_url,
+                                    history_key=history_key,
+                                    session_id=session_id,
+                                    delta=("\n" if full_text else "") + reject_msg + "\n",
+                                )
+                                memory_store.append(
+                                    history_key, "assistant", final_text, session_id=memory_session_id
+                                )
+                                log(
+                                    "Rejected query-only tool batch for implementation request: "
+                                    + ", ".join(_parsed_names)
+                                )
+                                _emit_batch_audit(
+                                    session_id=memory_session_id,
+                                    round_index=_round,
+                                    goal=prompt,
+                                    notebook_url=snapshot_url,
+                                    parsed_tools=_parsed_names,
+                                    parsed_tool_count=len(tool_calls),
+                                    dispatch_path="query_only_rejected",
+                                    dispatcher_received=False,
+                                    executor_called=False,
+                                    assistant_final_text=reject_msg,
+                                    assistant_claimed_success=False,
+                                    source_hooks=["streaming.py query_only implementation guard"],
+                                )
+                                break
+
+                        if (
+                            agentic_active
+                            and tool_calls
+                            and not use_text_tools
+                            and incomplete_batch_nudges < MAX_INCOMPLETE_BATCH_NUDGES
+                            and _round < max_tool_rounds - 1
+                            and not AGENTIC_FIRE_AND_FORGET
+                        ):
+                            try:
+                                from .agentic_action_guard import (
+                                    build_incomplete_batch_nudge,
+                                    count_implied_tool_actions,
+                                )
+                            except Exception:
+                                from agentic_action_guard import (
+                                    build_incomplete_batch_nudge,
+                                    count_implied_tool_actions,
+                                )
+                            implied_actions = count_implied_tool_actions(prompt)
+                            parsed_count = len(tool_calls)
+                            if implied_actions >= 2 and parsed_count < implied_actions:
+                                incomplete_batch_nudges += 1
+                                nudge = build_incomplete_batch_nudge(
+                                    prompt,
+                                    parsed_count=parsed_count,
+                                    implied_count=implied_actions,
+                                    parsed_tools=_audit_tool_names(tool_calls),
+                                    use_text_tools=use_text_tools,
+                                )
+                                tool_messages.append({"role": "user", "content": nudge})
+                                log(
+                                    f"Incomplete batch: parsed {parsed_count} tool(s), "
+                                    f"implied ~{implied_actions} — nudging LLM"
+                                )
+                                _emit_stream_delta(
+                                    tab_id=tab_id,
+                                    snapshot_url=snapshot_url,
+                                    history_key=history_key,
+                                    session_id=session_id,
+                                    delta=(
+                                        f"\nIncomplete batch ({parsed_count}/{implied_actions} tools) "
+                                        f"— requesting full tool_calls…\n"
+                                    ),
+                                )
+                                continue
+
                         if not tool_calls:
                             followup = _final_text_from_response(tool_resp).strip()
+                            if agentic_active and AGENTIC_FIRE_AND_FORGET:
+                                if followup:
+                                    tool_messages.append({"role": "assistant", "content": followup})
+                                try:
+                                    from .agentic_batch_executor import build_fire_and_forget_user_summary
+                                except Exception:
+                                    from agentic_batch_executor import build_fire_and_forget_user_summary
+                                if _ff_cumulative_executed:
+                                    summary_verification = {
+                                        "executed": list(_ff_cumulative_executed),
+                                        "rounds_dispatched": _ff_rounds_dispatched,
+                                    }
+                                    dispatch_summary = build_fire_and_forget_user_summary(
+                                        summary_verification
+                                    )
+                                    final_text = (
+                                        f"{dispatch_summary}\n\n{followup}".strip()
+                                        if followup
+                                        else dispatch_summary
+                                    )
+                                elif followup:
+                                    final_text = followup
+                                else:
+                                    final_text = (
+                                        "Tools dispatched (fire-and-forget). "
+                                        "Check monitor CALL/RESULT trace for outcomes."
+                                    )
+                                _turn_final_assistant_text = final_text
+                                _emit_stream_delta(
+                                    tab_id=tab_id,
+                                    snapshot_url=snapshot_url,
+                                    history_key=history_key,
+                                    session_id=session_id,
+                                    delta=("\n" if full_text else "") + final_text + "\n",
+                                )
+                                memory_store.append(
+                                    history_key, "assistant", final_text, session_id=memory_session_id
+                                )
+                                agentic_fire_and_forget_done = True
+                                try:
+                                    from .tool_call_terminal import trace_react_stop
+                                except Exception:
+                                    try:
+                                        from tool_call_terminal import trace_react_stop
+                                    except Exception:
+                                        trace_react_stop = None  # type: ignore
+                                if trace_react_stop:
+                                    trace_react_stop(_round, "prose_done")
+                                try:
+                                    from .agent_trace import trace_react_event
+                                except Exception:
+                                    from agent_trace import trace_react_event
+                                trace_react_event(
+                                    event="react_stop",
+                                    round_idx=_round,
+                                    stop_reason="prose_done",
+                                    extra={"rounds_dispatched": _ff_rounds_dispatched},
+                                )
+                                break
                             if plan_generation_pending:
                                 if followup:
                                     tool_messages.append({"role": "assistant", "content": followup})
@@ -1684,7 +1912,7 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                             )
                             run_queue_done = last_tool_queue_complete
 
-                            if agentic_active and queue_error_state and _round < max_tool_rounds - 1:
+                            if agentic_active and queue_error_state and _round < max_tool_rounds - 1 and not AGENTIC_FIRE_AND_FORGET:
                                 error_recovery_attempts += 1
                                 if error_recovery_attempts > MAX_ERROR_RECOVERY_ROUNDS:
                                     final_text = build_error_recovery_exhausted_message(
@@ -1758,7 +1986,7 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                                     )
                                     break
 
-                            if agentic_active and must_act and _round < max_tool_rounds - 1:
+                            if agentic_active and must_act and _round < max_tool_rounds - 1 and not AGENTIC_FIRE_AND_FORGET:
                                 if followup:
                                     tool_messages.append(
                                         {"role": "assistant", "content": followup}
@@ -1848,7 +2076,7 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                                     prompt=prompt,
                                     verification=last_batch_verification,
                                     tools_executed=agentic_tools_executed,
-                                ) and _round < max_tool_rounds - 1:
+                                ) and _round < max_tool_rounds - 1 and not AGENTIC_FIRE_AND_FORGET:
                                     try:
                                         from .agentic_output_guard import build_structured_output_nudge
                                     except Exception:
@@ -1905,6 +2133,7 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                                 should_use_batch_executor,
                                 workflow_needs_llm_followup,
                                 workflow_followup_reason,
+                                build_fire_and_forget_user_summary,
                             )
                             from .agentic_mode import browser_tool_allowed as _batch_browser_allowed
                         except Exception:
@@ -1913,6 +2142,7 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                                 should_use_batch_executor,
                                 workflow_needs_llm_followup,
                                 workflow_followup_reason,
+                                build_fire_and_forget_user_summary,
                             )
                             from agentic_mode import browser_tool_allowed as _batch_browser_allowed
 
@@ -1931,9 +2161,61 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                             if trace_batch_start:
                                 trace_batch_start(_round, batch_tool_calls)
                             try:
-                                from .agentic_action_guard import queue_error_active
+                                from .agentic_action_guard import (
+                                    batch_lacks_write_tools,
+                                    build_query_budget_exhausted_nudge,
+                                    build_query_loop_exhausted_message,
+                                    cumulative_has_write_tools,
+                                    is_query_only_tool_batch,
+                                    queue_error_active,
+                                    should_force_implementation_batch,
+                                )
                             except Exception:
-                                from agentic_action_guard import queue_error_active
+                                from agentic_action_guard import (
+                                    batch_lacks_write_tools,
+                                    build_query_budget_exhausted_nudge,
+                                    build_query_loop_exhausted_message,
+                                    cumulative_has_write_tools,
+                                    is_query_only_tool_batch,
+                                    queue_error_active,
+                                    should_force_implementation_batch,
+                                )
+                            _parsed_batch_names = _audit_tool_names(batch_tool_calls)
+                            _ff_has_writes = cumulative_has_write_tools(_ff_cumulative_executed)
+                            _force_implementation = (
+                                agentic_active
+                                and AGENTIC_FIRE_AND_FORGET
+                                and should_force_implementation_batch(
+                                    prompt=prompt,
+                                    parsed_tools=_parsed_batch_names,
+                                    query_rounds_used=query_rounds_used,
+                                    max_query_rounds=AGENTIC_MAX_QUERY_ROUNDS,
+                                    cumulative_has_writes=_ff_has_writes,
+                                    round_idx=_round,
+                                    max_tool_rounds=max_tool_rounds,
+                                )
+                            )
+                            if (
+                                _force_implementation
+                                and consecutive_query_only_rounds >= 2
+                                and not _ff_has_writes
+                            ):
+                                loop_msg = build_query_loop_exhausted_message(prompt)
+                                final_text = loop_msg
+                                _turn_final_assistant_text = loop_msg
+                                agentic_turn_resolved = True
+                                _emit_stream_delta(
+                                    tab_id=tab_id,
+                                    snapshot_url=snapshot_url,
+                                    history_key=history_key,
+                                    session_id=session_id,
+                                    delta=("\n" if full_text else "") + loop_msg + "\n",
+                                )
+                                memory_store.append(
+                                    history_key, "assistant", final_text, session_id=memory_session_id
+                                )
+                                log("Stopped query-only loop without write dispatch")
+                                break
                             verification = execute_agentic_batch(
                                 batch_tool_calls,
                                 user_prompt=prompt,
@@ -1944,14 +2226,23 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                                 mode=resolved_mode,
                                 pipeline_state=pipeline_state,
                                 cancel_check=_is_stopped,
+                                trace_round=_round,
+                                force_implementation=_force_implementation,
                             )
                             try:
-                                from .tool_call_terminal import trace_verification
+                                from .tool_call_terminal import trace_batch_end, trace_verification
                             except Exception:
                                 try:
-                                    from tool_call_terminal import trace_verification
+                                    from tool_call_terminal import trace_batch_end, trace_verification
                                 except Exception:
+                                    trace_batch_end = None  # type: ignore
                                     trace_verification = None  # type: ignore
+                            if trace_batch_end:
+                                trace_batch_end(
+                                    _round,
+                                    ok=bool(verification.get("verified")),
+                                    detail=str(verification.get("goal_reason") or "")[:120],
+                                )
                             if trace_verification:
                                 trace_verification(_round, verification)
                             if verification.get("cancelled") or _is_stopped():
@@ -1961,6 +2252,107 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                                 last_tool_queue_complete = True
                             agentic_had_batch = True
                             last_batch_verification = verification
+                            if verification.get("fire_and_forget"):
+                                try:
+                                    from .agentic_batch_executor import merge_fire_and_forget_executed
+                                    from .agentic_verification import append_native_batch_tool_results
+                                except Exception:
+                                    from agentic_batch_executor import merge_fire_and_forget_executed
+                                    from agentic_verification import append_native_batch_tool_results
+                                _ff_cumulative_executed = merge_fire_and_forget_executed(
+                                    _ff_cumulative_executed,
+                                    verification,
+                                )
+                                _ff_rounds_dispatched += 1
+                                last_batch_verification = {
+                                    **verification,
+                                    "executed": list(_ff_cumulative_executed),
+                                    "rounds_dispatched": _ff_rounds_dispatched,
+                                }
+                                _dispatched_names = _audit_tool_names(batch_tool_calls)
+                                if cumulative_has_write_tools(_ff_cumulative_executed):
+                                    consecutive_query_only_rounds = 0
+                                elif (
+                                    not _force_implementation
+                                    and is_query_only_tool_batch(_dispatched_names)
+                                ):
+                                    query_rounds_used += 1
+                                    consecutive_query_only_rounds += 1
+                                else:
+                                    consecutive_query_only_rounds += 1
+                                if (
+                                    query_rounds_used >= AGENTIC_MAX_QUERY_ROUNDS
+                                    and not cumulative_has_write_tools(_ff_cumulative_executed)
+                                    and _round < max_tool_rounds - 1
+                                ):
+                                    tool_messages.append({
+                                        "role": "user",
+                                        "content": build_query_budget_exhausted_nudge(
+                                            prompt,
+                                            parsed_tools=_dispatched_names,
+                                        ),
+                                    })
+                                if not use_text_tools:
+                                    append_native_batch_tool_results(
+                                        tool_messages,
+                                        batch_tool_calls,
+                                        verification,
+                                        round_idx=_round,
+                                    )
+                                _ff_has_writes_now = cumulative_has_write_tools(_ff_cumulative_executed)
+                                _ff_at_last_round = _round >= max_tool_rounds - 1
+                                if _ff_has_writes_now or _ff_at_last_round:
+                                    dispatch_summary = build_fire_and_forget_user_summary(
+                                        last_batch_verification
+                                    )
+                                    final_text = dispatch_summary
+                                    _turn_final_assistant_text = dispatch_summary
+                                    _emit_stream_delta(
+                                        tab_id=tab_id,
+                                        snapshot_url=snapshot_url,
+                                        history_key=history_key,
+                                        session_id=session_id,
+                                        delta=("\n" if full_text else "") + dispatch_summary + "\n",
+                                    )
+                                    memory_store.append(
+                                        history_key, "assistant", final_text, session_id=memory_session_id
+                                    )
+                                    agentic_fire_and_forget_done = True
+                                    _ff_stop_reason = (
+                                        "write_dispatched"
+                                        if _ff_has_writes_now
+                                        else "max_rounds"
+                                    )
+                                    try:
+                                        from .tool_call_terminal import trace_react_stop
+                                    except Exception:
+                                        try:
+                                            from tool_call_terminal import trace_react_stop
+                                        except Exception:
+                                            trace_react_stop = None  # type: ignore
+                                    if trace_react_stop:
+                                        trace_react_stop(_round, _ff_stop_reason)
+                                    try:
+                                        from .agent_trace import trace_react_event
+                                    except Exception:
+                                        from agent_trace import trace_react_event
+                                    trace_react_event(
+                                        event="react_stop",
+                                        round_idx=_round,
+                                        stop_reason=_ff_stop_reason,
+                                        extra={"rounds_dispatched": _ff_rounds_dispatched},
+                                    )
+                                    break
+                                try:
+                                    from .agent_trace import trace_react_event
+                                except Exception:
+                                    from agent_trace import trace_react_event
+                                trace_react_event(
+                                    event="fire_and_forget_continue",
+                                    round_idx=_round,
+                                    extra={"rounds_dispatched": _ff_rounds_dispatched},
+                                )
+                                continue
                             try:
                                 from .execution_integrity import update_integrity_from_verification
                             except Exception:
@@ -2263,14 +2655,28 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                                 )
                             break
 
-                        _seq_executed: list[dict] = []
+                        _seq_executed = []
                         try:
-                            from .tool_call_terminal import trace_dispatch_path
+                            from .tool_call_terminal import (
+                                log_tool_call,
+                                log_tool_result,
+                                notebook_slug_from_url,
+                                trace_dispatch_path,
+                            )
                         except Exception:
                             try:
-                                from tool_call_terminal import trace_dispatch_path
+                                from tool_call_terminal import (
+                                    log_tool_call,
+                                    log_tool_result,
+                                    notebook_slug_from_url,
+                                    trace_dispatch_path,
+                                )
                             except Exception:
+                                log_tool_call = None  # type: ignore
+                                log_tool_result = None  # type: ignore
+                                notebook_slug_from_url = lambda _u: ""  # type: ignore
                                 trace_dispatch_path = None  # type: ignore
+                        _seq_slug = notebook_slug_from_url(snapshot_url) or None
                         if trace_dispatch_path:
                             trace_dispatch_path("sequential", f"{len(tool_calls)} tools")
                         for tc_idx, tc in enumerate(tool_calls):
@@ -2285,6 +2691,14 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                             if isinstance(tab_id, int) and tab_id > 0:
                                 parsed_args.setdefault("tab_id", tab_id)
 
+                            if log_tool_call:
+                                log_tool_call(
+                                    str(fname or "?"),
+                                    parsed_args,
+                                    phase="sequential",
+                                    round_idx=_round,
+                                    notebook_slug=_seq_slug,
+                                )
                             try:
                                 allowed, block_err = browser_tool_allowed(resolved_mode, str(fname or ""))
                                 if not allowed:
@@ -2294,19 +2708,14 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                             except Exception as exc:
                                 result = {"ok": False, "error": str(exc)}
 
-                            try:
-                                from .tool_call_terminal import trace_tool_exec
-                            except Exception:
-                                try:
-                                    from tool_call_terminal import trace_tool_exec
-                                except Exception:
-                                    trace_tool_exec = None  # type: ignore
-                            if trace_tool_exec:
-                                trace_tool_exec(
+                            if log_tool_result:
+                                log_tool_result(
                                     str(fname or "?"),
                                     parsed_args,
                                     result if isinstance(result, dict) else {"ok": False},
                                     phase="sequential",
+                                    round_idx=_round,
+                                    notebook_slug=_seq_slug,
                                 )
 
                             _seq_executed.append(
@@ -2428,7 +2837,48 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                                 source_hooks=["streaming.py:~1880 sequential reg.call loop"],
                             )
 
-                    if not _is_stopped():
+                    if agentic_active and AGENTIC_FIRE_AND_FORGET and (
+                        agentic_fire_and_forget_done or agentic_had_batch or agentic_tools_executed > 0
+                    ):
+                        if not final_text.strip() or _agentic_status_only(final_text):
+                            try:
+                                from .agentic_batch_executor import build_fire_and_forget_user_summary
+                            except Exception:
+                                from agentic_batch_executor import build_fire_and_forget_user_summary
+                            if last_batch_verification and last_batch_verification.get("executed"):
+                                summary_payload = dict(last_batch_verification)
+                                if _ff_cumulative_executed:
+                                    summary_payload["executed"] = list(_ff_cumulative_executed)
+                                    summary_payload["rounds_dispatched"] = _ff_rounds_dispatched
+                                dispatch_summary = build_fire_and_forget_user_summary(
+                                    summary_payload
+                                )
+                            elif _seq_executed:
+                                dispatch_summary = build_fire_and_forget_user_summary(
+                                    {"executed": list(_seq_executed)}
+                                )
+                            else:
+                                dispatch_summary = (
+                                    "Tools dispatched (fire-and-forget). "
+                                    "Check monitor CALL/RESULT trace for outcomes."
+                                )
+                            final_text = dispatch_summary
+                            _turn_final_assistant_text = dispatch_summary
+                            _emit_stream_delta(
+                                tab_id=tab_id,
+                                snapshot_url=snapshot_url,
+                                history_key=history_key,
+                                session_id=session_id,
+                                delta=("\n" if full_text else "") + dispatch_summary + "\n",
+                            )
+                            memory_store.append(
+                                history_key, "assistant", final_text, session_id=memory_session_id
+                            )
+                    if not _is_stopped() and not agentic_turn_resolved and not (
+                        agentic_active
+                        and AGENTIC_FIRE_AND_FORGET
+                        and (agentic_fire_and_forget_done or agentic_had_batch or agentic_tools_executed > 0)
+                    ):
                         final_attempt = _begin_llm_request(_is_stopped)
                         if final_attempt:
                             try:

@@ -96,6 +96,21 @@ def test_fit_react_sublinear_token_growth_with_compression():
     assert t40 < t20 * 1.5
 
 
+def test_sanitize_tool_message_chain_drops_orphan_tools():
+    raw = [
+        {"role": "assistant", "content": "", "tool_calls": [
+            {"id": "a1", "function": {"name": "insert_cell", "arguments": "{}"}},
+        ]},
+        {"role": "tool", "tool_call_id": "orphan", "content": "{}"},
+        {"role": "user", "content": "verification"},
+    ]
+    from testing.host.context_budget import sanitize_tool_message_chain
+
+    repaired = sanitize_tool_message_chain(raw)
+    tool_msgs = [m for m in repaired if m.get("role") == "tool"]
+    assert {m["tool_call_id"] for m in tool_msgs} == {"a1"}
+
+
 def test_ensure_tool_call_message_pairs_fills_missing_tool_responses():
     raw = [
         {"role": "assistant", "content": "", "tool_calls": [

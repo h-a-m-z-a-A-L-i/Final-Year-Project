@@ -9,13 +9,19 @@ if repo_root not in sys.path:
 
 from testing.host.agentic_batch_executor import (
     analyze_cell_output,
+    build_batch_error_context,
+    build_batch_success_verification,
+    build_fire_and_forget_user_summary,
+    build_fire_and_forget_verification,
     enrich_batch_from_prompt,
+    execute_run_queue_dispatch_only,
     finalize_tool_queue_verification,
     fetch_queue_cell_evidence,
     execute_run_queue_sequential,
     expand_multi_cell_from_prompt,
     normalize_batch_indices,
     normalize_sequential_insert_anchors,
+    resolve_batch_cell_indices,
     ParsedToolCall,
     partition_batch,
     split_batch_at_run,
@@ -418,7 +424,29 @@ def test_normalize_sequential_insert_anchors():
     ]
     out = normalize_sequential_insert_anchors(calls)
     anchors = [c.args["index"] for c in out]
-    assert anchors == [2, 3, 4]
+    assert anchors == [2, 2, 2]
+
+
+def test_batch_index_resolution_wrong_llm_pattern():
+    """Reproduce r1 bug: 3 inserts at 34,35,36 then edits 35,36,37 → remap to 35,36,37."""
+    calls = [
+        ParsedToolCall("1", "insert_cell", {"index": 34, "direction": "below"}),
+        ParsedToolCall("2", "insert_cell", {"index": 35, "direction": "below"}),
+        ParsedToolCall("3", "insert_cell", {"index": 36, "direction": "below"}),
+        ParsedToolCall("4", "edit_cell_by_index", {"cell_index": 35, "content": "load"}),
+        ParsedToolCall("5", "edit_cell_by_index", {"cell_index": 36, "content": "predict"}),
+        ParsedToolCall("6", "edit_cell_by_index", {"cell_index": 37, "content": "metrics"}),
+        ParsedToolCall("7", "run_cell", {"cell_index": 35}),
+        ParsedToolCall("8", "run_cell", {"cell_index": 36}),
+        ParsedToolCall("9", "run_cell", {"cell_index": 37}),
+    ]
+    out = resolve_batch_cell_indices(calls)
+    insert_anchors = [c.args["index"] for c in out if c.name == "insert_cell"]
+    assert insert_anchors == [34, 34, 34]
+    edit_indices = [c.args["cell_index"] for c in out if c.name == "edit_cell_by_index"]
+    run_indices = [c.args["cell_index"] for c in out if c.name == "run_cell"]
+    assert edit_indices == [35, 36, 37]
+    assert run_indices == [35, 36, 37]
 
 
 def test_expand_multi_cell_from_prompt_builds_full_chain():
@@ -441,6 +469,51 @@ def test_expand_multi_cell_from_prompt_builds_full_chain():
     assert len([c for c in out if c.name == "run_cell"]) == 5
     edit_indices = sorted(c.args["cell_index"] for c in out if c.name == "edit_cell_by_index")
     assert edit_indices == [3, 4, 5, 6, 7]
+
+
+def test_expand_multi_cell_skips_split_cell_requests():
+    prompt = "Split cell 38 into 3 smaller cells"
+    calls = [
+        ParsedToolCall("1", "insert_cell", {"index": 38, "direction": "below"}),
+        ParsedToolCall("2", "insert_cell", {"index": 38, "direction": "below"}),
+    ]
+    out = expand_multi_cell_from_prompt(
+        calls,
+        user_prompt=prompt,
+        url="https://example.com/edit",
+        tab_id=None,
+    )
+    assert out == calls
+    assert extract_cell_count_from_prompt(prompt) is None
+
+
+def test_expand_multi_cell_without_explicit_content_does_not_inject_print():
+    prompt = "create 3 new cells under cell index 38"
+    out = expand_multi_cell_from_prompt(
+        [],
+        user_prompt=prompt,
+        url="https://example.com/edit",
+        tab_id=None,
+    )
+    assert out == []
+
+
+def test_enrich_split_cell_does_not_inject_print_placeholders():
+    prompt = "Split cell 38 into 3 smaller cells"
+    calls = [
+        ParsedToolCall("1", "insert_cell", {"index": 38, "direction": "below"}),
+        ParsedToolCall("2", "insert_cell", {"index": 38, "direction": "below"}),
+        ParsedToolCall("3", "insert_cell", {"index": 38, "direction": "below"}),
+    ]
+    out = enrich_batch_from_prompt(
+        calls,
+        user_prompt=prompt,
+        url="https://example.com/edit",
+        tab_id=None,
+    )
+    edits = [c for c in out if c.name == "edit_cell_by_index"]
+    assert not edits
+    assert len([c for c in out if c.name == "insert_cell"]) == 3
 
 
 def test_user_requests_run_from_prompt_and_tools():
@@ -514,4 +587,293 @@ def test_execute_run_queue_stops_on_cancel(mock_snap, mock_dispatch, mock_wait):
     )
     assert completed == [1]
     assert pending == [2, 3]
+
+
+def test_build_batch_error_context_includes_succeeded_ops():
+    executed = [
+        {"tool": "edit_cell_by_index", "cell_index": 3, "dispatched": True, "phase": "write"},
+        {"tool": "run_cell", "cell_index": 3, "dispatched": True, "phase": "run_queue"},
+        {"tool": "run_cell", "cell_index": 4, "dispatched": True, "phase": "run_queue"},
+    ]
+    batch_tools = [
+        {"tool": "edit_cell_by_index", "args": {"cell_index": 3, "content": "print(1)"}},
+        {"tool": "run_cell", "args": {"cell_index": 3}},
+        {"tool": "run_cell", "args": {"cell_index": 4}},
+    ]
+    err_out = "NameError: name 'x' is not defined\n"
+    ctx = build_batch_error_context(
+        batch_tools,
+        executed,
+        failed_cell_index=4,
+        error_output=err_out,
+        pending_run_cells=[5],
+        cell_evidence={
+            3: {"cell_index": 3, "input": "print(1)", "output": "1\n"},
+            4: {"cell_index": 4, "input": "print(x)", "output": err_out},
+        },
+        run_waits=[
+            {"cell_index": 3, "output": "1\n", "run_succeeded": True, "run_verified": True},
+            {"cell_index": 4, "output": err_out, "run_succeeded": False, "has_error": True},
+        ],
+    )
+    assert ctx["failed_run"]["cell_index"] == 4
+    assert ctx["failed_run"]["error_type"] == "NameError"
+    assert ctx["pending_run_cells"] == [5]
+    tools = {op["tool"] for op in ctx["succeeded_operations"]}
+    assert "edit_cell_by_index" in tools
+    assert "run_cell" in tools
+    assert all(op.get("cell_index") != 4 for op in ctx["succeeded_operations"])
+    run3 = next(op for op in ctx["succeeded_operations"] if op.get("cell_index") == 3)
+    assert run3["status"] == "succeeded"
+    assert "1" in str(run3.get("output_preview") or "")
+
+
+def test_build_batch_success_verification_all_cells():
+    executed = [
+        {"tool": "edit_cell_by_index", "cell_index": 2, "dispatched": True},
+        {"tool": "run_cell", "cell_index": 2, "dispatched": True},
+    ]
+    evidence = {
+        2: {"cell_index": 2, "input": "print('hi')", "output": "hi\n"},
+    }
+    out = build_batch_success_verification(
+        [{"tool": "edit_cell_by_index", "args": {"cell_index": 2, "content": "print('hi')"}}],
+        evidence,
+        executed_results=executed,
+        expected_edits={2: "print('hi')"},
+        run_waits=[{"cell_index": 2, "output": "hi\n", "run_succeeded": True, "run_verified": True}],
+    )
+    assert out["all_cells_verified"] is True
+    assert len(out["cells"]) >= 2
+    ops = {c["operation"] for c in out["cells"]}
+    assert "edit_cell_by_index" in ops
+    assert "run_cell" in ops
+    run_entry = next(c for c in out["cells"] if c["operation"] == "run_cell")
+    assert run_entry["run_succeeded"] is True
+    assert "hi" in str(run_entry.get("output_preview") or "")
+
+
+def test_finalize_attaches_batch_error_context():
+    registry = MagicMock()
+    registry.call = lambda name, args: {
+        "ok": True,
+        "cell_index": args.get("cell_index"),
+        "input": "print(bad)",
+        "output": "NameError: bad",
+        "type": "code",
+    }
+    base = verify_workflow_batch(
+        before_data={"cells": []},
+        after_data={"cells": []},
+        executed=[
+            {"tool": "edit_cell_by_index", "cell_index": 5, "dispatched": True},
+            {"tool": "run_cell", "cell_index": 5, "dispatched": True},
+        ],
+        expected_edits={5: "print(bad)"},
+        run_cell_indices=[5],
+        run_waits=[{
+            "ok": True,
+            "output": "NameError: bad",
+            "run_succeeded": False,
+            "has_error": True,
+            "error_type": "NameError",
+            "cell_index": 5,
+            "run_verified": True,
+        }],
+    )
+    out = finalize_tool_queue_verification(
+        base,
+        registry=registry,
+        url="https://x/edit",
+        expected_edits={5: "print(bad)"},
+        run_requested=[5, 6],
+        run_completed=[5],
+        run_pending=[6],
+        batch_tools=[
+            {"tool": "edit_cell_by_index", "args": {"cell_index": 5, "content": "print(bad)"}},
+            {"tool": "run_cell", "args": {"cell_index": 5}},
+        ],
+    )
+    ctx = out.get("batch_error_context") or {}
+    assert ctx.get("failed_run", {}).get("cell_index") == 5
+    assert any(op.get("tool") == "edit_cell_by_index" for op in ctx.get("succeeded_operations") or [])
+    assert out["close_react_loop"] is False
+    assert out.get("goal_verified") is not True
+
+
+def test_finalize_delete_insert_write_only_closes_queue():
+    before = {
+        "cells": [
+            {"index": 1, "input": "a", "type": "code"},
+            {"index": 2, "input": "b", "type": "code"},
+        ]
+    }
+    after = {
+        "cells": [
+            {"index": 1, "input": "a", "type": "code"},
+            {"index": 2, "input": "", "type": "code"},
+        ]
+    }
+    executed = [
+        {"tool": "delete_by_index", "dispatched": True, "cell_index": 2},
+        {"tool": "insert_cell", "dispatched": True},
+    ]
+    base = verify_workflow_batch(
+        before_data=before,
+        after_data=after,
+        executed=executed,
+        expected_edits={},
+        run_cell_indices=[],
+        run_waits=[],
+    )
+    assert base["verified"] is True
+    out = finalize_tool_queue_verification(
+        base,
+        registry=None,
+        url="https://x/edit",
+        expected_edits={},
+        run_requested=[],
+        run_completed=[],
+        run_pending=[],
+        user_prompt="delete cell 2 and create new cell under cell 1",
+        batch_tools=[
+            {"tool": "delete_by_index", "args": {"cell_index": 2}},
+            {"tool": "insert_cell", "args": {"index": 1, "direction": "below"}},
+        ],
+    )
+    assert out.get("tool_queue_complete") is True
+    assert out.get("goal_verified") is True
+    assert out.get("close_react_loop") is True
+
+
+def test_finalize_attaches_batch_success_verification():
+    registry = MagicMock()
+    registry.call = lambda name, args: {
+        "ok": True,
+        "cell_index": args.get("cell_index"),
+        "input": "print(1)",
+        "output": "1\n",
+        "type": "code",
+    }
+    base = verify_workflow_batch(
+        before_data={"cells": [{"index": 1, "input": "old", "type": "code"}]},
+        after_data={"cells": [{"index": 1, "input": "print(1)", "type": "code", "output": "1\n"}]},
+        executed=[
+            {"tool": "edit_cell_by_index", "cell_index": 1, "dispatched": True},
+            {"tool": "run_cell", "cell_index": 1, "dispatched": True},
+        ],
+        expected_edits={1: "print(1)"},
+        run_cell_indices=[1],
+        run_waits=[{"ok": True, "output": "1\n", "run_succeeded": True, "run_verified": True, "cell_index": 1}],
+    )
+    assert base["verified"] is True
+    out = finalize_tool_queue_verification(
+        base,
+        registry=registry,
+        url="https://x/edit",
+        expected_edits={1: "print(1)"},
+        run_requested=[1],
+        run_completed=[1],
+        run_pending=[],
+        user_prompt="edit and run cell 1",
+        run_waits=[{"ok": True, "output": "1\n", "run_succeeded": True, "run_verified": True, "cell_index": 1}],
+        batch_tools=[
+            {"tool": "edit_cell_by_index", "args": {"cell_index": 1, "content": "print(1)"}},
+            {"tool": "run_cell", "args": {"cell_index": 1}},
+        ],
+    )
+    success = out.get("batch_success_verification") or {}
+    assert success.get("all_cells_verified") is True
+    assert len(success.get("cells") or []) >= 2
+
+
+def test_workflow_needs_followup_false_when_fire_and_forget():
+    v = build_fire_and_forget_verification(
+        executed=[{"tool": "edit_cell_by_index", "dispatched": True, "cell_index": 1}],
+        run_dispatched=[1],
+        run_pending=[],
+        expected_edits={1: "print(1)"},
+    )
+    assert v["fire_and_forget"] is True
+    assert workflow_needs_llm_followup(v) is False
+
+
+def test_build_fire_and_forget_user_summary():
+    v = build_fire_and_forget_verification(
+        executed=[
+            {"tool": "edit_cell_by_index", "dispatched": True, "cell_index": 10},
+            {"tool": "run_cell", "dispatched": True, "cell_index": 10},
+        ],
+        run_dispatched=[10],
+        run_pending=[],
+        expected_edits={10: "print(1)"},
+    )
+    summary = build_fire_and_forget_user_summary(v)
+    assert "fire-and-forget" in summary.lower()
+    assert "edit_cell_by_index(10)" in summary
+    assert "run_cell(10)" in summary
+
+
+def test_execute_run_queue_dispatch_only_no_wait():
+    registry = MagicMock()
+    registry.call.return_value = {"ok": True}
+    executed: list = []
+    with patch("testing.host.agentic_batch_executor.wait_for_cell_run") as mock_wait:
+        dispatched, pending = execute_run_queue_dispatch_only(
+            [5, 6],
+            executed=executed,
+            registry=registry,
+            url="https://x/edit",
+            tab_id=1,
+            mode="agentic",
+            browser_tool_allowed=lambda _m, _t: (True, None),
+            inter_delay=0.0,
+        )
+    assert dispatched == [5, 6]
+    assert pending == []
+    assert len(executed) == 2
+    assert all(row.get("dispatched") for row in executed)
+    mock_wait.assert_not_called()
+
+
+@patch("testing.host.agentic_batch_executor.AGENTIC_FIRE_AND_FORGET", True)
+@patch("testing.host.agentic_batch_executor.wait_for_snapshot_change")
+@patch("testing.host.agentic_batch_executor.wait_for_cell_run")
+@patch("testing.host.agentic_batch_executor.load_notebook_snapshot")
+def test_execute_agentic_batch_fire_and_forget_skips_waits(mock_snap, mock_wait, mock_snap_change):
+    mock_snap.return_value = ({"cells": []}, "live")
+    registry = MagicMock()
+    registry.call.return_value = {"ok": True, "dispatched": True, "phase": "dispatched"}
+    tool_calls = [
+        {
+            "id": "tc1",
+            "function": {
+                "name": "edit_cell_by_index",
+                "arguments": json.dumps({"cell_index": 3, "content": "print(1)", "url": "https://x/edit"}),
+            },
+        },
+        {
+            "id": "tc2",
+            "function": {
+                "name": "run_cell",
+                "arguments": json.dumps({"cell_index": 3, "url": "https://x/edit"}),
+            },
+        },
+    ]
+    from testing.host.agentic_batch_executor import execute_agentic_batch
+
+    out = execute_agentic_batch(
+        tool_calls,
+        user_prompt="edit cell 3 and run",
+        url="https://x/edit",
+        tab_id=1,
+        registry=registry,
+        browser_tool_allowed=lambda _m, _t: (True, None),
+        mode="agentic",
+        inter_delay=0.0,
+    )
+    assert out.get("fire_and_forget") is True
+    assert workflow_needs_llm_followup(out) is False
+    mock_snap_change.assert_not_called()
+    mock_wait.assert_not_called()
 

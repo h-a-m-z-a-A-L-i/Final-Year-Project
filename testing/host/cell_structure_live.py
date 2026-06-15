@@ -333,8 +333,7 @@ def execution_watch_mtimes(url: str) -> tuple[float, ...]:
 
 def read_revision_execution_cells(url: str) -> list[CellExecutionObservation]:
     """Optional secondary source when live scrape lacks execution metadata."""
-    state = _read_json(_EXECUTION_STATE_PATH) or {}
-    nb = state.get(url) if isinstance(state, dict) else None
+    nb = _execution_state_notebook(url)
     if not isinstance(nb, dict):
         return []
     rev_hash = nb.get("active_revision")
@@ -410,6 +409,54 @@ def merge_execution_observations(
 
 
 
+def normalize_notebook_url(url: str) -> str:
+    return str(url or "").strip().rstrip("/").lower()
+
+
+def _execution_state_notebook(url: str) -> dict | None:
+    state = _read_json(_EXECUTION_STATE_PATH) or {}
+    if not isinstance(state, dict):
+        return None
+    want = normalize_notebook_url(url)
+    direct = state.get(url)
+    if isinstance(direct, dict):
+        return direct
+    for key, value in state.items():
+        if normalize_notebook_url(str(key)) == want and isinstance(value, dict):
+            return value
+    return None
+
+
+def read_kernel_scenario_for_url(url: str) -> str:
+    """Kernel scenario from execution_state.json (survives missing live scrape fields)."""
+    nb = _execution_state_notebook(url)
+    if not isinstance(nb, dict):
+        return ""
+    return str(nb.get("last_kernel_scenario") or nb.get("kernel_scenario") or "")
+
+
+def read_live_code_outputs(url: str) -> dict[int, str]:
+    """1-based code cell index → output text from the freshest live scrape."""
+    path = live_snapshot_path(url)
+    if path is None:
+        return {}
+    data = _read_json(path) or {}
+    raw = data.get("cells") if isinstance(data.get("cells"), list) else []
+    out: dict[int, str] = {}
+    for cell in raw:
+        if not isinstance(cell, dict):
+            continue
+        if str(cell.get("type") or "code").strip().lower() != "code":
+            continue
+        try:
+            idx = int(cell.get("index"))
+        except (TypeError, ValueError):
+            continue
+        if idx >= 1:
+            out[idx] = str(cell.get("output") or "")
+    return out
+
+
 def read_host_log_exec_lines(offset: int) -> tuple[list[tuple[int, int]], int]:
     """Parse new EXEC DETECTED lines from host.log; return (pairs, new_offset)."""
     import re
@@ -420,6 +467,8 @@ def read_host_log_exec_lines(offset: int) -> tuple[list[tuple[int, int]], int]:
         size = _HOST_LOG_PATH.stat().st_size
     except OSError:
         return [], offset
+    if size < offset:
+        offset = 0
     if size <= offset:
         return [], offset
     try:

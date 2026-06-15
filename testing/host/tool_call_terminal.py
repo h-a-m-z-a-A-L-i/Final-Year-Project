@@ -86,6 +86,40 @@ def _emit(line: str) -> None:
         pass
 
 
+def notebook_slug_from_url(url: str) -> str:
+    """Extract Kaggle notebook slug from an /edit URL (empty if unknown)."""
+    try:
+        from .kaggle_kernel_client import parse_kaggle_edit_url
+    except Exception:
+        try:
+            from kaggle_kernel_client import parse_kaggle_edit_url
+        except Exception:
+            return ""
+    parsed = parse_kaggle_edit_url(str(url or "").strip())
+    if not parsed:
+        return ""
+    _owner, slug = parsed
+    return slug
+
+
+def _batch_id(round_idx: int | None) -> str | None:
+    if round_idx is None:
+        return None
+    return f"r{round_idx}"
+
+
+def _sanitize_result_payload(result: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(result, dict):
+        return {}
+    out: dict[str, Any] = {}
+    for key, val in result.items():
+        if isinstance(val, str) and len(val) > 200:
+            out[key] = val[:199] + "…"
+        else:
+            out[key] = val
+    return out
+
+
 def _short_args(args: dict[str, Any] | None, *, max_len: int = 100) -> str:
     if not isinstance(args, dict) or not args:
         return ""
@@ -112,10 +146,18 @@ def _short_args(args: dict[str, Any] | None, *, max_len: int = 100) -> str:
 
 
 def trace_session_start(*, mode: str, session_id: str | None, url: str = "") -> None:
+    slug = notebook_slug_from_url(url)
     _emit(f"[{_now()}] ══ CHAT {mode} session={session_id or 'default'} ══")
     if url:
-        _emit(f"[{_now()}]        notebook: {url[:90]}")
-    _append_event("session_start", mode=mode, session_id=session_id, url=url)
+        slug_tag = f" [{slug}]" if slug else ""
+        _emit(f"[{_now()}]        notebook{slug_tag}: {url[:90]}")
+    _append_event(
+        "session_start",
+        mode=mode,
+        session_id=session_id,
+        url=url,
+        notebook_slug=slug or None,
+    )
 
 
 def trace_react_round(round_idx: int) -> None:
@@ -151,6 +193,26 @@ def trace_tools_parsed(
     )
 
 
+def trace_tool_reorder(
+    round_idx: int,
+    before: list[str],
+    after: list[str],
+) -> None:
+    """Log host-side stable reorder (run tools moved after writes)."""
+    if before == after:
+        return
+    _emit(
+        f"[{_now()}] REORDER r{round_idx} | "
+        f"{', '.join(before)} → {', '.join(after)}"
+    )
+    _append_event(
+        "reorder",
+        round=round_idx,
+        before=before,
+        after=after,
+    )
+
+
 def trace_dispatch_path(path: str, detail: str = "") -> None:
     line = f"[{_now()}] PATH   {path}"
     if detail:
@@ -161,22 +223,82 @@ def trace_dispatch_path(path: str, detail: str = "") -> None:
 
 def trace_batch_start(round_idx: int, tool_calls: list[dict] | None) -> None:
     names = _tool_names_from_calls(tool_calls)
+    batch_id = _batch_id(round_idx)
     _emit(f"[{_now()}] BATCH  r{round_idx} | executing {len(names)} tool(s) on host")
-    _append_event("batch_start", round=round_idx, tools=names, tool_count=len(names))
+    _append_event(
+        "batch_start",
+        round=round_idx,
+        batch_id=batch_id,
+        tools=names,
+        tool_count=len(names),
+    )
 
 
-def trace_tool_exec(
+def trace_batch_end(round_idx: int, *, ok: bool | None = None, detail: str = "") -> None:
+    batch_id = _batch_id(round_idx)
+    status = ""
+    if ok is True:
+        status = " OK"
+    elif ok is False:
+        status = " FAIL"
+    line = f"[{_now()}] BATCH  r{round_idx} | done{status}"
+    if detail:
+        line += f" | {detail[:120]}"
+    _emit(line)
+    _append_event(
+        "batch_end",
+        round=round_idx,
+        batch_id=batch_id,
+        ok=ok,
+        detail=detail or None,
+    )
+
+
+def log_tool_call(
+    tool: str,
+    args: dict[str, Any] | None,
+    *,
+    phase: str = "",
+    round_idx: int | None = None,
+    batch_id: str | None = None,
+    notebook_slug: str | None = None,
+) -> None:
+    """Record tool dispatch (before host executes the call)."""
+    arg_text = _short_args(args)
+    phase_tag = f" [{phase}]" if phase else ""
+    rnd_tag = f" r{round_idx}" if round_idx is not None else ""
+    line = f"[{_now()}] CALL{phase_tag}{rnd_tag}  {tool or '?'}"
+    if arg_text:
+        line += f" ({arg_text})"
+    _emit(line)
+    _append_event(
+        "dispatch",
+        tool=tool,
+        args=args if isinstance(args, dict) else {},
+        phase=phase or None,
+        round=round_idx,
+        batch_id=batch_id or _batch_id(round_idx),
+        notebook_slug=notebook_slug or None,
+    )
+
+
+def log_tool_result(
     tool: str,
     args: dict[str, Any] | None,
     result: dict[str, Any] | None,
     *,
     phase: str = "",
+    round_idx: int | None = None,
+    batch_id: str | None = None,
+    notebook_slug: str | None = None,
 ) -> None:
+    """Record tool result (after host returns)."""
     ok = bool((result or {}).get("ok")) if isinstance(result, dict) else False
     status = "OK" if ok else "FAIL"
     arg_text = _short_args(args)
     phase_tag = f" [{phase}]" if phase else ""
-    line = f"[{_now()}] EXEC{phase_tag}  {tool or '?'}"
+    rnd_tag = f" r{round_idx}" if round_idx is not None else ""
+    line = f"[{_now()}] RESULT{phase_tag}{rnd_tag}  {tool or '?'}"
     if arg_text:
         line += f" ({arg_text})"
     line += f" → {status}"
@@ -187,13 +309,56 @@ def trace_tool_exec(
             line += f" | {err[:120]}"
     _emit(line)
     _append_event(
+        "result",
+        tool=tool,
+        args=args if isinstance(args, dict) else {},
+        result=_sanitize_result_payload(result),
+        ok=ok,
+        phase=phase or None,
+        round=round_idx,
+        batch_id=batch_id or _batch_id(round_idx),
+        notebook_slug=notebook_slug or None,
+        error=err or None,
+        result_summary=status,
+    )
+
+
+def trace_tool_exec(
+    tool: str,
+    args: dict[str, Any] | None,
+    result: dict[str, Any] | None,
+    *,
+    phase: str = "",
+    round_idx: int | None = None,
+    batch_id: str | None = None,
+    notebook_slug: str | None = None,
+) -> None:
+    """Record completed tool execution (result only; use log_tool_call before dispatch)."""
+    log_tool_result(
+        tool,
+        args,
+        result,
+        phase=phase,
+        round_idx=round_idx,
+        batch_id=batch_id,
+        notebook_slug=notebook_slug,
+    )
+    ok = bool((result or {}).get("ok")) if isinstance(result, dict) else False
+    err = ""
+    if not ok and isinstance(result, dict):
+        err = str(result.get("error") or result.get("message") or "").strip()
+    _append_event(
         "exec",
         tool=tool,
         args=args if isinstance(args, dict) else {},
+        result=_sanitize_result_payload(result),
         ok=ok,
-        phase=phase,
+        phase=phase or None,
+        round=round_idx,
+        batch_id=batch_id or _batch_id(round_idx),
+        notebook_slug=notebook_slug or None,
         error=err or None,
-        result_summary=status,
+        result_summary="OK" if ok else "FAIL",
     )
 
 
@@ -244,6 +409,56 @@ def trace_verification(round_idx: int, verification: dict[str, Any] | None) -> N
         goal_reason=reason,
         execution_error=exec_err if isinstance(exec_err, dict) else None,
         executed=executed if isinstance(executed, list) else [],
+    )
+
+
+def trace_run_error(
+    failed_cell_index: int,
+    error_output: str,
+    *,
+    round_idx: int | None = None,
+    notebook_slug: str | None = None,
+    pending: list[int] | None = None,
+) -> None:
+    """Log run-queue stop on cell execution error."""
+    analysis_preview = str(error_output or "").strip().replace("\n", " ")[:160]
+    pending_tag = f" pending={pending}" if pending else ""
+    _emit(
+        f"[{_now()}] RUN_ERROR r{round_idx or '?'} | cell={failed_cell_index}{pending_tag} | "
+        f"{analysis_preview}"
+    )
+    _append_event(
+        "RUN_ERROR",
+        round=round_idx,
+        batch_id=_batch_id(round_idx),
+        notebook_slug=notebook_slug or None,
+        failed_cell_index=int(failed_cell_index),
+        pending_run_cells=list(pending or []),
+        error_preview=analysis_preview or None,
+    )
+
+
+def trace_batch_success(
+    cell_count: int,
+    *,
+    run_completed: list[int] | None = None,
+    round_idx: int | None = None,
+    notebook_slug: str | None = None,
+) -> None:
+    """Log clean completion of all run_cell tools in a batch."""
+    runs = list(run_completed or [])
+    runs_tag = f" runs={runs}" if runs else ""
+    _emit(
+        f"[{_now()}] BATCH_SUCCESS r{round_idx or '?'} | "
+        f"{cell_count} cell op(s){runs_tag}"
+    )
+    _append_event(
+        "BATCH_SUCCESS",
+        round=round_idx,
+        batch_id=_batch_id(round_idx),
+        notebook_slug=notebook_slug or None,
+        cell_count=int(cell_count),
+        run_completed=runs or None,
     )
 
 

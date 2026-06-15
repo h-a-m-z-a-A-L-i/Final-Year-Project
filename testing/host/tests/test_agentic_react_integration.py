@@ -1,5 +1,6 @@
-"""Integration: edit+run completes with 1 ReAct LLM call + 1 tool_final call."""
+"""Integration: multi-round fire-and-forget ReAct without verification loops."""
 
+import json
 import os
 import sys
 from unittest.mock import patch
@@ -37,57 +38,71 @@ class _FakeResponse:
         return {"choices": [c.model_dump() for c in self.choices]}
 
 
+def _native_tool_call(name: str, args: dict, call_id: str) -> dict:
+    return {
+        "id": call_id,
+        "type": "function",
+        "function": {
+            "name": name,
+            "arguments": json.dumps(args),
+        },
+    }
+
+
 class FakeCompletions:
-    def __init__(self, batch_text: str):
+    def __init__(self, responses: list[_FakeResponse]):
         self.calls: list[dict] = []
+        self._responses = list(responses)
         self._n = 0
-        self._batch_text = batch_text
 
     def create(self, **kwargs):
         self.calls.append({"messages_len": len(kwargs.get("messages") or [])})
+        idx = min(self._n, len(self._responses) - 1)
         self._n += 1
-        if self._n == 1:
-            return _FakeResponse(content=self._batch_text)
-        return _FakeResponse(content="Done: cell 10 updated and ran successfully.")
+        return self._responses[idx]
 
 
 class FakeClient:
-    def __init__(self, batch_text: str):
+    def __init__(self, responses: list[_FakeResponse]):
         self.chat = type("Chat", (), {})()
-        self.chat.completions = FakeCompletions(batch_text)
+        self.chat.completions = FakeCompletions(responses)
 
 
-def test_edit_run_one_react_round_plus_final():
-    os.environ["AGENTIC_TEXT_TOOLS"] = "1"
-    set_dashboard_agentic_enabled(True)
-
-    batch = (
-        '<agent_tool_batch>[{"tool":"edit_cell_by_index","args":{"cell_index":10,"content":"print(1)"}},'
-        '{"tool":"run_cell","args":{"cell_index":10}}]</agent_tool_batch>'
-    )
-    fake = FakeClient(batch)
-    streaming._LLM_CLIENT = fake
-    url = "https://www.kaggle.com/code/codekey/testing-ol/edit"
-    prompt = "Edit cell 10 to print(1) and run it"
-
-    verification = {
+def _list_cells_verification():
+    return {
         "verified": True,
         "batch_executed": True,
-        "tool_queue_status": "complete",
+        "fire_and_forget": True,
+        "tool_queue_status": "dispatched",
         "tool_queue_complete": True,
         "run_queue_complete": True,
-        "await_llm_summary": True,
-        "pending_run_cells": [],
-        "deferred_tool_calls": [],
-        "needs_fix": False,
-        "runs_executed": [10],
-        "executed": [
-            {"tool": "edit_cell_by_index", "cell_index": 10},
-            {"tool": "run_cell", "cell_index": 10},
-        ],
+        "executed": [{"tool": "notebook_list_cells", "dispatched": True, "phase": "read"}],
+        "read_results": [{"tool": "notebook_list_cells", "result": {"ok": True, "cells": []}}],
     }
 
-    patches = [
+
+def _write_batch_verification():
+    return {
+        "verified": True,
+        "batch_executed": True,
+        "fire_and_forget": True,
+        "tool_queue_status": "dispatched",
+        "tool_queue_complete": True,
+        "run_queue_complete": True,
+        "executed": [
+            {"tool": "edit_cell_by_index", "cell_index": 10, "dispatched": True},
+            {"tool": "run_cell", "cell_index": 10, "dispatched": True},
+        ],
+        "runs_dispatched": [10],
+    }
+
+
+def _common_patches(*, max_rounds: int, emitted: list[str], batch_mock):
+    def _capture_delta(*_a, delta="", **_k):
+        emitted.append(delta)
+
+    return [
+        patch.dict(os.environ, {"AGENTIC_TEXT_TOOLS": "0", "AGENTIC_MAX_TOOL_ROUNDS": str(max_rounds)}),
         patch("testing.host.streaming.send_msg", lambda *a, **k: None),
         patch("testing.host.streaming.memory_store.append", lambda *a, **k: None),
         patch("testing.host.streaming._wait_for_request_slot", lambda *a, **k: True),
@@ -95,10 +110,32 @@ def test_edit_run_one_react_round_plus_final():
         patch("testing.host.streaming._record_llm_usage", lambda *a, **k: None),
         patch("testing.host.streaming._finalize_request_attempt", lambda *a, **k: None),
         patch("testing.host.streaming._record_request_attempt", lambda *a, **k: None),
+        patch("testing.host.streaming._begin_llm_request", lambda _stop: "attempt"),
         patch("testing.host.agentic_tool_chain.build_direct_edit_from_prompt", lambda *a, **k: None),
         patch("testing.host.notebook_query.prefetch_notebook_queries", lambda **k: ("", [])),
-        patch("testing.host.agentic_batch_executor.execute_agentic_batch", lambda *a, **k: verification),
+        patch("testing.host.streaming.AGENTIC_FIRE_AND_FORGET", True),
+        patch("testing.host.streaming.AGENTIC_MAX_TOOL_ROUNDS", max_rounds),
+        patch("testing.host.streaming.AGENTIC_MAX_QUERY_ROUNDS", 1),
+        patch("testing.host.streaming._emit_stream_delta", _capture_delta),
+        batch_mock,
     ]
+
+
+def _run_stream_with_patches(fake_client, *, max_rounds: int = 2):
+    url = "https://www.kaggle.com/code/codekey/testing-ol/edit"
+    prompt = "Edit cell 10 to print(1) and run it"
+    emitted: list[str] = []
+    batch_side_effect = [_list_cells_verification(), _write_batch_verification()]
+    patches = _common_patches(
+        max_rounds=max_rounds,
+        emitted=emitted,
+        batch_mock=patch(
+            "testing.host.agentic_batch_executor.execute_agentic_batch",
+            side_effect=batch_side_effect,
+        ),
+    )
+    streaming._LLM_CLIENT = fake_client
+    set_dashboard_agentic_enabled(True)
     for p in patches:
         p.start()
     try:
@@ -116,6 +153,291 @@ def test_edit_run_one_react_round_plus_final():
     finally:
         for p in patches:
             p.stop()
+    return fake_client.chat.completions.calls, "".join(emitted)
 
+
+def test_multi_round_query_then_write_stops_on_prose():
+    url = "https://www.kaggle.com/code/codekey/testing-ol/edit"
+    responses = [
+        _FakeResponse(
+            tool_calls=[
+                _native_tool_call("notebook_list_cells", {"url": url}, "c1"),
+            ],
+        ),
+        _FakeResponse(
+            tool_calls=[
+                _native_tool_call(
+                    "edit_cell_by_index",
+                    {"url": url, "cell_index": 10, "content": "print(1)"},
+                    "c2",
+                ),
+                _native_tool_call("run_cell", {"url": url, "cell_index": 10}, "c3"),
+            ],
+        ),
+        _FakeResponse(content="Done: cell 10 updated and dispatched."),
+    ]
+    calls, emitted = _run_stream_with_patches(FakeClient(responses), max_rounds=2)
+
+    assert len(calls) == 2, calls
+    assert "notebook_list_cells" in emitted or "fire-and-forget" in emitted.lower()
+    assert "edit_cell_by_index" in emitted
+    assert "run_cell" in emitted
+    assert "Tools ran but no summary" not in emitted
+
+
+def test_single_round_write_batch_still_works():
+    url = "https://www.kaggle.com/code/codekey/testing-ol/edit"
+    responses = [
+        _FakeResponse(
+            tool_calls=[
+                _native_tool_call(
+                    "edit_cell_by_index",
+                    {"url": url, "cell_index": 10, "content": "print(1)"},
+                    "c1",
+                ),
+                _native_tool_call("run_cell", {"url": url, "cell_index": 10}, "c2"),
+            ],
+        ),
+        _FakeResponse(content="Updated cell 10."),
+    ]
+    emitted: list[str] = []
+    patches = _common_patches(
+        max_rounds=5,
+        emitted=emitted,
+        batch_mock=patch(
+            "testing.host.agentic_batch_executor.execute_agentic_batch",
+            side_effect=lambda *_a, **_k: _write_batch_verification(),
+        ),
+    )
+    fake = FakeClient(responses)
+    streaming._LLM_CLIENT = fake
+    set_dashboard_agentic_enabled(True)
+    for p in patches:
+        p.start()
+    try:
+        streaming._run_streaming_chat(
+            url,
+            "Edit cell 10 to print(1) and run it",
+            tab_id=1,
+            session_id="t2",
+            history=[],
+            context="cells 1-25",
+            mode="agentic",
+            explicit_mode="agentic",
+            context_meta={"history_key": url, "snapshot_url": url, "active_key": "1"},
+        )
+    finally:
+        for p in patches:
+            p.stop()
+
+    text = "".join(emitted)
+    assert len(fake.chat.completions.calls) == 1
+    assert "fire-and-forget" in text.lower()
+    assert "edit_cell_by_index" in text
+
+
+def test_does_not_continue_past_max_rounds():
+    url = "https://www.kaggle.com/code/codekey/testing-ol/edit"
+    always_tools = _FakeResponse(
+        tool_calls=[_native_tool_call("notebook_list_cells", {"url": url}, "cx")],
+    )
+    emitted: list[str] = []
+
+    def _capture_batch(tool_calls, **kwargs):
+        if kwargs.get("force_implementation"):
+            return _write_batch_verification()
+        return _list_cells_verification()
+
+    patches = _common_patches(
+        max_rounds=2,
+        emitted=emitted,
+        batch_mock=patch(
+            "testing.host.agentic_batch_executor.execute_agentic_batch",
+            side_effect=_capture_batch,
+        ),
+    )
+    fake = FakeClient([always_tools] * 6)
+    streaming._LLM_CLIENT = fake
+    set_dashboard_agentic_enabled(True)
+    for p in patches:
+        p.start()
+    try:
+        streaming._run_streaming_chat(
+            url,
+            "Edit cell 10 to print(1) and run it",
+            tab_id=1,
+            session_id="t3",
+            history=[],
+            context="cells 1-25",
+            mode="agentic",
+            explicit_mode="agentic",
+            context_meta={"history_key": url, "snapshot_url": url, "active_key": "1"},
+        )
+    finally:
+        for p in patches:
+            p.stop()
+
+    text = "".join(emitted)
     assert len(fake.chat.completions.calls) == 2, fake.chat.completions.calls
-    assert fake.chat.completions.calls[0]["messages_len"] >= 2
+    assert "fire-and-forget" in text.lower()
+    assert "notebook_list_cells" in text
+    assert "edit_cell_by_index" in text
+
+
+def test_never_makes_third_api_call():
+    """Hard cap: max_tool_rounds=2 means at most 2 LLM calls even if model keeps querying."""
+    url = "https://www.kaggle.com/code/codekey/testing-ol/edit"
+    always_query = _FakeResponse(
+        tool_calls=[_native_tool_call("notebook_list_cells", {"url": url}, "cx")],
+    )
+    emitted: list[str] = []
+    patches = _common_patches(
+        max_rounds=2,
+        emitted=emitted,
+        batch_mock=patch(
+            "testing.host.agentic_batch_executor.execute_agentic_batch",
+            side_effect=lambda *_a, **_k: _list_cells_verification(),
+        ),
+    )
+    fake = FakeClient([always_query] * 5)
+    streaming._LLM_CLIENT = fake
+    set_dashboard_agentic_enabled(True)
+    for p in patches:
+        p.start()
+    try:
+        streaming._run_streaming_chat(
+            url,
+            ML_PROMPT,
+            tab_id=1,
+            session_id="t5",
+            history=[],
+            context="cells 1-30",
+            mode="agentic",
+            explicit_mode="agentic",
+            context_meta={"history_key": url, "snapshot_url": url, "active_key": "1"},
+        )
+    finally:
+        for p in patches:
+            p.stop()
+
+    assert len(fake.chat.completions.calls) <= 2
+
+
+ML_PROMPT = (
+    "import (/kaggle/input/datasets/codekey/zameen-com2026-16-5/zameen_master_dataset.csv) "
+    "dataset and make a simple linear regression model, then make new cell and do the "
+    "predictions, then make a new cell and print the models performance"
+)
+
+
+def test_ml_query_then_force_write_on_second_round():
+    """After one list_cells round, host forces insert/edit/run when LLM repeats queries."""
+    url = "https://www.kaggle.com/code/codekey/testing-ol/edit"
+    responses = [
+        _FakeResponse(
+            tool_calls=[_native_tool_call("notebook_list_cells", {"url": url}, "c1")],
+        ),
+        _FakeResponse(
+            tool_calls=[_native_tool_call("notebook_list_cells", {"url": url}, "c2")],
+        ),
+        _FakeResponse(content="ML workflow cells dispatched."),
+    ]
+    emitted: list[str] = []
+    force_flags: list[bool] = []
+
+    def _capture_batch(tool_calls, **kwargs):
+        force_flags.append(bool(kwargs.get("force_implementation")))
+        if kwargs.get("force_implementation"):
+            return {
+                "verified": True,
+                "batch_executed": True,
+                "fire_and_forget": True,
+                "tool_queue_status": "dispatched",
+                "tool_queue_complete": True,
+                "run_queue_complete": True,
+                "executed": [
+                    {"tool": "insert_cell", "dispatched": True, "cell_index": 31},
+                    {"tool": "edit_cell_by_index", "dispatched": True, "cell_index": 31},
+                    {"tool": "run_cell", "dispatched": True, "cell_index": 31},
+                ],
+            }
+        return _list_cells_verification()
+
+    patches = _common_patches(
+        max_rounds=2,
+        emitted=emitted,
+        batch_mock=patch(
+            "testing.host.agentic_batch_executor.execute_agentic_batch",
+            side_effect=_capture_batch,
+        ),
+    )
+    fake = FakeClient(responses)
+    streaming._LLM_CLIENT = fake
+    set_dashboard_agentic_enabled(True)
+    for p in patches:
+        p.start()
+    try:
+        streaming._run_streaming_chat(
+            url,
+            ML_PROMPT,
+            tab_id=1,
+            session_id="tml",
+            history=[],
+            context="cells 1-30",
+            mode="agentic",
+            explicit_mode="agentic",
+            context_meta={"history_key": url, "snapshot_url": url, "active_key": "1"},
+        )
+    finally:
+        for p in patches:
+            p.stop()
+
+    text = "".join(emitted)
+    assert len(fake.chat.completions.calls) == 2
+    assert force_flags == [False, True]
+    assert "insert_cell" in text
+    assert "edit_cell_by_index" in text
+    assert "run_cell" in text
+
+
+def test_returns_non_empty_summary_on_max_rounds():
+    url = "https://www.kaggle.com/code/codekey/testing-ol/edit"
+    responses = [
+        _FakeResponse(
+            tool_calls=[_native_tool_call("notebook_list_cells", {"url": url}, "c1")],
+        ),
+    ] * 2
+    emitted: list[str] = []
+    patches = _common_patches(
+        max_rounds=2,
+        emitted=emitted,
+        batch_mock=patch(
+            "testing.host.agentic_batch_executor.execute_agentic_batch",
+            side_effect=lambda *_a, **_k: _list_cells_verification(),
+        ),
+    )
+    fake = FakeClient(responses)
+    streaming._LLM_CLIENT = fake
+    set_dashboard_agentic_enabled(True)
+    for p in patches:
+        p.start()
+    try:
+        streaming._run_streaming_chat(
+            url,
+            "Edit cell 10 to print(1) and run it",
+            tab_id=1,
+            session_id="t4",
+            history=[],
+            context="cells 1-25",
+            mode="agentic",
+            explicit_mode="agentic",
+            context_meta={"history_key": url, "snapshot_url": url, "active_key": "1"},
+        )
+    finally:
+        for p in patches:
+            p.stop()
+
+    text = "".join(emitted)
+    assert text.strip()
+    assert "fire-and-forget" in text.lower()
+    assert "Tools ran but no summary" not in text

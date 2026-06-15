@@ -1,17 +1,22 @@
 import os
 import sys
+from pathlib import Path
 
 repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 if repo_root not in sys.path:
     sys.path.insert(0, repo_root)
 
 from testing.host.agentic_action_guard import (
+    batch_has_split_source_read,
+    build_split_cell_source_nudge,
     is_actionable_notebook_request,
     is_run_verify_request,
     is_write_only_request,
     looks_like_instruction_only_response,
     parse_last_n_cells_request,
+    prompt_requests_split_cell,
     resolve_wanted_run_cells,
+    split_cell_write_without_source,
     user_requests_run,
 )
 from testing.host.agentic_batch_executor import ParsedToolCall, enrich_run_cells_from_prompt
@@ -123,3 +128,39 @@ def test_enrich_run_cells_replaces_wrong_model_run_with_prompt_cell():
     )
     run_indices = [c.args["cell_index"] for c in out if c.name == "run_cell"]
     assert run_indices == [30]
+
+
+def test_prompt_requests_split_cell_detects_divide_and_refactor():
+    assert prompt_requests_split_cell("Split cell 38 into 3 smaller cells")
+    assert prompt_requests_split_cell("divide the code in cell 38 into separate cells")
+    assert prompt_requests_split_cell("refactor cell 12 into smaller pieces")
+    assert not prompt_requests_split_cell("create 3 new cells under cell 38")
+
+
+def test_split_cell_write_without_source_requires_get_cell():
+    prompt = "Split cell 38 into 3 smaller cells"
+    writes = [
+        ParsedToolCall("1", "insert_cell", {"index": 38, "direction": "below"}),
+        ParsedToolCall("2", "edit_cell_by_index", {"cell_index": 39, "content": "x"}),
+    ]
+    assert split_cell_write_without_source(prompt, writes) is True
+    reads = [
+        ParsedToolCall("1", "notebook_get_cell", {"cell_index": 38}),
+        ParsedToolCall("2", "insert_cell", {"index": 38, "direction": "below"}),
+    ]
+    assert batch_has_split_source_read(prompt, reads) is True
+    assert split_cell_write_without_source(prompt, reads) is False
+
+
+def test_build_split_cell_source_nudge_mentions_placeholders():
+    nudge = build_split_cell_source_nudge("Split cell 38 into 3 smaller cells")
+    assert "notebook_get_cell" in nudge
+    assert "print(1)" in nudge
+
+
+def test_agentic_prompt_contains_split_cell_few_shot():
+    path = Path(__file__).resolve().parents[1] / "prompts" / "agentic.txt"
+    text = path.read_text(encoding="utf-8")
+    assert "Split cell 38 into 3 smaller cells" in text
+    assert "NEVER use `print(1)`" in text
+    assert "notebook_get_cell" in text

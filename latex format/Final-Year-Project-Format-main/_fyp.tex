@@ -1,0 +1,169 @@
+\documentclass[11pt,a4paper,oneside]{book} %scrbook book report
+
+\usepackage[
+backend=biber,
+style=apa,
+sorting=ynt
+]{biblatex}
+\addbibresource{references.bib}
+
+% Essential packages
+\usepackage{amsmath, amssymb, amsthm} % AMS Packages
+\usepackage{graphicx,color}           % Packages for graphics and color
+\usepackage[left=1.5in, right=1in, top=1in, bottom=1in, includefoot, headheight=13.6pt]{geometry}
+\PassOptionsToPackage{printonlyused,smaller}{acronym}
+\usepackage{acronym}
+% Optional customization packages
+\usepackage{lmodern}                  % Custom fonts
+\usepackage[T1]{fontenc}              % Ensure correct font encoding
+\usepackage{mathptmx}              % Times New Roman Font accross the document
+\usepackage{ragged2e}
+\usepackage{url}
+
+% Customising chapter headings - sectsty.pdf
+\usepackage{sectsty}
+\chapterfont{\Large\sc\centering}
+\chaptertitlefont{\centering}
+\subsubsectionfont{\centering}
+
+\usepackage[hang, small, bf, margin=0pt, tableposition=bottom]{caption}
+\setlength{\abovecaptionskip}{10pt}   % Custom captions
+
+% Tables
+\usepackage[table]{xcolor}
+\usepackage{colortbl}
+
+\newcommand{\mc}[2]{\multicolumn{#1}{c}{#2}}
+\definecolor{Gray}{gray}{0.83}
+
+\newcolumntype{x}{>{\columncolor{Gray}}c}
+\newcolumntype{y}{>{\columncolor{white}}c}
+
+% Page layout
+\parindent 0pt
+\parskip 1ex
+\renewcommand{\baselinestretch}{1.49}
+\numberwithin{equation}{section}
+\renewcommand{\bibname}{References}
+\renewcommand{\contentsname}{Contents}
+\pagenumbering{roman}
+
+
+\newcommand{\acrolabel}[1]{\makebox[3cm][l]{\textbf{#1}}}
+\newenvironment{acronyms}{\begin{list}{}{\renewcommand{\makelabel}{\acrolabel}}}{\end{list}}
+
+% \includeonly{tex/chapter1}          % Option to generate specific chapters
+
+% Customising headers - fancyhdr.pdf
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\rhead{}
+\lhead{\nouppercase{\textsc{\leftmark}}}
+\renewcommand{\headrulewidth}{0pt}
+\makeatletter
+\renewcommand{\chaptermark}[1]{\markboth{\textsc{\@chapapp}\ \thechapter:\ #1}{}}
+\makeatother
+
+
+% Hyperreferencing and citations
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks,
+    citecolor=blue,
+    filecolor=blue,
+    linkcolor=blue,
+    urlcolor=blue
+}
+
+% Section symbol
+\usepackage{cleveref}
+\crefname{section}{\S}{\S\S}
+\Crefname{section}{\S}{\S\S}
+\crefname{subsection}{\S}{\S\S}
+\Crefname{subsection}{\S}{\S\S}
+
+
+\usepackage{tabu}
+\usepackage{adjustbox}
+\usepackage{booktabs}% for better rules in the table
+\usepackage{graphicx}
+%\usepackage{subfigure}
+%\usepackage{color}
+%\usepackage{colortbl}
+%\usepackage{soul}
+%\usepackage{listings}
+%\lstloadlanguages{Java,XML}
+%\lstset{frame=lines}
+\usepackage{./styles/astron}
+%\usepackage{xspace}
+%\usepackage[leqno]{amsmath}
+%\usepackage{hyperref}
+%\usepackage{sfmath}
+%\usepackage{setspace} 
+\usepackage{./styles/gcuf}
+\graphicspath{{./img/}{./figs/}}
+
+\title{Main Title}
+\subtitle{A sub-title}
+
+\author{student name}
+\regno{2022-GCUF-00000}
+\degree{\BSDS} % BSDS, BSDA %% Degree Title and It's abbreviation
+\dept{\CDS} %Dept abbreviation and Full Name
+
+\supervisor{Supervisor Name }
+\supervisorAffiliation{Center of Data Science }
+
+\date{June 2026}
+
+% \setcounter{tocdepth}{2}
+% \setstretch{1.1}
+% \linespread{1.1}
+
+\begin{document}
+\maketitle
+\input{Preface/ds}
+\input{Preface/Approval}
+\input{Preface/Acceptance}
+\input{Preface/Dedication}
+\input{Preface/OrginalityCertificate}
+\input{Preface/Acknowldgment}
+\input{Preface/Abstract}
+
+
+\tableofcontents
+\listoftables
+\listoffigures
+\input{Acronym}
+
+\newpage
+% \lstlistoflistings
+
+
+
+\resetpagenumbering
+
+\input{chapters/chapter1-intro}
+\input{chapters/Chapter2-LiteratureReview}
+\input{chapters/chapter3-Methodology}
+\input{chapters/Chapter4-Results}
+\input{chapters/chapter5-Discussion}
+\input{chapters/chapter6-Conclusion}
+\input{chapters/chapter7-Recommendations}
+
+% \bibliographystyle{apa}
+% \bibliography{references}
+\printbibliography
+
+\begin{appendix}
+\chapter{Achievements}
+If the FYP/Thesis resulted to produce any publications or any product. This can be listed here.
+
+\chapter{Appendix A}
+The separate numbering of appendices is also supported by LaTeX. The \textit{appendix} macro can be used to indicate that following chapters are to be numbered as appendices. Only use the \textit{appendix} macro once for all appendices.
+
+% \pagenumbering{gobble}
+\include{misc/checklista}
+\include{misc/checklistb}
+\end{appendix}
+\end{document}

@@ -48,28 +48,37 @@ def _snapshot_has_cells(data: dict | None) -> bool:
     return bool(isinstance(data, dict) and isinstance(data.get("cells"), list) and data.get("cells"))
 
 
+def _resolve_storage_key_for_url(url: str) -> str | None:
+    try:
+        from .notebook_storage import _fast_storage_key
+    except Exception:
+        from notebook_storage import _fast_storage_key
+    key = str(_fast_storage_key(url) or "").strip()
+    if key.startswith("kaggle:kernel:"):
+        return key
+    return None
+
+
 def _promote_live_snapshot_if_needed(url: str, storage_key: str | None = None):
     try:
         from .notebook_storage import notebook_paths
     except Exception:
         from notebook_storage import notebook_paths
+    if not storage_key:
+        storage_key = _resolve_storage_key_for_url(url)
     if storage_key and storage_key.startswith("kaggle:kernel:"):
         persistent_path = notebook_paths(storage_key)["persistent"]
-    else:
-        persistent_path = SCRAPED_DIR / "persistent" / get_safe_filename(url)
-    if _snapshot_has_cells(_load_json_file(persistent_path)):
-        return persistent_path
-
-    if storage_key and storage_key.startswith("kaggle:kernel:"):
         live_path = notebook_paths(storage_key)["live"]
     else:
+        persistent_path = SCRAPED_DIR / "persistent" / get_safe_filename(url)
         live_path = SCRAPED_DIR / "live" / get_safe_filename(url)
+
     live_data = _load_json_file(live_path)
     if not _snapshot_has_cells(live_data):
         return persistent_path
 
-    existing_data = _load_json_file(persistent_path)
-    decision = evaluate_persistent_update(existing_data, live_data)
+    existing_data = _load_json_file(persistent_path) if persistent_path.is_file() else None
+    decision = evaluate_persistent_update(existing_data, live_data, sync_from_live=True)
     if decision.allow_write:
         save_persistent_json(live_data, url, storage_key)
     return persistent_path
@@ -81,8 +90,9 @@ def _maybe_save_persistent_snapshot(
     *,
     storage_key: str | None = None,
     log=None,
+    sync_from_live: bool = False,
 ) -> bool:
-    """Write persistent JSON only when verification detects real notebook changes."""
+    """Write persistent JSON when verification allows (paired with live scrape when sync_from_live)."""
     try:
         from .notebook_storage import notebook_paths
     except Exception:
@@ -92,7 +102,7 @@ def _maybe_save_persistent_snapshot(
     else:
         persistent_path = SCRAPED_DIR / "persistent" / get_safe_filename(tab_url)
     existing_data = _load_json_file(persistent_path) if persistent_path.is_file() else None
-    decision = evaluate_persistent_update(existing_data, final_data)
+    decision = evaluate_persistent_update(existing_data, final_data, sync_from_live=sync_from_live)
     if not decision.allow_write:
         if log:
             log(f"[persistent] Skipped write for {tab_url}: {decision.reason}")
@@ -174,7 +184,6 @@ def _save_notebook_without_execution_metadata(
     log,
 ) -> None:
     """Persist notebook snapshots using input/output only (no execution metadata)."""
-    should_save = False
     save_cells = [code_save_slice(c) for c in code_cells]
     for _idx, cell_type, cell_data in all_cells:
         if cell_type == "markdown":
@@ -182,64 +191,29 @@ def _save_notebook_without_execution_metadata(
     save_cells.sort(key=lambda cell: int(cell.get("index", 0)))
 
     hash_key = storage_key or tab_url
-    with _HASHES_LOCK:
-        stored_hashes = _load_hashes()
-        if stored_hashes.get(hash_key) != data_hash:
-            should_save = True
 
-    try:
-        from .notebook_storage import notebook_paths
-    except Exception:
-        from notebook_storage import notebook_paths
-    if storage_key and storage_key.startswith("kaggle:kernel:"):
-        persistent_path = notebook_paths(storage_key)["persistent"]
-    else:
-        persistent_path = SCRAPED_DIR / "persistent" / get_safe_filename(tab_url)
-    if not persistent_path.exists():
-        should_save = True
-
-    existing_by_index: dict[str, dict] = {}
-    if persistent_path.is_file():
-        try:
-            existing_data = read_json_file(persistent_path)
-            existing_cells = existing_data.get("cells", []) if isinstance(existing_data, dict) else []
-            existing_by_index = {
-                str(cell.get("index")): cell
-                for cell in existing_cells
-                if isinstance(cell, dict) and cell.get("index") is not None
-            }
-            for cell in save_cells:
-                prev_cell = existing_by_index.get(str(cell["index"]), {})
-                if cell.get("type") != "markdown":
-                    if (
-                        str(prev_cell.get("input") or "") != str(cell.get("input") or "")
-                        or str(prev_cell.get("output") or "") != str(cell.get("output") or "")
-                    ):
-                        should_save = True
-                        break
-        except Exception:
-            should_save = True
+    final_data = {
+        "tabUrl": tab_url,
+        "title": title,
+        "lastUpdated": now_iso,
+        "cells": save_cells,
+    }
+    if notebook_id and notebook_id > 0:
+        final_data["notebookId"] = notebook_id
+    if storage_key:
+        final_data["storageKey"] = storage_key
 
     _save_live_notebook_snapshot(
         tab_url, title, now_iso, save_cells, None, storage_key, notebook_id
     )
 
-    if should_save:
-        final_data = {
-            "tabUrl": tab_url,
-            "title": title,
-            "lastUpdated": now_iso,
-            "cells": save_cells,
-        }
-        if notebook_id and notebook_id > 0:
-            final_data["notebookId"] = notebook_id
-        if storage_key:
-            final_data["storageKey"] = storage_key
-        if _maybe_save_persistent_snapshot(tab_url, final_data, storage_key=storage_key, log=log):
-            with _HASHES_LOCK:
-                stored_hashes = _load_hashes()
-                stored_hashes[hash_key] = data_hash
-                _save_hashes(stored_hashes)
+    if _maybe_save_persistent_snapshot(
+        tab_url, final_data, storage_key=storage_key, log=log, sync_from_live=True
+    ):
+        with _HASHES_LOCK:
+            stored_hashes = _load_hashes()
+            stored_hashes[hash_key] = data_hash
+            _save_hashes(stored_hashes)
 
 
 def _normalized_url(url: str) -> str:
@@ -300,7 +274,7 @@ def _push_graph(ctx: dict, url: str, tab_id):
 def build_graph_payload(ctx: dict, url: str) -> dict:
     dep_manager = ctx["dep_manager"]
 
-    _promote_live_snapshot_if_needed(url)
+    _promote_live_snapshot_if_needed(url, _resolve_storage_key_for_url(url))
     builder = dep_manager.get_builder(url)
     if builder is not None and hasattr(builder, "tracker") and hasattr(builder, "cells"):
         tracker = builder.tracker
@@ -541,11 +515,6 @@ def _persist_with_execution_metadata(
                 except Exception:
                     c["execution_title"] = "Execution"
         save_cells.sort(key=lambda cell: int(cell.get("index", 0)))
-        _save_live_notebook_snapshot(
-            tab_url, title, now_iso, save_cells, kernel_scenario_norm, storage_key, notebook_id
-        )
-
-    if should_save:
         if existing_by_index:
             for cell in save_cells:
                 if cell.get("type") == "markdown":
@@ -586,7 +555,14 @@ def _persist_with_execution_metadata(
             final_data["notebookId"] = notebook_id
         if storage_key:
             final_data["storageKey"] = storage_key
-        if _maybe_save_persistent_snapshot(tab_url, final_data, storage_key=storage_key, log=log):
+
+        _save_live_notebook_snapshot(
+            tab_url, title, now_iso, save_cells, kernel_scenario_norm, storage_key, notebook_id
+        )
+
+        if _maybe_save_persistent_snapshot(
+            tab_url, final_data, storage_key=storage_key, log=log, sync_from_live=True
+        ):
             with _HASHES_LOCK:
                 stored_hashes = _load_hashes()
                 stored_hashes[hash_key] = data_hash

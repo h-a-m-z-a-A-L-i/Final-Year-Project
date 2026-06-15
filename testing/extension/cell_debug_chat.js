@@ -922,8 +922,12 @@
           source: "cell_debug",
         },
         (response) => {
-          if (chrome.runtime.lastError) {
-            finalizeStream({ error: chrome.runtime.lastError.message });
+          const lastError = chrome.runtime.lastError?.message || "";
+          if (
+            lastError &&
+            !/message port closed before a response was received/i.test(lastError)
+          ) {
+            finalizeStream({ error: lastError });
             return;
           }
           if (response && response.error) {

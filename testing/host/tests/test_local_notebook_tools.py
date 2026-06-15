@@ -79,3 +79,28 @@ def test_registry_local_call(tmp_path, monkeypatch):
     out = reg.call("notebook_list_cells", {"url": url})
     assert out["ok"] is True
     assert out["cell_count"] == 3
+
+
+def test_snapshot_fallback_by_tab_url(tmp_path, monkeypatch):
+    """Kernel-id file resolves when URL matches tabUrl inside JSON, not filename slug."""
+    from testing.host import notebook_storage as ns
+
+    url = "https://www.kaggle.com/code/alice/other-slug/edit"
+    scraped = tmp_path / "notebooks"
+    live = scraped / "live"
+    live.mkdir(parents=True)
+    ph._atomic_write_json(
+        live / "kaggle_kernel_999001.json",
+        {
+            "tabUrl": "https://www.kaggle.com/code/alice/other-slug/edit",
+            "cells": [{"index": 1, "type": "code", "input": "x = 1", "output": ""}],
+        },
+    )
+    monkeypatch.setattr(config, "SCRAPED_DIR", scraped)
+
+    data, source = ns.load_notebook_snapshot_for_url(url)
+    assert data is not None
+    assert source == "live"
+    out = lnt.notebook_list_cells({"url": url})
+    assert out["ok"] is True
+    assert out["cell_count"] == 1
