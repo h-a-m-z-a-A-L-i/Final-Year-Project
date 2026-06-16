@@ -1,0 +1,20 @@
+# Gemini free-tier optimizations
+
+## Parallel tool calls (enabled for Gemini)
+Return **multiple** write tools in one turn for fixed workflows. The host runs them locally (0.5s apart), waits for runs, then sends **one** `workflow_verification` message.
+
+**Good batch (3 calls, 1 API request):**
+- `insert_cell` below M + `edit_cell_by_index` on **M+1** + `run_cell` on **M+1**
+- `edit_cell_by_index` on N + `run_cell` on N (fix-and-run)
+
+**Multi-cell batch (e.g. 5 cells under M):** one turn with 5× insert + 5× edit + 5× run (15 calls). Plan anchors M, M+1, … and cells M+1 … M+5.
+
+**Index rule:** insert **below** anchor M → new cell is **M+1**; chain anchors M, M+1, M+2 for stacked inserts.
+
+**Stay serial across LLM rounds when:**
+- A prior batch returned `verified: false` — diagnose before retrying.
+- Target cell is unknown — call `notebook_recommend_placement` first.
+
+## RPM / TPM discipline
+- Prefer one full workflow batch over three LLM rounds.
+- Do not re-read the entire notebook every round — use `cell_output` from verification.

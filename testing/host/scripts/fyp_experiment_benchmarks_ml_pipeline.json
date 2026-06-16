@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "agent": "Notebook Agent v1",
+  "benchmark": "BENCHMARK_ML_PIPELINE",
+  "description": "End-to-end ML pipeline agentic benchmark on real Kaggle notebook snapshots.",
+  "ml_pipeline_prompt": "Load dataset.\nPerform EDA.\nHandle missing values.\nEncode categorical features.\nTrain RandomForest.\nEvaluate.\nGenerate visualizations.\nSave model.\nGenerate submission.csv.",
+  "defaults": {
+    "mode": "agentic",
+    "tab_id": 424242
+  },
+  "prompts": [
+    {
+      "id": "BENCHMARK_ML_PIPELINE_113620421",
+      "name": "BENCHMARK_ML_PIPELINE — Pakistan housing (kernel 113620421)",
+      "kernel_id": 113620421,
+      "snapshot_file": "kaggle_kernel_113620421.json",
+      "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+      "notebook_key": "kaggle:kernel:113620421",
+      "mode": "agentic",
+      "prompt": "Load dataset.\nPerform EDA.\nHandle missing values.\nEncode categorical features.\nTrain RandomForest.\nEvaluate.\nGenerate visualizations.\nSave model.\nGenerate submission.csv."
+    },
+    {
+      "id": "BENCHMARK_ML_PIPELINE_119598996",
+      "name": "BENCHMARK_ML_PIPELINE — Housing final updated (kernel 119598996)",
+      "kernel_id": 119598996,
+      "snapshot_file": "kaggle_kernel_119598996.json",
+      "url": "https://www.kaggle.com/code/codekey/housing-final-updated-4/edit",
+      "notebook_key": "kaggle:kernel:119598996",
+      "mode": "agentic",
+      "prompt": "Load dataset.\nPerform EDA.\nHandle missing values.\nEncode categorical features.\nTrain RandomForest.\nEvaluate.\nGenerate visualizations.\nSave model.\nGenerate submission.csv."
+    }
+  ]
+}

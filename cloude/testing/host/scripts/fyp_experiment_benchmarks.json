@@ -1,0 +1,150 @@
+{
+  "version": 1,
+  "agent": "Notebook Agent v1",
+  "description": "Predefined FYP benchmark prompts for Notebook Agent v1 evaluation.",
+  "defaults": {
+    "mode": "agentic",
+    "tab_id": 424242,
+    "url": "https://www.kaggle.com/code/codekey/testing-only/edit",
+    "notebook_key": "https://www.kaggle.com/code/codekey/testing-only/edit"
+  },
+  "prompts": [
+    {
+      "id": "agentic_list_cells",
+      "name": "List notebook cells (query phase)",
+      "prompt": "List all cells in this notebook with their indices and types.",
+      "mode": "agentic",
+      "tags": ["read-only", "two-phase"],
+      "harness_mock": {
+        "rounds": [
+          {
+            "tool_calls": [
+              {"name": "notebook_list_cells", "args": {"url": "{url}"}}
+            ]
+          },
+          {
+            "content": "Notebook has code and markdown cells indexed 1 through N."
+          }
+        ]
+      }
+    },
+    {
+      "id": "agentic_edit_cell",
+      "name": "Edit a code cell",
+      "prompt": "Edit cell 2 to print('hello from benchmark') and run it.",
+      "mode": "agentic",
+      "tags": ["write", "run"],
+      "harness_mock": {
+        "rounds": [
+          {
+            "tool_calls": [
+              {"name": "notebook_list_cells", "args": {"url": "{url}"}}
+            ]
+          },
+          {
+            "tool_calls": [
+              {
+                "name": "edit_cell_by_index",
+                "args": {
+                  "url": "{url}",
+                  "cell_index": 2,
+                  "content": "print('hello from benchmark')"
+                }
+              },
+              {"name": "run_cell", "args": {"url": "{url}", "cell_index": 2}}
+            ]
+          },
+          {
+            "content": "Updated cell 2 and dispatched run."
+          }
+        ]
+      }
+    },
+    {
+      "id": "agentic_insert_markdown",
+      "name": "Insert markdown cell",
+      "prompt": "Insert a markdown cell below index 1 with a short EDA section heading.",
+      "mode": "agentic",
+      "tags": ["insert", "markdown"],
+      "harness_mock": {
+        "rounds": [
+          {
+            "tool_calls": [
+              {"name": "notebook_get_cell", "args": {"url": "{url}", "cell_index": 1}}
+            ]
+          },
+          {
+            "tool_calls": [
+              {
+                "name": "insert_cell",
+                "args": {
+                  "url": "{url}",
+                  "index": 1,
+                  "direction": "below",
+                  "cell_type": "markdown",
+                  "content": "## Exploratory Data Analysis"
+                }
+              }
+            ]
+          },
+          {
+            "content": "Inserted markdown cell below index 1."
+          }
+        ]
+      }
+    },
+    {
+      "id": "agentic_bulk_delete",
+      "name": "Bulk delete trailing cells",
+      "prompt": "Delete cells 4 and 5 from this notebook.",
+      "mode": "agentic",
+      "tags": ["delete", "bulk"],
+      "harness_mock": {
+        "rounds": [
+          {
+            "tool_calls": [
+              {"name": "notebook_list_cells", "args": {"url": "{url}"}}
+            ]
+          },
+          {
+            "tool_calls": [
+              {"name": "delete_by_index", "args": {"url": "{url}", "cell_index": 5}},
+              {"name": "delete_by_index", "args": {"url": "{url}", "cell_index": 4}}
+            ]
+          },
+          {
+            "content": "Deleted cells 4 and 5."
+          }
+        ]
+      }
+    },
+    {
+      "id": "ask_explain_cell",
+      "name": "Ask mode — explain cell",
+      "prompt": "Explain what cell 1 does in this notebook.",
+      "mode": "ask",
+      "tags": ["ask", "no-tools"],
+      "harness_mock": {
+        "rounds": [
+          {
+            "content": "Cell 1 is an introductory code cell in the benchmark notebook snapshot."
+          }
+        ]
+      }
+    },
+    {
+      "id": "code_fix_error",
+      "name": "Code mode — fix error hint",
+      "prompt": "Fix the NameError in cell 2.",
+      "mode": "code",
+      "tags": ["code", "error"],
+      "harness_mock": {
+        "rounds": [
+          {
+            "content": "Define the missing variable before use in cell 2."
+          }
+        ]
+      }
+    }
+  ]
+}

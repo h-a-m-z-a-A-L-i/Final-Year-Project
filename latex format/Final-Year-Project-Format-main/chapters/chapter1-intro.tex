@@ -1,18 +1,157 @@
+%!TEX root = ../_fyp-ch1-preview.tex
 \chapter{Introduction and Motivation}
 \label{c-intro}
 
-This is a general introduction to what the FYP/Thesis proposal for \acf{SEECS}. \acf{GCUF} is all about. Keep in mind that it is not just a description of the contents of each section.
+Computational notebooks have become a primary medium for data science education, experimentation, and competition-oriented analytics. Platforms such as Kaggle expose browser-based notebook editors in which analysts interleave narrative markdown, executable code, and model outputs within a single document. The resulting workflow is iterative: cells are authored, reordered, executed, and revised as understanding of the data evolves. For novice and intermediate practitioners, this cycle demands fluency in both domain reasoning and editor mechanics, yet mainstream assistance remains largely decoupled from the live notebook surface.
 
-Briefly summarize the research question(s), some of the reasons why it is a worthwhile question. Details of these questions will be stated in the later sections. It also recommended giving a birds-eye-view of the candidate solutions and possible out comes.
+Recent advances in large language models (\acp{LLM}) have produced capable coding assistants that answer questions, suggest snippets, and generate multi-step solutions from natural-language prompts. However, when the task environment is a proprietary web editor rather than a local integrated development environment, assistants typically operate on pasted fragments or static file exports. They cannot reliably observe cell order, execution state, or structural changes that occur as the user edits in real time. Consequently, suggestions may reference stale indices, omit required execution steps, or remain disconnected from the notebook the analyst is actually building.
+
+This project addresses that integration gap by developing an agentic \ac{LLM} assistant tailored to Kaggle notebook \texttt{/edit} pages. The system couples a Chrome extension with a Python native messaging host. The extension scrapes the editor \ac{DOM} to maintain live and persistent JSON snapshots of notebook structure and cell content. The host mediates chat in Ask, Code, and Agentic modes, invokes a GLM~4.7 model with native \texttt{tool\_calls} via the Cerebras \ac{API}, and dispatches browser-mediated tools that insert, edit, delete, list, and run cells. Session context is grounded in the scraped notebook state and coerced to the active tab URL, yielding an in-browser copilot that manipulates the notebook the user sees rather than a detached code buffer.
+
+The remainder of this document specifies the problem the assistant is designed to solve, states the research objectives and aims, summarises original contributions, and acknowledges scope limitations. A full literature review follows in the next chapter; here we establish motivation and the precise gap this work targets.
 
 \section{Problem Statement and Contribution}
-Different disciplines have varying naming conventions. In Data Science, FYP tend to refer  documet about the problem(s) to be solved where other disciplines talk in terms of question(s) to be answered. In either case, this section has three main parts:
+\label{sec:problem-statement}
+
+Despite widespread adoption of \ac{LLM}-powered coding tools, no widely available assistant provides deep, tool-mediated integration with the Kaggle notebook editor running inside Chrome. General-purpose chat interfaces and IDE extensions assume access to repository files or user-supplied excerpts. They do not maintain a continuously updated representation of notebook cells as rendered in the browser, nor do they execute a constrained repertoire of editor operations with deterministic ordering guarantees. On Kaggle, cell identity is positional rather than stable: inserts and deletes shift indices, so batch modifications require careful sequencing. Existing assistants rarely enforce a read-then-write discipline, cap model rounds to control latency and cost, or reconcile bulk operations on the host before dispatch to the extension.
+
+The central problem addressed by this FYP is therefore twofold. First, \emph{context grounding}: how to extract faithful, timely notebook structure and content from a closed web application without privileged \ac{API} access, and how to supply that context to an \ac{LLM} during interactive assistance. Second, \emph{reliable agentic manipulation}: how to translate model-proposed tool calls into safe, ordered sequences of DOM-level cell operations---including multi-cell insert--edit--run workflows---while binding each action to the correct browser tab and notebook session.
+
+Answering this problem is worthwhile because Kaggle notebooks are a high-stakes learning and competition environment for data science students, including those in the \acf{BSDS} programme at \acf{CDS}, \acf{GCUF}. In-browser assistance that reads the live notebook and applies vetted tools can reduce friction in exploratory analysis, support reproducible cell-level edits, and demonstrate a reusable architecture for DOM-grounded agentic systems where platform \acp{API} are unavailable. The approach also informs design choices for future notebook copilots that must balance model autonomy with strict execution contracts.
+
+\subsection{Aims}
+\label{sec:aims}
+
+The overarching aim of this project is to design, implement, and evaluate an agentic \ac{LLM} assistant that operates directly on Kaggle computational notebooks within Google Chrome. Specifically, the work aims to:
 
 \begin{itemize}
-  \item A concise statement of the question(s) that your FYP/Thesis Document shall tackle.
-  \item Justification, by direct reference to literature review from previous
-  section that your question is previously unanswered.
-  \item Discussion of why it is worthwhile to answer this question.
+  \item provide conversational assistance grounded in scraped notebook state rather than user-copied code alone;
+  \item expose a bounded tool interface through which the model can inspect and modify cells in the live editor;
+  \item enforce predictable agentic behaviour through a mandatory two-phase query--implement protocol and host-side batch reordering; and
+  \item demonstrate feasibility on representative Kaggle \texttt{/edit} sessions relevant to data science coursework and competition workflows.
 \end{itemize}
 
-Since this is one of the sections that the readers are definitely looking for, describe the issues more clearly by dividing this section into multiple subsections such as a spate section for ``Aims", another for listing ``Original Contributions", and yet another for mentioning the ``Limitations".
+\subsection{Research Objectives}
+\label{sec:objectives}
+
+The following research objectives guide the design and evaluation of the system:
+
+\begin{enumerate}
+  \item \textbf{Architecture.} Specify and implement a Chrome extension and Python native messaging host that communicate securely, route chat by mode (Ask, Code, Agentic), and associate each request with the active notebook URL and browser tab identifier.
+  \item \textbf{Context pipeline.} Develop a DOM-scraping pipeline that serialises notebook cells into live and persistent JSON snapshots, enabling the host to inject current structure and content into \ac{LLM} prompts without manual copy-and-paste.
+  \item \textbf{Tool-mediated cell operations.} Implement and register browser tools with session URL and \texttt{tab\_id} coercion so dispatches target the correct editor instance. Mutation tools are \texttt{insert\_cell}, \texttt{edit\_cell\_by\_index}, \texttt{delete\_by\_index}, and \texttt{run\_cell}. Read tools are \texttt{notebook\_get\_cell} and \texttt{list\_cells}.
+  \item \textbf{Agentic execution contract.} Integrate GLM~4.7 native \texttt{tool\_calls} (Cerebras) under a mandatory two-phase protocol (read-only query, then implement), a maximum of two \ac{API} calls per user message, fire-and-forget batch dispatch, and host-side descending reorder for bulk delete and insert operations.
+  \item \textbf{Run and structure detection.} Use scrape-based monitors rather than WebSocket access to infer cell execution and notebook structure changes, supporting operational feedback within platform constraints.
+  \item \textbf{Empirical validation.} Exercise the assistant on Kaggle notebook editing scenarios---including multi-cell workflows---and assess whether DOM-grounded context and ordered tool batches produce coherent, session-consistent modifications.
+\end{enumerate}
+
+\subsection{Original Contributions}
+\label{sec:contributions}
+
+This FYP makes the following original contributions:
+
+\begin{itemize}
+  \item A \textbf{split extension--host architecture} for Kaggle notebook assistance, separating in-browser DOM interaction from \ac{LLM} orchestration, snapshot persistence, and tool dispatch on the native host.
+  \item A \textbf{DOM-grounded context pipeline} that maintains live and persistent JSON notebook snapshots derived from editor scraping, supplying the model with positional cell labels and content aligned to the user's current session.
+  \item A \textbf{bounded agentic execution model} comprising a mandatory two-phase query--implement cycle, a hard limit of two model calls per user turn, and fire-and-forget batch execution with explicit tool ordering (deletes before inserts, runs last).
+  \item \textbf{Host-side index reconciliation} that reorders bulk delete and insert tool calls in descending index order to reduce index-shift errors during multi-cell modifications.
+  \item \textbf{Session binding mechanisms} that coerce notebook URL and \texttt{tab\_id} across tool arguments, mitigating mismatches when the model omits or approximates session metadata.
+  \item \textbf{Scrape-based operational monitoring} for cell runs and structural change detection in the absence of a documented Kaggle editor automation \ac{API}.
+\end{itemize}
+
+\subsection{Limitations}
+\label{sec:limitations}
+
+The scope of this work is deliberately constrained. The assistant targets \textbf{Kaggle notebook \texttt{/edit} pages only}; other notebook platforms, local JupyterLab instances, and non-edit Kaggle views are out of scope. Deployment is \textbf{Chrome-specific}, relying on extension APIs and native messaging unavailable in all browsers. Agentic mode employs \textbf{fire-and-forget dispatch} without a full host-driven verification or recovery loop: the model must complete read and write phases within two calls, and execution outcomes are surfaced through monitors rather than closed-loop replanning. \textbf{\ac{LLM} \ac{API} limits}---latency, rate limits, and model behaviour---affect responsiveness and tool-call reliability. \textbf{DOM scraping} introduces sensitivity to front-end layout changes and incurs observational delay compared with privileged editor hooks. Finally, \textbf{execution metadata} (e.g., rich stderr traces, variable-level runtime state) is not yet fed back comprehensively to the model; a systematic verification loop remains identified future work, as discussed in later chapters.
+
+\section{Background and Context}
+\label{sec:background}
+
+\subsection{Computational notebooks in data science education}
+
+Computational notebooks occupy a central role in contemporary data science curricula \parencite{kluyver2016jupyter,perez2007ipython}. At \acf{GCUF}, the \acf{BSDS} programme introduces students to exploratory data analysis, statistical modelling, and machine-learning workflows through hands-on notebook exercises. Unlike traditional software projects organised as scripts or packages, notebook assignments emphasise \emph{narrative reproducibility}: each analytical step is visible as a cell, outputs appear inline, and markdown cells document reasoning for instructors and peers \parencite{rule2019tenrules}.
+
+Kaggle extends this pedagogical model into a public competition and portfolio platform. Learners fork existing kernels, adapt feature-engineering pipelines, and publish notebooks that combine code, visualisation, and commentary \parencite{quaranta2021kgtorrent,wang2021welldocumented}. The platform's browser editor, however, does not expose a documented automation \ac{API} to third-party assistants. Students therefore rely on manual cell editing, copy-paste from external chat tools, or platform-native features that lack deep language-model integration \parencite{mcnutt2023notebookassistants}.
+
+\subsection{The assistance gap on closed web editors}
+
+Mainstream coding assistants---including GitHub Copilot and general-purpose chat interfaces---were designed for file-centric development environments \parencite{ziegler2024copilot,chen2021codex}. When a student works inside Kaggle's \texttt{/edit} view, several properties diverge from that assumption:
+
+\begin{itemize}
+  \item \textbf{Positional cell identity.} Cells are referenced by index; inserts and deletes shift subsequent positions.
+  \item \textbf{Mixed modalities.} Markdown and code cells interleave; assistance must respect cell type.
+  \item \textbf{Execution coupling.} Code meaning depends on prior kernel state not visible in a static export.
+  \item \textbf{Session binding.} Multiple notebook tabs may be open; actions must target the correct editor instance.
+  \item \textbf{Platform closure.} No privileged hooks exist for external agents to list, edit, or run cells programmatically.
+\end{itemize}
+
+These properties motivate a client--host architecture that scrapes the live \ac{DOM}, persists JSON snapshots, and dispatches vetted tools rather than treating the notebook as a single text buffer \parencite{chasins2018roussillon,lewis2020rag}.
+
+\subsection{Role of large language models}
+
+Recent \acp{LLM} demonstrate strong code synthesis and explanation capabilities \parencite{brown2020language,chen2021codex,openai2023gpt4}. Tool-augmented variants extend this capability by invoking structured APIs during generation \parencite{schick2023toolformer,qin2024toolllm,yao2023react}. For notebook assistance, the research question is not whether a model can write pandas or scikit-learn code in isolation---benchmarks establish that baseline---but whether a \emph{deployable system} can ground each turn in the user's current notebook and, when appropriate, execute cell operations safely \parencite{hou2024llm4se,vaithilingam2022expectation}.
+
+This FYP answers that question through a Chrome extension and Python native host that implement three deliberately separated interaction modes: Ask (explain), Code (generate for copy-paste), and Agentic (dispatch tool batches).
+
+\section{Project Scope and Delimitations}
+\label{sec:scope}
+
+Table~\ref{tab:scope} summarises what is included and excluded from the project boundary.
+
+\begin{table}[!ht]
+\centering
+\caption{Project scope and explicit delimitations.}
+\label{tab:scope}
+\small
+\begin{tabular}{|p{3.2cm}|p{4.8cm}|p{4.8cm}|}
+\hline
+\textbf{Dimension} & \textbf{In scope} & \textbf{Out of scope} \\ \hline
+Platform & Kaggle \texttt{/edit} in Chrome & JupyterLab, Colab, VS Code notebooks \\ \hline
+Model provider & GLM~4.7 via Cerebras \ac{API} & Multi-provider orchestration \\ \hline
+Agentic control & Two-call query--implement; fire-and-forget batch & Full ReAct loop with replanning \\ \hline
+Evaluation & Harness benchmarks on frozen snapshots & Large-scale human subjects study \\ \hline
+Deployment & Local native host + extension & Cloud-hosted SaaS assistant \\ \hline
+\end{tabular}
+\end{table}
+
+Delimitations are intentional: they keep the artefact reproducible within FYP timelines while demonstrating principles transferable to other closed notebook surfaces \parencite{mcnutt2023notebookassistants}.
+
+\section{Stakeholders and Use Cases}
+\label{sec:stakeholders}
+
+The assistant serves three stakeholder groups with distinct use cases:
+
+\subsection{Data science students}
+
+\acf{BSDS} students fork public Kaggle kernels for assignments and competitions. Typical tasks include understanding an unfamiliar notebook (Ask), implementing a new modelling cell without breaking upstream dependencies (Code), and batch-adding analysis sections during project work (Agentic). Mode separation lets instructors recommend Ask-only sessions during formative weeks and controlled Agentic use during capstone projects.
+
+\subsection{Competition participants}
+
+Kaggle competitors iterate rapidly on feature engineering and model selection under time pressure \parencite{quaranta2022bestpractices}. Code mode supports quick generation of experimental cells with placement hints; Agentic mode can plan multi-cell pipelines when the user accepts review of dispatched batches. Ask mode supports post-mortem analysis of errors in failed submissions.
+
+\subsection{System maintainers and researchers}
+
+Developers extending the extension--host stack need reproducible benchmarks (Appendix~\ref{app:benchmarks}) and modular prompts under \texttt{testing/host/prompts/}. Researchers studying notebook copilots can use the frozen snapshot harness to compare models without live Kaggle sessions.
+
+Table~\ref{tab:use-cases} maps common tasks to recommended modes.
+
+\begin{table}[!ht]
+\centering
+\caption{Representative use cases and recommended modes.}
+\label{tab:use-cases}
+\small
+\begin{tabular}{|p{4.2cm}|p{2.4cm}|p{5.8cm}|}
+\hline
+\textbf{Task} & \textbf{Mode} & \textbf{Rationale} \\ \hline
+Explain an error traceback & Ask & Zero side effects; cites cell evidence \\ \hline
+Add XGBoost training cell & Code & Runnable block; user controls insert \\ \hline
+Build EDA + modelling section & Agentic & Multi-cell batch after structure query \\ \hline
+Clarify empty cell intent & Ask / Code & Deferral pattern; no unsolicited code \\ \hline
+Review competition kernel & Ask & Workflow coverage without mutation \\ \hline
+\end{tabular}
+\end{table}
+
+\section{Thesis Organisation}
+\label{sec:organisation}
+
+The remainder of this document is organised as follows. Chapter~\ref{c-review} surveys prior work on notebooks, \ac{LLM}-assisted coding, retrieval grounding, and agentic tool use. Chapter~\ref{c-methods} presents the research design, system architecture, implementation methodology, and evaluation protocol. Chapter~\ref{c-results} reports benchmark outcomes for Ask, Code, and Agentic modes. Chapter~\ref{chap:discussion} interprets findings against the literature and states threats to validity. Chapter~\ref{cha:conclusion} concludes with contributions and future work. Chapter~\ref{c-recommendation} offers recommendations for practitioners, maintainers, and researchers. Appendix~\ref{app:benchmarks} lists benchmark prompts and tool definitions for reproducibility.

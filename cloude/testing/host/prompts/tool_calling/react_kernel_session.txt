@@ -1,0 +1,20 @@
+# Workflow preservation (agentic)
+
+## Do not disrupt existing pipelines
+- **Do not** delete, move, or rewrite existing pipeline cells unless the user explicitly asked.
+- **Reuse** variables from upstream workflow cells after re-running them, or assign **new** names for new experiments.
+- Prefer **insert** + **edit** at the end (or `notebook_recommend_placement`) over modifying data-prep cells.
+
+## Stale output
+- Snapshot cell output may not match the live kernel after a restart — re-run upstream import/data-load cells before analysis that uses `df` or other variables.
+
+## Tool batch pattern — new analysis cell
+User: add cell at end showing top 10 Lahore by price.
+
+Typical batch (one turn):
+1. `notebook_cell_neighbors` — optional, for target placement
+2. `run_cell` — each upstream / data-load cell (e.g. import + `read_csv`)
+3. `insert_cell` / `edit_cell_by_index` — new analysis code
+4. `run_cell` — new cell
+
+Never run only the new cell when upstream data-load cells have not been run in this session.

@@ -1,0 +1,38 @@
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {1.1}{\ignorespaces Project scope and explicit delimitations.}}{7}{table.caption.19}%
+\contentsline {table}{\numberline {1.2}{\ignorespaces Representative use cases and recommended modes.}}{8}{table.caption.20}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {2.1}{\ignorespaces Positioning of the proposed system relative to prior assistant paradigms.}}{17}{table.caption.22}%
+\contentsline {table}{\numberline {2.2}{\ignorespaces Simplified chronology of related research themes.}}{20}{table.caption.23}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {3.1}{\ignorespaces Major system components and their roles.}}{23}{table.caption.25}%
+\contentsline {table}{\numberline {3.2}{\ignorespaces Interaction mode contracts.}}{29}{table.caption.26}%
+\contentsline {table}{\numberline {3.3}{\ignorespaces Implementation phases and deliverables.}}{32}{table.caption.27}%
+\contentsline {table}{\numberline {3.4}{\ignorespaces Registered notebook tools.}}{32}{table.caption.28}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {4.1}{\ignorespaces Primary Agentic benchmark result (Test~1, dispatch-only evaluation).}}{36}{table.caption.30}%
+\contentsline {table}{\numberline {4.2}{\ignorespaces Ask mode benchmark outcomes.}}{36}{table.caption.31}%
+\contentsline {table}{\numberline {4.3}{\ignorespaces Code mode benchmark outcomes.}}{37}{table.caption.32}%
+\contentsline {table}{\numberline {4.4}{\ignorespaces Cross-mode summary of reported benchmarks.}}{38}{table.caption.33}%
+\contentsline {table}{\numberline {4.5}{\ignorespaces Agentic Test~1: per-round behaviour.}}{39}{table.caption.34}%
+\contentsline {table}{\numberline {4.6}{\ignorespaces Approximate timing and resource use (live LLM runs).}}{42}{table.caption.35}%
+\contentsline {table}{\numberline {4.7}{\ignorespaces Consolidated benchmark results matrix (reported tests only).}}{43}{table.caption.36}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {5.1}{\ignorespaces Practical mode selection guidance derived from benchmarks.}}{46}{table.caption.37}%
+\contentsline {table}{\numberline {5.2}{\ignorespaces Architectural trade-offs in the implemented system.}}{48}{table.caption.38}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {6.1}{\ignorespaces Research objectives and supporting evidence.}}{52}{table.caption.39}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {7.1}{\ignorespaces Consolidated recommendations by audience.}}{56}{table.caption.40}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {A.1}{\ignorespaces Frozen notebook snapshots used in benchmarks.}}{58}{table.caption.41}%
+\contentsline {table}{\numberline {A.2}{\ignorespaces Ask mode benchmark prompts (reported tests).}}{59}{table.caption.42}%
+\contentsline {table}{\numberline {A.3}{\ignorespaces Code mode benchmark prompts.}}{60}{table.caption.43}%
+\contentsline {table}{\numberline {A.4}{\ignorespaces Tool argument summaries for Agentic mode.}}{61}{table.caption.44}%
+\contentsline {table}{\numberline {A.5}{\ignorespaces Agentic configuration flags (\texttt {config.py}).}}{61}{table.caption.45}%
+\contentsline {table}{\numberline {A.6}{\ignorespaces Chrome extension modules.}}{62}{table.caption.46}%
+\contentsline {table}{\numberline {A.7}{\ignorespaces Python native host modules.}}{63}{table.caption.47}%
+\contentsline {table}{\numberline {A.8}{\ignorespaces Benchmark test identifiers.}}{63}{table.caption.48}%
+\contentsline {table}{\numberline {A.9}{\ignorespaces Host prompt template files.}}{64}{table.caption.49}%
+\contentsline {table}{\numberline {A.10}{\ignorespaces Thesis document revision summary.}}{65}{table.caption.50}%
+\addvspace {10\p@ }

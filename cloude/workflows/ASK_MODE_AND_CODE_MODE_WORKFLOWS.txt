@@ -1,0 +1,385 @@
+================================================================================
+ASK MODE AND CODE MODE WORKFLOWS
+================================================================================
+Normal-chrome / Kaggle Notebook Copilot — FYP
+Distilled from: testing/host/docs/ASK_MODE.txt, CODE_MODE.txt
+Companion docs: CHAT_REQUEST_TO_LLM_RESPONSE.txt,
+                 NOTEBOOK_SCRAPE_AND_DATA_PIPELINE.txt
+Source: testing/host/, testing/extension/
+
+================================================================================
+1. PURPOSE
+================================================================================
+
+Ask mode and Code mode are the two primary user-facing chat modes. Both share
+the same CHAT_REQUEST → streaming pipeline but differ in prompts, context
+slicing, prefetch emphasis, output contracts, and tool availability. Neither
+mode invokes browser write tools or LLM-native tool_calls.
+
+================================================================================
+2. MODE COMPARISON AT A GLANCE
+================================================================================
+
+  ┌────────────────────┬─────────────────────────┬─────────────────────────────┐
+  │ Aspect             │ Ask                     │ Code                        │
+  ├────────────────────┼─────────────────────────┼─────────────────────────────┤
+  │ User intent        │ Explain, debug, review, │ Generate runnable cells +   │
+  │                    │ advise placement        │ placement instructions      │
+  │ Primary output     │ Prose explanation       │ Placement bullets + python  │
+  │                    │                         │ code fence                  │
+  │ Full cell scripts  │ Discouraged (contract)  │ Expected when task clear    │
+  │ Browser writes     │ Never                   │ Never                       │
+  │ include_tools      │ false                   │ false                       │
+  │ LLM tool_calls     │ none                    │ none (filtered if stray)  │
+  │ Host prefetch      │ yes (11 read tools)     │ yes (all local read tools)  │
+  │ Two-phase flow     │ no                      │ no                          │
+  │ Context packer     │ _pack_ask + sub-intents │ _pack_code                  │
+  │ Placement language │ Prose only if asked     │ Mandatory **Placement**     │
+  │ Prompt file        │ prompts/ask.txt         │ prompts/code.txt            │
+  └────────────────────┴─────────────────────────┴─────────────────────────────┘
+
+================================================================================
+3. UI SELECTION (SHARED)
+================================================================================
+
+  ui_injector.js:
+    <select id="chat-mode">
+      <option value="ask">Ask</option>      — default
+      <option value="code">Code</option>
+      <option value="agentic">Agentic</option>
+    </select>
+
+  On send: CHAT_REQUEST { mode: "ask" | "code", prompt, sessionId, ... }
+
+  Host: detect_mode() uses UI selection only — no keyword auto-switch.
+  Per-cell debug (cell_debug_chat.js) can use either mode with cellIndex set.
+
+================================================================================
+4. ASK MODE — END-TO-END WORKFLOW
+================================================================================
+
+4.1 Intended behavior
+---------------------
+  Read-only advisory: explain cells, debug errors, review structure, advise
+  where logic should go, answer dataset questions.
+
+  Contract (prompts/ask.txt, _SYSTEM_NOTES_ASK):
+    - Prose explanations and suggestions only
+    - Do NOT generate full notebook code blocks for copy-paste
+    - Minimal fix snippets (1–3 lines) OK for errors only
+    - Direct user to Code or Agentic mode for runnable scripts
+    - ~350 word default cap
+    - INSUFFICIENT_CONTEXT when evidence missing
+
+4.2 Step-by-step workflow
+--------------------------
+
+  STEP 1 — User selects Ask, types e.g. "explain cell 4"
+  STEP 2 — CHAT_REQUEST mode=ask → host.py (shared handler)
+  STEP 3 — cell_num = 4 (from prompt regex or cellIndex)
+  STEP 4 — pack_context(mode="ask"):
+             CONTEXT_PACK_MODE=full → _pack_full_notebook (all cells)
+             CONTEXT_PACK_MODE=intent → classify_ask_intent(prompt):
+               placement  → _pack_dependency (full graph; cell_index cleared)
+               error      → _pack_explain_error (target + traceback + upstream)
+               dependency → _pack_dependency
+               review     → _pack_code_review (all code cells, truncated)
+               explain    → _pack_explain_code (target + upstream + symbols)
+               general    → _pack_simple (target or first 5 previews)
+  STEP 5 — CONTEXT_MANIFEST prepended; coverage full|partial|none
+  STEP 6 — merge_context_with_profile(); load history; append user message
+  STEP 7 — streaming._run_streaming_chat:
+             agentic_active = False
+             include_tools = False
+             build_chat_messages(mode="ask", include_query_guidance=True)
+             prefetch_notebook_queries(mode="ask") — host runs read tools
+             fit_messages_to_budget()
+             Single streaming LLM call
+  STEP 8 — CHAT_STREAM deltas → UI markdown render
+  STEP 9 — CHAT_STREAM_END → memory_store.append(assistant prose)
+  STEP 10 — UI: mountAssistantContent — mostly prose; any code fences get
+            Copy-only snippet cards (hidden until stream ends)
+
+4.3 Ask prompt assembly
+-----------------------
+  ## Role — base_notebook_assistant + ask.txt + "Active UI mode: **ask**"
+  ## Task — ask.txt Task (explain, debug, review, placement advice)
+  ## Specifics — empty cell handling, error format, citation rules
+  ## Context
+    jupyter_structure.txt
+    query_tools_ask.txt (how to read prefetch evidence)
+    ### Notebook evidence (pack_context output)
+    NO tool calling docs or tool descriptions
+  ## Examples — ask.txt few-shot shapes
+  ## Notes — ask.txt + _SYSTEM_NOTES_ASK (hard rules last)
+
+4.4 Ask prefetch plan (notebook_query.build_query_plan)
+-------------------------------------------------------
+  tools_allowed_for_mode("ask") — 11 read tools:
+    notebook_snapshot_status, notebook_list_cells, notebook_overview,
+    notebook_executed_cells, notebook_get_cell, notebook_get_cells,
+    notebook_search, notebook_find_symbol, notebook_cell_neighbors,
+    notebook_graph_query, notebook_recommend_placement
+
+  Plan biased by classify_ask_intent:
+    error    → get_cell + search traceback terms
+    explain  → get_cell + find_symbol + neighbors
+    placement→ recommend_placement + graph_query
+    dataset  → search + overview
+
+  Results prepended as "## Notebook query results (host prefetch)" JSON.
+  LLM reads prefetch + packed evidence; does NOT call tools itself.
+
+4.5 Typical Ask reply shapes
+----------------------------
+  Empty cell:
+    Status + one clarifying question + 1–2 suggested next steps (no code dump)
+
+  Explain cell:
+    Heading, what it does, step-by-step, optional "why it matters"
+
+  Error:
+    Root cause from real output, numbered fix steps, tiny fix snippet OK
+
+  Placement (prose only):
+    Placement sentence + run-order bullets (no large code fence)
+
+  Insufficient evidence:
+    **INSUFFICIENT_CONTEXT** + one targeted question
+
+================================================================================
+5. CODE MODE — END-TO-END WORKFLOW
+================================================================================
+
+5.1 Intended behavior
+---------------------
+  Generate runnable Python for notebook cells with explicit placement guidance.
+  User copies code or uses separate UI actions; host does NOT auto-insert.
+
+  Contract (prompts/code.txt, _SYSTEM_NOTES_CODE):
+    - Generate runnable code in chat for copy/insert
+    - No browser tool_calls or notebook writes from LLM
+    - Reply: **Placement** bullets + one ```python block when generating
+    - Empty target cell: ask intent first — no Placement/Code until confirmed
+
+5.2 Step-by-step workflow
+--------------------------
+
+  STEP 1 — User selects Code, types e.g. "normality plots for model_df"
+  STEP 2 — CHAT_REQUEST mode=code → host.py
+  STEP 3 — cell_num from prompt/cellIndex or None
+  STEP 4 — pack_context(mode="code"):
+             CONTEXT_PACK_MODE=full → _pack_full_notebook
+             CONTEXT_PACK_MODE=intent → _pack_code:
+               If cell_index set:
+                 target cell + up to 6 upstream + downstream from dependency graph
+                 symbol graph enrichment if SYMBOL_CONTEXT_ENABLED=1
+               If cell_index None:
+                 _pack_simple fallback
+  STEP 5 — CONTEXT_MANIFEST; empty cell note if target has no input
+  STEP 6 — history + user append (same session as Ask by default)
+  STEP 7 — streaming._run_streaming_chat:
+             agentic_active = False
+             include_tools = False
+             build_chat_messages(mode="code", query_tools_code.txt)
+             prefetch_notebook_queries(mode="code") — placement-biased
+             Single streaming LLM call
+             filter_tool_calls_for_mode → [] if model emits stray tool_calls
+  STEP 8 — CHAT_STREAM → UI
+  STEP 9 — CHAT_STREAM_END → SQLite stores full text incl. Placement + fences
+  STEP 10 — UI splits prose vs ```python``` → Copy button on code cards
+
+5.3 Code prompt assembly
+------------------------
+  ## Role — base + code.txt + "Active UI mode: **code**"
+  ## Task — plan → read evidence → Placement → Code → Run steps
+  ## Specifics — empty cell vs confirmed task rules
+  ## Context
+    jupyter_structure.txt (insert-below-default placement model)
+    query_tools_code.txt
+    ### Notebook evidence
+    NO tool calling section
+  ## Examples — code.txt (Placement + python fence examples)
+  ## Notes — _SYSTEM_NOTES_CODE
+
+5.4 Code prefetch plan
+--------------------
+  tools_allowed_for_mode("code") — ALL local read tools (broader than Ask).
+
+  build_query_plan emphasizes:
+    notebook_get_cell when cell_index known
+    notebook_recommend_placement + notebook_find_symbol when:
+      intent==placement OR symbols extracted from prompt
+    notebook_overview, notebook_executed_cells, notebook_search
+    notebook_graph_query for dependency questions
+
+5.5 Expected reply structure (when generating code)
+---------------------------------------------------
+  1. **Plan** — 2–4 bullets (optional, short)
+  2. **Placement** — "Insert new Code cell below Cell [M]" or "Fill Cell [N]"
+     with one-line evidence and run order
+  3. **Code** — single fenced ```python block (full cell body)
+  4. **Notes** — assumptions only (optional)
+
+5.6 Empty-cell flow (Code)
+--------------------------
+  When target cell has no input and user request is vague:
+    State Cell [N] is empty
+    Ask what they want the cell to do
+    Offer 1–2 flow-appropriate options citing upstream/downstream
+    Wait for confirmation BEFORE Placement + Code sections
+
+5.7 When to withhold code
+-------------------------
+  - Target empty + vague "fix cell N" without specification
+  - coverage none/partial and prefetch lacks needed symbols
+  → INSUFFICIENT_CONTEXT or clarifying question
+
+================================================================================
+6. CONTEXT PACKING — SIDE BY SIDE
+================================================================================
+
+  CONTEXT_PACK_MODE=full (config default in config.py):
+    Both modes receive entire notebook via _pack_full_notebook.
+    Intent sub-classification skipped for packing body.
+    coverage = "full" when cells exist.
+
+  CONTEXT_PACK_MODE=intent:
+    Ask  → _pack_ask → classify_ask_intent routes to specialized packers
+    Code → _pack_code → target + upstream/downstream slice
+
+  Shared behaviors (notebook_context.py):
+    load_notebook_snapshot: live preferred, persistent fallback
+    _empty_cell_context_note for empty targets
+    _truncate_at_cell_boundaries at MAX_NOTEBOOK_CONTEXT_CHARS
+    Editor-loading stale warning in body
+
+  CONTEXT_MANIFEST (both modes):
+    coverage, snapshot source, kernel_scenario, target_cell,
+    listed_cells (only these may be cited), 1-based indexing rules
+
+================================================================================
+7. TOOLS — WHAT IS AND ISN'T USED
+================================================================================
+
+7.1 NOT used in Ask or Code
+---------------------------
+  LLM-native tool_calls / two-phase agentic flow (include_tools=false)
+  Browser tools: insert_cell, edit_cell_by_index, run_cell, delete_by_index
+  Post-stream tool API rounds (skip_post_stream_tools=True)
+  INSERT_CODE_CELL (separate UI action, not triggered by chat)
+
+7.2 Used in both (host prefetch only)
+-------------------------------------
+  Host executes read tools once per turn; results on user message.
+  LLM interprets JSON output + packed evidence.
+  query_tools_ask.txt / query_tools_code.txt explain how to use prefetch.
+
+7.3 INSERT_CODE_CELL (outside chat)
+-----------------------------------
+  Explicit extension message when user clicks insert action.
+  host.py → insert_and_edit_cell() → bot pipeline.
+  ui_injector.js code cards currently expose Copy only (not auto-insert).
+
+================================================================================
+8. OUTPUT FORMAT DIFFERENCES (UI)
+================================================================================
+
+  Ask:
+    Mostly markdown prose in single assistant bubble.
+    Code fences rare; if present → Copy-only snippet card.
+    No **Placement** section required.
+
+  Code:
+    Prose sections (Plan, Placement, Notes) in markdown bubble.
+    ```python``` fences extracted to separate code-snippet-card components.
+    During streaming: code-snippet-stack hidden until CHAT_STREAM_END.
+    Placement section mandatory when shipping runnable code.
+
+  Shared UI (ui_injector.js mountAssistantContent):
+    markdown-it for prose
+  Split on fenced code blocks via regex
+  Copy button per code card
+
+================================================================================
+9. CHAT HISTORY (SHARED)
+================================================================================
+
+  Same SQLite bucket for Ask and Code unless CHAT_SESSION_PER_MODE=1.
+  Switching dropdown mid-conversation keeps shared history (default).
+  Assistant messages store raw streamed text (Placement headers + fences intact).
+  Prefetch blocks and turn_tail NOT persisted.
+
+  Per-cell debug: separate sessionId; same pack/stream pipeline.
+
+================================================================================
+10. EXAMPLE TURNS (CONCEPTUAL)
+================================================================================
+
+10.1 Ask turn
+-------------
+  User (Ask): "Why does cell 12 throw KeyError?"
+
+  Host:
+    classify_ask_intent → error
+    _pack_explain_error → cell 12 output + upstream defs
+    prefetch: notebook_get_cell(12), notebook_search("KeyError")
+    Stream prose: root cause, fix steps, 2-line snippet OK
+
+10.2 Code turn
+--------------
+  User (Code): "Normality plots for model_df — where should I insert?"
+
+  Host:
+    _pack_code → cells defining/using model_df
+    prefetch: notebook_recommend_placement, notebook_find_symbol("model_df")
+    Stream: **Placement** below Cell [M] + ```python``` full cell script
+
+  User manually inserts below recommended cell in Kaggle UI.
+
+================================================================================
+11. CONFIGURATION AFFECTING BOTH MODES
+================================================================================
+
+  CONTEXT_PACK_MODE=full|intent     — whole notebook vs sliced context
+  MAX_NOTEBOOK_CONTEXT_CHARS          — truncation (default 6000)
+  MAX_FULL_NOTEBOOK_CONTEXT_CHARS     — full-mode cap (30000)
+  MAX_CELL_OUTPUT_CHARS               — per-cell output in pack
+  SYMBOL_CONTEXT_ENABLED=1            — symbol graph in intent paths
+  CEREBRAS_STATIC_NOTEBOOK_CACHE=1    — frozen baseline + per-turn delta
+  CHAT_SESSION_PER_MODE=0|1           — separate history per mode
+  MAX_HISTORY_MESSAGES_API            — 3 (full) / 10 (intent)
+  MAX_INPUT_TOKENS                    — budget fitting (7000 default)
+
+  Ask/Code do NOT require LLM_AGENTIC_ENABLED.
+
+================================================================================
+12. KEY SOURCE FILES
+================================================================================
+
+  testing/extension/ui_injector.js
+  testing/host/host.py
+  testing/host/streaming.py
+  testing/host/prompt_engineering.py — detect_mode, classify_ask_intent,
+                                       build_system_content, _SYSTEM_NOTES_*
+  testing/host/notebook_context.py   — pack_context, _pack_ask, _pack_code
+  testing/host/notebook_query.py     — prefetch_notebook_queries, build_query_plan
+  testing/host/prompts/ask.txt
+  testing/host/prompts/code.txt
+  testing/host/prompts/jupyter_structure.txt
+  testing/host/prompts/tool_calling/query_tools_ask.txt
+  testing/host/prompts/tool_calling/query_tools_code.txt
+
+================================================================================
+13. CROSS-REFERENCES
+================================================================================
+
+  CHAT_REQUEST_TO_LLM_RESPONSE.txt      — shared pipeline steps 1–15
+  NOTEBOOK_SCRAPE_AND_DATA_PIPELINE.txt — snapshot → pack_context input
+  AGENTIC_MODE_TOOL_EXECUTION.txt — third mode with browser tools
+
+  Full technical depth: testing/host/docs/ASK_MODE.txt, CODE_MODE.txt
+
+================================================================================
+END OF ASK_MODE_AND_CODE_MODE_WORKFLOWS.txt
+================================================================================

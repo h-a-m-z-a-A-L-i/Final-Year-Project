@@ -1,0 +1,398 @@
+================================================================================
+NOTEBOOK SCRAPE AND DATA PIPELINE
+================================================================================
+Normal-chrome / Kaggle Notebook Copilot — FYP
+Companion docs: SYSTEM_ARCHITECTURE_AND_MESSAGE_BRIDGE.txt,
+                 CHAT_REQUEST_TO_LLM_RESPONSE.txt
+Source: testing/extension/background.js, testing/host/notebook_data_handler.py
+
+================================================================================
+1. PURPOSE
+================================================================================
+
+This document traces how live notebook cell data moves from the Kaggle DOM into
+structured JSON on disk, how notebook identity is resolved, how live vs
+persistent snapshots differ, and how packed context enters the LLM pipeline
+via pack_context().
+
+================================================================================
+2. SCRAPE TRIGGERS
+================================================================================
+
+Notebook scraping runs automatically; the user does not manually trigger it.
+
+  Trigger                          Source                    Delay
+  ─────────────────────────────────────────────────────────────────────
+  Periodic scan (active tab)       background.sendTabs()     300ms
+  Periodic scan (background tab)   background.sendTabs()     5000ms
+  Tab navigation complete          tabs.onUpdated(complete)  +500ms
+  Cell execution signal            PROMPT_SIGNAL             ~80ms
+  After run_cell bot command       maybeScheduleScrapeAfterRun  80–600ms
+
+Active tab tracking: __activeTabId set on tab focus; faster scrape when visible.
+
+================================================================================
+3. DOM SCRAPE (background.js — scrapeNotebook)
+================================================================================
+
+3.1 Injection
+-------------
+  chrome.scripting.executeScript({
+    target: { tabId, allFrames: true },
+    func: scrapeNotebook,
+  })
+
+  Runs in every frame (main page + Jupyter iframes + shadow DOM traversal).
+
+3.2 Cell discovery
+------------------
+  Selectors: .cell, .jp-Cell, .code_cell, .text_cell, .markdown_cell,
+             [data-windowed-list-index]
+  TreeWalker traverses shadow roots and accessible iframes.
+  Dedup key: index + type + input + output + execution_status.
+
+3.3 Per-cell extraction
+-----------------------
+  For each cell element:
+
+    index (1-based):
+      data-windowed-list-index (DOM 0-based + 1) OR enumerate position
+
+    type:
+      code    — jp-CodeCell / code_cell classes
+      markdown — jp-MarkdownCell / text_cell classes
+
+    input (code cells):
+      CodeMirror / cm-editor text content
+
+    input (markdown):
+      Rendered markdown text
+
+    output (code cells only):
+      jp-OutputArea / jp-Cell-outputWrapper text
+
+    execution metadata (when KERNEL_EXECUTION_METADATA_ENABLED):
+      execution_order   — from jp-InputPrompt label number
+      execution_title   — prompt element title attribute
+      execution_status  — idle | queued | running | executed
+      execution_signal  — run button title/aria-label text
+
+3.4 Kernel state (per tab)
+--------------------------
+  kernelStatus, kernelState { editorLoading, off, hdd }
+  classifyKernelScenario() → scenario_1_new_notebook_off |
+                             scenario_2_kernel_on |
+                             editor_loading
+
+  Included in NOTEBOOK_DATA payload for host metadata (informational in prompts).
+
+3.5 NOTEBOOK_DATA message shape (extension → host)
+--------------------------------------------------
+  {
+    type: "NOTEBOOK_DATA",
+    tabUrl: "https://www.kaggle.com/code/{owner}/{slug}/edit",
+    tabId: <int>,
+    title: <notebook title from DOM>,
+    cells: [ { index, type, input/source, output, execution_* }, ... ],
+    kernelStatus: <string>,
+    kernelScenario: <string>,
+    kernelState: { editorLoading, off, hdd },
+    notebookId: <resolved id_no or null>,
+    notebookKey: "kaggle:kernel:{id_no}" or URL fallback
+  }
+
+================================================================================
+4. HOST INGEST (notebook_data_handler.handle_notebook_data)
+================================================================================
+
+Step-by-step workflow:
+
+  STEP 1 — Normalize URL
+    tab_url = _normalized_url(msg.tabUrl)
+    Reject or log if "unknown".
+
+  STEP 2 — Resolve notebook identity
+    identity = resolve_notebook_identity(tab_url, notebook_id, memory_store, log)
+    storage_key = identity.notebookKey  (prefer kaggle:kernel:{id_no})
+    notebook_id = identity.notebookId
+
+    See Section 5 for identity resolution detail.
+
+  STEP 3 — Update bot_state (per tab)
+    bot_state["tabId"], ["url"], ["kernelScenario"], ["kernelStatus"],
+    ["kernelState"] — used by browser tools and pack_context freshness.
+
+  STEP 4 — Normalize cells
+    For each raw cell:
+      cell_index from cell.index (1-based, minimum 1)
+      code cells → { index, input, output, execution_* }
+      markdown   → { type, index, input, state }
+    normalize_notebook_cells(live_cells)  — cell_index.py
+    Sort by index ascending.
+
+  STEP 5 — Build live snapshot object
+    live_data = {
+      tabUrl, title, lastUpdated (ISO UTC), cells: live_cells
+    }
+
+  STEP 6 — Compute content fingerprint
+    SHA-256 over normalized code cell inputs/outputs (+ execution metadata).
+    is_empty_notebook if hash matches empty sentinel or zero code cells.
+
+  STEP 7 — Persist (branch on empty vs content)
+    If NOT empty:
+      With execution metadata enabled:
+        _persist_with_execution_metadata() — live + persistent paths
+      Else:
+        _save_notebook_without_execution_metadata()
+    If empty:
+      _save_live_notebook_snapshot() only (protect persistent from blank scrape)
+
+  STEP 8 — Push dependency graph
+    _push_graph(ctx, tab_url, tab_id) → GRAPH_DATA to extension debug panel.
+
+  STEP 9 — Acknowledge
+    send_msg({ ok: true })
+
+================================================================================
+5. IDENTITY RESOLUTION
+================================================================================
+
+5.1 Why stable keys matter
+--------------------------
+  Chat history (SQLite) and notebook JSON are keyed by notebook identity.
+  URL slugs change when users rename notebooks; Kaggle kernel id_no does not.
+
+5.2 resolve_notebook_identity() (notebook_identity.py)
+------------------------------------------------------
+  Input:  url, optional notebookId from extension cache
+  Output: { url, notebookId, notebookKey }
+
+  Flow:
+    1. _normalized_url(url) — canonical /edit URL
+    2. resolve_history_key(url, notebook_id)
+       a. Check notebook_registry.json url_to_key map
+       b. If miss: kaggle_kernel_client.resolve_kernel_id_for_url()
+          — Kaggle API: owner + slug → id_no
+       c. Return kaggle:kernel:{id_no} or URL fallback
+    3. Register mapping in notebook_registry.json
+
+5.3 Extension-side identity (background.js)
+-------------------------------------------
+  resolveNotebookIdentity() always calls host RESOLVE_NOTEBOOK_IDENTITY.
+  notebookIdentityByTab[tabId] cache invalidated on URL mismatch.
+  attachNotebookIdentity() adds notebookId + notebookKey to outgoing messages.
+
+  notebook_identity.js browser scrape is secondary; host API is authoritative.
+
+5.4 URL change migration
+------------------------
+  When user navigates to renamed notebook (same kernel):
+
+  background.js detects URL change:
+    port.postMessage({
+      type: "NOTEBOOK_URL_CHANGED",
+      oldUrl, newUrl, notebookId, tabId
+    })
+
+  host.py → handle_notebook_url_changed():
+    register_notebook_identity(new_url, id, old_url=old_url)
+    migrate_notebook_keys(memory_store, [old_url], new_key)
+
+  SQLite messages.notebook_url rewritten → chat history preserved in UI.
+
+================================================================================
+6. LIVE VS PERSISTENT SNAPSHOTS
+================================================================================
+
+6.1 Live snapshot (always written)
+----------------------------------
+  Path: data/notebooks/live/{hash_or_key}.json
+  Writer: persistence_helpers.save_live_json()
+  Policy: Overwritten on every successful non-trivial scrape.
+  Contents: Full cell list (code + markdown), title, tabUrl, lastUpdated.
+  Purpose: Real-time mirror of DOM state; preferred source for pack_context.
+
+6.2 Persistent snapshot (verification gate)
+--------------------------------------------
+  Path: data/notebooks/persistent/{hash_or_key}.json
+  Writer: persistence_helpers.save_persistent_json()
+  Policy: Written ONLY when snapshot_verification approves.
+
+6.3 Verification gate (snapshot_verification.evaluate_persistent_update)
+------------------------------------------------------------------------
+  Safety rules:
+    - Allow initial create when no prior snapshot exists
+    - Block empty incoming over populated snapshot
+    - Block partial scrape (fewer code cells than stored, unless sync_from_live)
+    - Block write when normalized cell fingerprint unchanged
+    - Allow write only on real content change
+
+  Returns PersistentUpdateDecision(should_write, content_changed, reason).
+
+6.4 Fallback read order (notebook_context.load_notebook_snapshot)
+-----------------------------------------------------------------
+  1. Try live JSON (newest DOM mirror)
+  2. Fall back to persistent JSON (last verified stable snapshot)
+  3. Return coverage "none" if neither exists
+
+6.5 Execution metadata path
+---------------------------
+  When execution metadata enabled:
+    execution_state.json tracks revision per URL
+    Fresh kernel scenario may clear execution fields in persistent snapshot
+    (only when verification detects real metadata change)
+    kernel_execution_policy.py governs stale execution filtering
+
+6.6 Empty notebook guard
+------------------------
+  Zero code cells OR empty-content hash:
+    Live JSON may still update (minimal)
+    Persistent snapshot NOT overwritten (protects against page-loading scrapes)
+
+================================================================================
+7. STORAGE FILE LAYOUT
+================================================================================
+
+  data/notebooks/live/{storage_key_hash}.json
+  data/notebooks/persistent/{storage_key_hash}.json
+  data/notebooks/{storage_key_hash}.json          — legacy root copy
+  data/meta/hashes.json                           — content fingerprints
+  data/meta/execution_state.json                  — per-URL revision tracking
+  data/meta/notebook_registry.json                — url → kaggle:kernel:id
+  data/meta/kernel_slug_index.json                — slug lookup cache
+  data/meta/kernel_metadata/{id}.json             — Kaggle API cache
+
+  Atomic writes: write to .tmp then rename (persistence_helpers).
+
+================================================================================
+8. CONTEXT PACKING ENTRY POINT (pack_context)
+================================================================================
+
+After scrape data is on disk, chat requests use pack_context() to build LLM
+evidence. Full detail in CHAT_REQUEST_TO_LLM_RESPONSE.txt and mode-specific
+docs; summary here:
+
+  Entry: notebook_context.pack_context(mode, url, prompt, cell_index, ...)
+
+  STEP 1 — Resolve target cell
+    cell_index from argument or _extract_cell_number(prompt)
+    Ask + placement intent → cell_index cleared (avoid misleading "cell N")
+
+  STEP 2 — Load snapshot
+    data, source = load_notebook_snapshot(url)  — live then persistent
+    cells = _cells_from_data(data)
+    meta = get_freshness_metadata(url, bot_state)  — kernel scenario, editor_loading
+
+  STEP 3 — Choose packer (CONTEXT_PACK_MODE)
+    full:
+      _pack_full_notebook() — every cell with input/output
+    intent:
+      build_dependency_graph(cells)
+      mode == "code" → _pack_code()
+      else            → _pack_ask() → classify_ask_intent() routes to:
+        placement  → _pack_dependency
+        error      → _pack_explain_error
+        dependency → _pack_dependency
+        review     → _pack_code_review
+        explain    → _pack_explain_code
+        general    → _pack_simple
+
+  STEP 4 — Augment body
+    _empty_cell_context_note() if target cell has no input
+  Editor loading stale warning if meta.editor_loading
+
+  STEP 5 — Truncate
+    _truncate_at_cell_boundaries(body, char_limit)
+    Recompute listed_cells from surviving ### Cell [n] headers
+
+  STEP 6 — Return ContextPack
+    ContextPack(text, coverage, snapshot, cell_index, kernel_scenario, manifest)
+
+  CONTEXT_MANIFEST block (always prepended):
+    coverage: full | partial | none
+    snapshot: live | persistent | none
+    kernel_scenario, cell_indexing: 1-based
+    target_cell, listed_cells, grounding rules
+
+================================================================================
+9. GRAPH DATA SIDE EFFECT
+================================================================================
+
+  After each successful ingest, _push_graph() builds dependency graph from
+  code cells (dependency.py / extract_dependencies.py) and sends:
+
+    { type: "GRAPH_DATA", tabId, url, nodes, edges }
+
+  Used by extension debug/graph panel (GET_GRAPH).
+  Also available to local read tool notebook_graph_query during chat prefetch.
+
+================================================================================
+10. PROMPT_SIGNAL FAST PATH
+================================================================================
+
+  prompt_observer.js detects execution metadata change in a cell.
+  Sends PROMPT_SIGNAL { cellIndex, execOrder, text, tabUrl, ts } to background.
+  background forwards to host.
+
+  host.py PROMPT_SIGNAL handler (background threads):
+    execution_signal_patch.patch_prompt_execution_signal()
+    update_cell_execution.update_cell_execution()
+
+  Triggers scheduleNotebookScrape() for rapid live JSON refresh after runs.
+
+================================================================================
+11. END-TO-END PIPELINE DIAGRAM
+================================================================================
+
+  Kaggle DOM (JupyterLab cells)
+        │
+        │ executeScript(scrapeNotebook) every 300ms–5s
+        ▼
+  background.js: dedupe cells, attach identity
+        │
+        │ NOTEBOOK_DATA (native port)
+        ▼
+  host.py → handle_notebook_data()
+        │
+        ├── resolve_notebook_identity → storage_key
+        ├── normalize_notebook_cells
+        ├── save_live_json (always)
+        ├── evaluate_persistent_update → maybe save_persistent_json
+        ├── update execution_state / hashes
+        └── _push_graph → GRAPH_DATA
+        │
+        │ (later, on CHAT_REQUEST)
+        ▼
+  pack_context() → load_notebook_snapshot → mode packer → CONTEXT_MANIFEST
+        │
+        ▼
+  build_system_content() → ### Notebook evidence in LLM system prompt
+
+================================================================================
+12. KEY SOURCE FILES
+================================================================================
+
+  testing/extension/background.js       — scrapeNotebook, sendTabs, NOTEBOOK_DATA
+  testing/extension/prompt_observer.js  — PROMPT_SIGNAL
+  testing/host/notebook_data_handler.py — handle_notebook_data
+  testing/host/notebook_identity.py     — resolve_notebook_identity, URL migration
+  testing/host/kaggle_kernel_client.py  — Kaggle API kernel id lookup
+  testing/host/snapshot_verification.py — persistent write gate
+  testing/host/persistence_helpers.py   — save_live_json, save_persistent_json
+  testing/host/cell_index.py            — normalize_notebook_cells
+  testing/host/notebook_context.py      — pack_context, load_notebook_snapshot
+  testing/host/dependency.py            — dependency graph for intent mode
+
+================================================================================
+13. CROSS-REFERENCES
+================================================================================
+
+  SYSTEM_ARCHITECTURE_AND_MESSAGE_BRIDGE.txt — tier layout, message types
+  CHAT_REQUEST_TO_LLM_RESPONSE.txt         — how pack_context feeds chat
+  ASK_MODE_AND_CODE_MODE_WORKFLOWS.txt       — _pack_ask vs _pack_code detail
+  AGENTIC_MODE_TOOL_EXECUTION.txt            — agentic reads from same snapshots
+
+================================================================================
+END OF NOTEBOOK_SCRAPE_AND_DATA_PIPELINE.txt
+================================================================================

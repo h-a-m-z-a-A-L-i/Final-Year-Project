@@ -1,0 +1,404 @@
+================================================================================
+CHAT REQUEST TO LLM RESPONSE
+================================================================================
+Normal-chrome / Kaggle Notebook Copilot — FYP
+Companion docs: SYSTEM_ARCHITECTURE_AND_MESSAGE_BRIDGE.txt,
+                 ASK_MODE_AND_CODE_MODE_WORKFLOWS.txt,
+                 AGENTIC_MODE_TOOL_EXECUTION.txt
+Source: testing/host/host.py, streaming.py, prompt_engineering.py
+
+================================================================================
+1. PURPOSE
+================================================================================
+
+This document describes the shared chat orchestration path used by Ask, Code,
+and Agentic modes: from UI send through host handling, prompt assembly, context
+budget fitting, LLM streaming, and CHAT_STREAM / CHAT_STREAM_END delivery back
+to the extension. Mode-specific branches are noted but detailed in sibling docs.
+
+================================================================================
+2. UI SEND (TRIGGER)
+================================================================================
+
+2.1 Main copilot (ui_injector.js)
+---------------------------------
+  User types message → sendBtn.click():
+
+  1. appendMessage('user', text)
+  2. setStreamingState(true); ensureStreamMessage()
+  3. mode = #chat-mode dropdown value (ask | code | agentic)
+  4. chrome.runtime.sendMessage({
+       type: 'CHAT_REQUEST',
+       url: currentNotebookUrl(),
+       notebookId, notebookKey,
+       sessionId: getCurrentSessionId(),  // localStorage UUID
+       prompt: text,
+       mode: mode,
+     })
+
+2.2 Per-cell debug (cell_debug_chat.js)
+---------------------------------------
+  Same CHAT_REQUEST with additional fields:
+    cellIndex: <N>
+    streamChannel: "cell-{N}"
+    prompt: "cell {N}: {user text}"
+    sessionId: "cell-debug-{N}" or variant
+
+2.3 Extension relay (background.js)
+-----------------------------------
+  1. Validate native port connected (else CHAT_STREAM_END error)
+  2. Normalize url to tab /edit URL
+  3. msg.tabId = sender.tab.id
+  4. attachNotebookIdentity(msg, tabId, tabUrl)
+  5. port.postMessage(msg) → host stdin
+
+================================================================================
+3. HOST CHAT_REQUEST HANDLER (host.py)
+================================================================================
+
+Sequential steps in main thread before streaming worker starts:
+
+  STEP 1 — Validate inputs
+    snapshot_url = _normalized_url(msg.url)
+    history_key = _resolve_chat_key(msg)  → kaggle:kernel:{id} or URL
+    tab_id required (integer > 0) or error CHAT_STREAM_END
+  history_key required or CHAT_RESPONSE error
+
+  STEP 2 — Stream session setup
+    stream_channel = msg.streamChannel or "main"
+    active_key = resolve_active_key(tab_id, stream_channel)
+    begin_active_stream(active_key, session_id, history_key)
+
+  STEP 3 — Mode resolution
+    ui_mode = msg.mode (default "ask")
+    ui_mode, agentic_warn = resolve_effective_chat_mode(ui_mode)
+      — downgrades agentic → code if LLM_AGENTIC_ENABLED=0
+    mode = detect_mode(prompt, ui_mode, has_cell_context=...)
+
+  STEP 4 — Cell index resolution
+    Priority order:
+      a. msg.cellIndex (per-cell debug)
+      b. _extract_cell_number(prompt) — regex "cell 7", etc.
+      c. resolve_cell_index(prompt, cells) — "last cell" heuristics
+
+  STEP 5 — Context pack
+    ctx_pack = pack_context(mode, url, prompt, cell_index, dep_manager, bot_state)
+    Log: coverage, snapshot source, cell index
+
+  STEP 6 — Session / static cache
+    memory_session_id = effective_session_id(session_id, mode)
+      — CHAT_SESSION_PER_MODE=1 → session_id::mode::ask|code|agentic
+    If CEREBRAS_STATIC_NOTEBOOK_CACHE=1:
+      baseline_context, turn_tail = prepare_static_cache_context(...)
+      context = baseline_context (frozen in system prompt)
+      pack_coverage = "baseline"
+    Else:
+      context = merge_context_with_profile(ctx_pack.text, profile_context)
+      pack_coverage = ctx_pack.coverage
+
+  STEP 7 — Profile memory
+    _extract_user_profile_facts(prompt) → memory_store.upsert_fact()
+    Fast path: "what is my name" answered without LLM if fact known
+
+  STEP 8 — History load + user append
+    history = memory_store.get_history(history_key, memory_session_id)
+    memory_store.append(history_key, "user", prompt, session_id=memory_session_id)
+    (User message saved BEFORE streaming starts)
+
+  STEP 9 — Build context_meta + spawn worker
+    context_meta = { coverage, cell_index, snapshot_url, history_key,
+                     active_key, stream_channel, static_cache, turn_tail, ... }
+    threading.Thread(target=_stream_worker, args=(...)).start()
+
+================================================================================
+4. STREAMING WORKER (_run_streaming_chat in streaming.py)
+================================================================================
+
+Runs in background thread. Shared by all modes.
+
+  STEP 1 — Mode and agentic gate
+    resolved_mode = detect_mode(prompt, explicit_mode, ...)
+    agentic_active = agentic_runtime_enabled(resolved_mode)
+      — True only when mode=="agentic" AND LLM_AGENTIC_ENABLED=1
+    use_text_tools = text_tool_calling_enabled(provider, agentic=agentic_active)
+      — Cerebras gpt-oss: <agent_tool_batch> text format (default ON)
+    include_tools = agentic_active  — native tool schema only when agentic
+
+  STEP 2 — Build message list
+    messages = build_chat_messages(
+      mode, user_prompt, history, context, notebook_url,
+      include_tools, turn_tail, static_cache, text_tool_calls=use_text_tools
+    )
+
+    build_chat_messages internally calls build_system_content():
+      ## Role    — base_notebook_assistant.txt + mode file + Active UI mode
+      ## Task    — mode-specific task
+      ## Specifics — mode rules
+      ## Context — jupyter_structure, query guidance, notebook URL,
+      ##           tool docs (agentic only), ### Notebook evidence
+      ## Examples — mode few-shot + tool examples (agentic only)
+      ## Notes   — mode notes + _SYSTEM_NOTES_{ASK|CODE|AGENTIC}
+
+    History: trim_history_for_api(history) — last N turns, char-truncated
+
+  STEP 3 — Agentic action tail (agentic only)
+    If is_actionable_notebook_request(prompt):
+      Append turn_tail nudge: emit tool batch with all required actions
+
+  STEP 4 — Host prefetch (all modes in TOOL_FIRST_MODES)
+    if resolved_mode in TOOL_FIRST_MODES:  # ask, code, agentic
+      query_block, query_results = prefetch_notebook_queries(
+        registry, mode, prompt, url, cell_index, static_cache, agentic
+      )
+      Prepend query_block to current user message content:
+        "## Notebook query results (host prefetch)" + JSON tool outputs
+
+    Prefetch is host-executed read tools (NOT LLM tool_calls).
+    Plan built by notebook_query.build_query_plan() per mode/intent.
+
+  STEP 5 — Context budget
+    fit_messages_to_budget(messages)  — context_budget.py
+      estimate_messages_tokens()
+      Drop/truncate history turns to fit MAX_INPUT_TOKENS (default 7000)
+    TPM preflight if ENABLE_TPM_PREFLIGHT (Cerebras rate limits)
+
+  STEP 6 — LLM call branch
+
+    A) Ask / Code (agentic_active=False):
+       chat.completions.create(stream=True)
+       For each chunk → _emit_stream_delta() → CHAT_STREAM
+       If empty response → non-streaming fallback call
+       memory_store.append(assistant, final_text) if not stopped
+       skip_post_stream_tools = True → END
+
+    B) Agentic (agentic_active=True):
+       See AGENTIC_MODE_TOOL_EXECUTION.txt
+       Skips prose stream; enters two-phase agentic flow (tool rounds)
+
+  STEP 7 — Stream end
+    send_stream_end() → CHAT_STREAM_END {
+      response: full text,
+      stopped: bool,
+      error: optional,
+      tabId, url, notebookKey, sessionId
+    }
+
+================================================================================
+5. SESSION AND HISTORY (memory.py)
+================================================================================
+
+5.1 Storage
+-----------
+  SQLite: data/sessions/chat_history.sqlite3
+  WAL journal mode for concurrent access.
+
+  messages(notebook_url, session_id, role, content, timestamp)
+    notebook_url = history_key (kaggle:kernel:{id} preferred, not raw URL)
+
+  profile_facts(notebook_url, session_id, fact_key, fact_value, updated_at)
+
+5.2 Session model
+-----------------
+  Main copilot:
+    sessionId = UUID in localStorage (copilot_session_{notebookKey})
+    User "new conversation" → new UUID
+    GET_HISTORY returns sessions list + messages
+
+  Per-cell debug:
+    sessionId = cell-debug-{N} pattern (separate from main)
+
+  CHAT_SESSION_PER_MODE=0 (default):
+    ask, code, agentic share same session_id bucket
+
+5.3 History limits (config.py)
+------------------------------
+  MAX_HISTORY_MESSAGES = 24        — loaded from DB for UI + streaming input
+  MAX_HISTORY_MESSAGES_API:
+    3 when CONTEXT_PACK_MODE=full
+    10 when CONTEXT_PACK_MODE=intent
+    2 minimum if static cache without override
+  MAX_HISTORY_CHARS_PER_MSG = 1000   — per-turn truncation in API payload
+
+5.4 What is NOT stored in history
+-----------------------------------
+  Prefetch JSON blocks (recomputed each turn)
+  Tool batch JSON / verification payloads
+  Intermediate tool-round messages (agentic stores final summary only)
+  turn_tail delta blocks (rebuilt each turn)
+
+5.5 Stop behavior
+-----------------
+  STOP_CHAT → _stop_active_stream() sets stopped flag
+  If stopped before append: no assistant message in SQLite
+  CHAT_STREAM_END { stopped: true }
+
+================================================================================
+6. MODE DETECTION (prompt_engineering.py)
+================================================================================
+
+  detect_mode(prompt, ui_mode, has_cell_context):
+    Uses UI-selected mode ONLY — no keyword auto-switch Ask ↔ Code
+    Legacy aliases (auto, simple, dependency, explain_error, etc.) → ask
+    Unknown modes → ask
+    ALLOWED_MODES: ask, code, agentic
+
+  resolve_effective_chat_mode(ui_mode):
+    If agentic requested but LLM_AGENTIC_ENABLED=0 → downgrade to code + warning
+
+  classify_ask_intent(prompt) — Ask sub-intent for packing/prefetch only:
+    placement | error | dependency | review | explain | general | dataset
+    NOT exposed as separate UI modes.
+
+================================================================================
+7. PROMPT ENGINEERING DETAIL
+================================================================================
+
+7.1 build_system_content(mode, context, include_tools, ...)
+-----------------------------------------------------------
+  Loads mode sections via load_mode_sections(mode):
+    ask     → prompts/ask.txt
+    code    → prompts/code.txt
+    agentic → prompts/agentic.txt + tool_calling/*.txt
+
+  include_tools=False for ask and code:
+    No tool calling section, no tool descriptions, no tool examples in system
+
+  include_query_guidance=True for ask/code:
+    query_tools_ask.txt or query_tools_code.txt in Context section
+
+7.2 User message assembly
+-------------------------
+  Final user turn content (before prefetch prepend):
+
+    [turn_tail if static cache]
+    ---
+    [user prompt]
+
+  After prefetch (streaming.py):
+    [prefetch block]
+    ---
+    [turn_tail + prompt as above]
+
+7.3 Static cache (CEREBRAS_STATIC_NOTEBOOK_CACHE=1)
+---------------------------------------------------
+  First message of session: freeze compact notebook baseline into system prompt.
+  Subsequent turns: live cell changes appear only in turn_tail on user message.
+  Benefits Cerebras prompt caching (stable system prefix).
+
+================================================================================
+8. CONTEXT BUDGET (context_budget.py)
+================================================================================
+
+  estimate_messages_tokens(messages) — heuristic token count
+  trim_history_for_api(history) — depth + per-message char cap
+  fit_messages_to_budget(messages):
+    If over MAX_INPUT_TOKENS: drop oldest history turns, truncate context
+  On 429 / token_quota: user-facing error in CHAT_STREAM_END
+
+================================================================================
+9. STREAMING BACK TO EXTENSION
+================================================================================
+
+9.1 CHAT_STREAM (incremental)
+-----------------------------
+  send_msg({
+    type: "CHAT_STREAM",
+    delta: <text chunk>,
+    tabId, url, notebookKey, sessionId,
+    streamChannel (optional)
+  })
+
+  _emit_stream_delta() called per streaming chunk from Cerebras SDK.
+
+9.2 CHAT_STREAM_END (final)
+---------------------------
+  send_msg({
+    type: "CHAT_STREAM_END",
+    response: <full accumulated text>,
+    stopped: bool,
+    error: optional string,
+    tabId, url, notebookKey, sessionId
+  })
+
+9.3 Extension handling (ui_injector.js)
+---------------------------------------
+  onMessage listener:
+    CHAT_STREAM → append delta to streamBuffer, update DOM
+    CHAT_STREAM_END → finalizeStream():
+      mountAssistantContent() — split prose vs ```python``` fences
+      Code fences → code-snippet-card with Copy button
+      setStreamingState(false)
+      Reload history if needed
+
+  Session scoping: only render streams matching current sessionId.
+
+9.3 Stop from UI
+----------------
+  stopBtn → STOP_CHAT { url, notebookKey, sessionId, tabId }
+  finalizeStream({ text: partial, stopped: true })
+
+================================================================================
+10. MODE BRANCH SUMMARY (ORCHESTRATION LEVEL)
+================================================================================
+
+  ┌─────────────┬──────────────────┬──────────────────┬─────────────────────┐
+  │ Step        │ Ask              │ Code             │ Agentic             │
+  ├─────────────┼──────────────────┼──────────────────┼─────────────────────┤
+  │ pack_context│ _pack_ask/intents│ _pack_code       │ pack + tools path   │
+  │ include_tools│ false           │ false            │ true                │
+  │ prefetch    │ yes (read tools) │ yes (placement)  │ yes (minimal)       │
+  │ LLM stream  │ prose stream     │ prose stream     │ often tool-first    │
+  │ post-stream │ none             │ none             │ two-phase tool flow │
+  │ memory save │ final prose      │ final prose      │ final summary       │
+  └─────────────┴──────────────────┴──────────────────┴─────────────────────┘
+
+  Detail: ASK_MODE_AND_CODE_MODE_WORKFLOWS.txt, AGENTIC_MODE_TOOL_EXECUTION.txt
+
+================================================================================
+11. END-TO-END NUMBERED WORKFLOW (ALL MODES)
+================================================================================
+
+  1. User sends message in copilot UI (mode selected in dropdown)
+  2. Extension CHAT_REQUEST → background → native port → host.py
+  3. Host resolves history_key, cell_index, mode
+  4. pack_context() loads live/persistent snapshot → CONTEXT_MANIFEST + cells
+  5. Profile facts merged; static cache branch if enabled
+  6. history loaded; user message appended to SQLite
+  7. Background thread: build_chat_messages() → system + history + user
+  8. prefetch_notebook_queries() prepends read-tool results to user turn
+  9. fit_messages_to_budget() trims to token limit
+  10. Cerebras API call (stream=True for ask/code initial pass)
+  11. CHAT_STREAM deltas → extension → live markdown render
+  12. [Agentic only] Two-phase tool rounds → see agentic workflow doc
+  13. CHAT_STREAM_END with full response
+  14. Assistant text appended to SQLite (unless stopped)
+  15. UI finalizes: prose bubble + optional code snippet cards
+
+================================================================================
+12. KEY SOURCE FILES
+================================================================================
+
+  testing/extension/ui_injector.js
+  testing/extension/cell_debug_chat.js
+  testing/extension/background.js
+  testing/host/host.py
+  testing/host/streaming.py
+  testing/host/prompt_engineering.py
+  testing/host/notebook_context.py
+  testing/host/notebook_query.py
+  testing/host/context_budget.py
+  testing/host/memory.py
+  testing/host/prompt_cache_baseline.py
+  testing/host/config.py
+
+================================================================================
+13. CROSS-REFERENCES
+================================================================================
+
+  NOTEBOOK_SCRAPE_AND_DATA_PIPELINE.txt  — pack_context input (snapshots)
+  ASK_MODE_AND_CODE_MODE_WORKFLOWS.txt   — Ask/Code-specific branches
+  AGENTIC_MODE_TOOL_EXECUTION.txt  — two-phase agentic flow after step 12
+
+================================================================================
+END OF CHAT_REQUEST_TO_LLM_RESPONSE.txt
+================================================================================

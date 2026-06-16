@@ -1,0 +1,9 @@
+{
+  "name": "com.normalchrome.scraper",
+  "description": "Native host for Kaggle background notebook scraper",
+  "path": "__HOST_PATH__",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://__EXTENSION_ID__/"
+  ]
+}

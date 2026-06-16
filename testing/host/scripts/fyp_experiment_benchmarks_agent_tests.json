@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "agent": "Notebook Agent v1",
+  "description": "FYP agent evaluation suite for methodology and results chapters.",
+  "defaults": {
+    "mode": "agentic",
+    "tab_id": 424242
+  },
+  "prompts": [
+    {
+      "id": "AGENT_TEST_1_ML_PIPELINE",
+      "test_number": 1,
+      "test_name": "Complete ML Pipeline",
+      "kernel_id": 113620421,
+      "snapshot_file": "kaggle_kernel_113620421.json",
+      "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+      "notebook_key": "kaggle:kernel:113620421",
+      "mode": "agentic",
+      "tests": ["cell_creation", "tool_batching", "write_run_dispatch"],
+      "prompt": "Create a complete machine learning pipeline in this notebook.\n\nRequirements:\n1. Load the dataset already used in the notebook.\n2. Perform EDA.\n3. Handle missing values.\n4. Encode categorical variables.\n5. Train at least 3 models.\n6. Compare model performance.\n7. Generate visualizations.\n8. Create a final evaluation section.\n\nYou must:\n- Create all required notebook cells.\n- Insert code into the cells.\n- Run every created cell.\n- Verify execution after every run.\n- Repair failures automatically if any occur.\n- Stop only when all target cells execute successfully.\n\nReport:\n- Number of tool calls\n- Number of repair rounds\n- Total execution time\n- Final verification status"
+    },
+    {
+      "id": "AGENT_TEST_2_ERROR_REPAIR",
+      "test_number": 2,
+      "test_name": "Error Repair Benchmark",
+      "kernel_id": 112732919,
+      "snapshot_file": "kaggle_kernel_112732919.json",
+      "url": "https://www.kaggle.com/code/codekey/testing-ol/edit",
+      "notebook_key": "kaggle:kernel:112732919",
+      "mode": "agentic",
+      "tests": ["error_detection", "in_place_edit_dispatch", "run_dispatch"],
+      "prompt": "Locate every runtime error in the notebook.\n\nFor each error:\n1. Identify root cause.\n2. Edit the correct cell.\n3. Run the edited cell.\n4. Verify execution.\n5. Continue until all notebook errors are removed.\n\nDo not create workaround cells.\n\nA task is complete only if:\n- The target cell executes successfully.\n- Verification confirms success.\n\nGenerate a final execution report."
+    },
+    {
+      "id": "AGENT_TEST_3_MASSIVE_BATCH",
+      "test_number": 3,
+      "test_name": "Massive Multi-Tool Batch",
+      "kernel_id": 119598996,
+      "snapshot_file": "kaggle_kernel_119598996.json",
+      "url": "https://www.kaggle.com/code/codekey/housing-final-updated-4/edit",
+      "notebook_key": "kaggle:kernel:119598996",
+      "mode": "agentic",
+      "tests": ["batching", "insert_dispatch", "queue_ordering"],
+      "prompt": "Create 10 new cells.\n\nCells 1–5:\n- Data cleaning utilities\n\nCells 6–8:\n- Feature engineering utilities\n\nCells 9–10:\n- Visualization utilities\n\nRequirements:\n- Create all cells in a single planning step.\n- Insert code into all cells.\n- Queue all write operations first.\n- Queue all run operations last.\n- Execute the full batch.\n- Verify every cell execution.\n- Repair failures automatically.\n\nProvide a final execution summary."
+    },
+    {
+      "id": "AGENT_TEST_4_VERIFICATION_ATTACK",
+      "test_number": 4,
+      "test_name": "Target Cell Dispatch",
+      "kernel_id": 112732919,
+      "snapshot_file": "kaggle_kernel_112732919.json",
+      "url": "https://www.kaggle.com/code/codekey/testing-ol/edit",
+      "notebook_key": "kaggle:kernel:112732919",
+      "mode": "agentic",
+      "target_cell": 31,
+      "tests": ["edit_dispatch", "run_dispatch", "target_cell_accuracy"],
+      "prompt": "Fix the error in cell 31.\n\nImportant:\n\nThe task is considered successful only if:\n1. Cell 31 is modified.\n2. Cell 31 is executed.\n3. Verification confirms execution.\n4. Output is returned.\n\nDo not claim success without execution evidence.\n\nIf execution cannot be verified:\nstate failure explicitly."
+    }
+  ]
+}

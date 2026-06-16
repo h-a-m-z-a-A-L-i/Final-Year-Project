@@ -1,0 +1,19 @@
+[0] Config.pm:328> INFO - This is Biber 2.21
+[1] Config.pm:331> INFO - Logfile is 'build/_fyp.blg'
+[415] biber-MSWIN64:342> INFO - === 
+[573] Biber.pm:421> INFO - Reading 'build/_fyp.bcf'
+[1344] Biber.pm:1002> INFO - Found 27 citekeys in bib section 0
+[1425] Biber.pm:4487> INFO - Processing section 0
+[1462] Biber.pm:4678> INFO - Looking for bibtex file 'references.bib' for section 0
+[1639] bibtex.pm:1713> INFO - LaTeX decoding ...
+[1779] bibtex.pm:1519> INFO - Found BibTeX data source 'references.bib'
+[3112] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'variable = shifted' with 'variable = non-ignorable'
+[3113] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'normalization = NFD' with 'normalization = prenormalized'
+[3113] Biber.pm:4307> INFO - Sorting list 'ynt/apasortcite//global/global/global' of type 'entry' with template 'ynt' and locale 'en-US'
+[3113] Biber.pm:4313> INFO - No sort tailoring available for locale 'en-US'
+[3458] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'normalization = NFD' with 'normalization = prenormalized'
+[3459] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'variable = shifted' with 'variable = non-ignorable'
+[3459] Biber.pm:4307> INFO - Sorting list 'ynt/global//global/global/global' of type 'entry' with template 'ynt' and locale 'en-US'
+[3459] Biber.pm:4313> INFO - No sort tailoring available for locale 'en-US'
+[3646] bbl.pm:676> INFO - Writing 'build/_fyp.bbl' with encoding 'UTF-8'
+[4042] bbl.pm:779> INFO - Output to build/_fyp.bbl

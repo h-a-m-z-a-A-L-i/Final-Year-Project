@@ -1,0 +1,128 @@
+\contentsline {chapter}{\numberline {1}Introduction and Motivation}{1}{chapter.1}%
+\contentsline {section}{\numberline {1.1}Problem Statement and Contribution}{2}{section.1.1}%
+\contentsline {subsection}{\numberline {1.1.1}Aims}{3}{subsection.1.1.1}%
+\contentsline {subsection}{\numberline {1.1.2}Research Objectives}{3}{subsection.1.1.2}%
+\contentsline {subsection}{\numberline {1.1.3}Original Contributions}{4}{subsection.1.1.3}%
+\contentsline {subsection}{\numberline {1.1.4}Limitations}{4}{subsection.1.1.4}%
+\contentsline {section}{\numberline {1.2}Background and Context}{5}{section.1.2}%
+\contentsline {subsection}{\numberline {1.2.1}Computational notebooks in data science education}{5}{subsection.1.2.1}%
+\contentsline {subsection}{\numberline {1.2.2}The assistance gap on closed web editors}{5}{subsection.1.2.2}%
+\contentsline {subsection}{\numberline {1.2.3}Role of large language models}{6}{subsection.1.2.3}%
+\contentsline {section}{\numberline {1.3}Project Scope and Delimitations}{6}{section.1.3}%
+\contentsline {section}{\numberline {1.4}Stakeholders and Use Cases}{7}{section.1.4}%
+\contentsline {subsection}{\numberline {1.4.1}Data science students}{7}{subsection.1.4.1}%
+\contentsline {subsection}{\numberline {1.4.2}Competition participants}{7}{subsection.1.4.2}%
+\contentsline {subsection}{\numberline {1.4.3}System maintainers and researchers}{8}{subsection.1.4.3}%
+\contentsline {section}{\numberline {1.5}Thesis Organisation}{8}{section.1.5}%
+\contentsline {chapter}{\numberline {2}Literature Review}{9}{chapter.2}%
+\contentsline {section}{\numberline {2.1}Computational Notebooks and Data Science Workflows}{9}{section.2.1}%
+\contentsline {section}{\numberline {2.2}Large Language Models for Code and Data Science}{11}{section.2.2}%
+\contentsline {section}{\numberline {2.3}Retrieval-Augmented and Context-Grounded Generation}{13}{section.2.3}%
+\contentsline {section}{\numberline {2.4}Agentic LLMs and Tool Use}{14}{section.2.4}%
+\contentsline {section}{\numberline {2.5}Web-Based Notebook Environments and Integration Challenges}{15}{section.2.5}%
+\contentsline {section}{\numberline {2.6}Research Gap and Positioning}{16}{section.2.6}%
+\contentsline {section}{\numberline {2.7}Evaluation Methodologies for LLM Assistants}{18}{section.2.7}%
+\contentsline {section}{\numberline {2.8}Ethical and Pedagogical Considerations}{19}{section.2.8}%
+\contentsline {section}{\numberline {2.9}Synthesis: Design Principles for Notebook Agents}{19}{section.2.9}%
+\contentsline {section}{\numberline {2.10}Chronological Landscape}{20}{section.2.10}%
+\contentsline {chapter}{\numberline {3}Methodology}{21}{chapter.3}%
+\contentsline {section}{\numberline {3.1}Research Design and Development Approach}{21}{section.3.1}%
+\contentsline {section}{\numberline {3.2}System Architecture Overview}{22}{section.3.2}%
+\contentsline {section}{\numberline {3.3}Chrome Extension}{24}{section.3.3}%
+\contentsline {section}{\numberline {3.4}Native Messaging Bridge}{25}{section.3.4}%
+\contentsline {section}{\numberline {3.5}Python Native Host}{28}{section.3.5}%
+\contentsline {subsection}{\numberline {3.5.1}Prompt assembly and chat modes}{28}{subsection.3.5.1}%
+\contentsline {subsection}{\numberline {3.5.2}Tool registry and agentic execution contract}{28}{subsection.3.5.2}%
+\contentsline {section}{\numberline {3.6}LLM Integration: GLM~4.7 via Cerebras}{30}{section.3.6}%
+\contentsline {section}{\numberline {3.7}Notebook JSON Persistence}{31}{section.3.7}%
+\contentsline {section}{\numberline {3.8}Evaluation Design}{33}{section.3.8}%
+\contentsline {subsection}{\numberline {3.8.1}Benchmark suites}{33}{subsection.3.8.1}%
+\contentsline {subsection}{\numberline {3.8.2}Notebooks and harness}{33}{subsection.3.8.2}%
+\contentsline {subsection}{\numberline {3.8.3}Limitations of the evaluation protocol}{34}{subsection.3.8.3}%
+\contentsline {section}{\numberline {3.9}Interaction Mode Specifications}{34}{section.3.9}%
+\contentsline {subsection}{\numberline {3.9.1}Ask mode}{34}{subsection.3.9.1}%
+\contentsline {subsection}{\numberline {3.9.2}Code mode}{34}{subsection.3.9.2}%
+\contentsline {subsection}{\numberline {3.9.3}Agentic mode}{36}{subsection.3.9.3}%
+\contentsline {section}{\numberline {3.10}Message Protocol and Session Lifecycle}{38}{section.3.10}%
+\contentsline {section}{\numberline {3.11}Implementation Phases}{38}{section.3.11}%
+\contentsline {section}{\numberline {3.12}Registered Tools}{39}{section.3.12}%
+\contentsline {subsection}{\numberline {3.12.1}Detailed benchmark scenarios}{39}{subsection.3.12.1}%
+\contentsline {section}{\numberline {3.13}Data Flow for a Single User Turn}{40}{section.3.13}%
+\contentsline {subsection}{\numberline {3.13.1}Snapshot schema}{40}{subsection.3.13.1}%
+\contentsline {subsection}{\numberline {3.13.2}Token budgeting}{41}{subsection.3.13.2}%
+\contentsline {section}{\numberline {3.14}Security and Trust Model}{41}{section.3.14}%
+\contentsline {section}{\numberline {3.15}Testing and Quality Assurance}{42}{section.3.15}%
+\contentsline {chapter}{\numberline {4}Results}{43}{chapter.4}%
+\contentsline {section}{\numberline {4.1}Experimental Setup}{43}{section.4.1}%
+\contentsline {section}{\numberline {4.2}Agentic Mode Results}{43}{section.4.2}%
+\contentsline {section}{\numberline {4.3}Ask Mode Results}{44}{section.4.3}%
+\contentsline {section}{\numberline {4.4}Code Mode Results}{45}{section.4.4}%
+\contentsline {section}{\numberline {4.5}Cross-Mode Summary}{45}{section.4.5}%
+\contentsline {section}{\numberline {4.6}Evaluation Metrics and Scoring Rubrics}{46}{section.4.6}%
+\contentsline {subsection}{\numberline {4.6.1}Ask mode scoring}{46}{subsection.4.6.1}%
+\contentsline {subsection}{\numberline {4.6.2}Code mode scoring}{46}{subsection.4.6.2}%
+\contentsline {subsection}{\numberline {4.6.3}Agentic dispatch scoring}{47}{subsection.4.6.3}%
+\contentsline {section}{\numberline {4.7}Agentic Mode: Detailed Analysis}{47}{section.4.7}%
+\contentsline {subsection}{\numberline {4.7.1}Test 1 --- Complete ML Pipeline}{47}{subsection.4.7.1}%
+\contentsline {subsection}{\numberline {4.7.2}Tests not reported as primary evidence}{47}{subsection.4.7.2}%
+\contentsline {section}{\numberline {4.8}Ask Mode: Per-Test Narratives}{48}{section.4.8}%
+\contentsline {subsection}{\numberline {4.8.1}Test 1 --- Explain notebook workflow}{48}{subsection.4.8.1}%
+\contentsline {subsection}{\numberline {4.8.2}Test 2 --- Explain cell 17}{48}{subsection.4.8.2}%
+\contentsline {subsection}{\numberline {4.8.3}Test 3 --- Debug error in cell 31}{48}{subsection.4.8.3}%
+\contentsline {section}{\numberline {4.9}Code Mode: Per-Test Narratives}{49}{section.4.9}%
+\contentsline {subsection}{\numberline {4.9.1}Test 1 --- XGBoost pipeline generation}{49}{subsection.4.9.1}%
+\contentsline {subsection}{\numberline {4.9.2}Test 2 --- Cell 21 replacement}{49}{subsection.4.9.2}%
+\contentsline {subsection}{\numberline {4.9.3}Test 3 --- Feature-engineering module}{49}{subsection.4.9.3}%
+\contentsline {subsection}{\numberline {4.9.4}Test 4 --- Empty cell workflow}{49}{subsection.4.9.4}%
+\contentsline {section}{\numberline {4.10}Code Mode Limitation}{49}{section.4.10}%
+\contentsline {section}{\numberline {4.11}Timing and Resource Profile}{50}{section.4.11}%
+\contentsline {section}{\numberline {4.12}Qualitative Observations}{50}{section.4.12}%
+\contentsline {section}{\numberline {4.13}Comparative Results Matrix}{50}{section.4.13}%
+\contentsline {section}{\numberline {4.14}Implications for System Design}{51}{section.4.14}%
+\contentsline {chapter}{\numberline {5}Discussion}{52}{chapter.5}%
+\contentsline {section}{\numberline {5.1}Agentic Tool Dispatch}{52}{section.5.1}%
+\contentsline {section}{\numberline {5.2}Ask Mode: Explanation Without Side Effects}{53}{section.5.2}%
+\contentsline {section}{\numberline {5.3}Code Mode: Implementation Guidance}{53}{section.5.3}%
+\contentsline {section}{\numberline {5.4}Mode Selection Implications}{54}{section.5.4}%
+\contentsline {section}{\numberline {5.5}Threats to Validity}{54}{section.5.5}%
+\contentsline {section}{\numberline {5.6}Comparison with Prior Notebook Assistants}{54}{section.5.6}%
+\contentsline {section}{\numberline {5.7}Educational Implications for BSDS}{55}{section.5.7}%
+\contentsline {section}{\numberline {5.8}Architectural Trade-offs}{55}{section.5.8}%
+\contentsline {section}{\numberline {5.9}Context Packing as a Cross-Mode Bottleneck}{56}{section.5.9}%
+\contentsline {section}{\numberline {5.10}Reliability and Safety Posture}{56}{section.5.10}%
+\contentsline {chapter}{\numberline {6}Conclusion}{58}{chapter.6}%
+\contentsline {section}{\numberline {6.1}Summary of Findings}{58}{section.6.1}%
+\contentsline {section}{\numberline {6.2}Research Objectives Revisited}{59}{section.6.2}%
+\contentsline {section}{\numberline {6.3}Contributions}{59}{section.6.3}%
+\contentsline {section}{\numberline {6.4}Future Work}{59}{section.6.4}%
+\contentsline {section}{\numberline {6.5}Lessons Learned}{59}{section.6.5}%
+\contentsline {section}{\numberline {6.6}Alignment with Research Objectives}{60}{section.6.6}%
+\contentsline {chapter}{\numberline {7}Recommendations}{61}{chapter.7}%
+\contentsline {section}{\numberline {7.1}Recommendations for Practitioners}{61}{section.7.1}%
+\contentsline {section}{\numberline {7.2}Recommendations for System Improvement}{62}{section.7.2}%
+\contentsline {section}{\numberline {7.3}Recommendations for Future Research}{62}{section.7.3}%
+\contentsline {section}{\numberline {7.4}Deployment and Maintenance Checklist}{63}{section.7.4}%
+\contentsline {section}{\numberline {7.5}Risk Mitigation for Classroom Use}{63}{section.7.5}%
+\contentsline {section}{\numberline {7.6}Technology Roadmap}{63}{section.7.6}%
+\contentsline {section}{\numberline {7.7}Summary Table of Recommendations}{64}{section.7.7}%
+\contentsline {chapter}{\numberline {A}Benchmark Specifications and Reproducibility}{65}{appendix.A}%
+\contentsline {section}{\numberline {A.1}Harness Architecture}{65}{section.A.1}%
+\contentsline {section}{\numberline {A.2}Notebook Snapshots}{66}{section.A.2}%
+\contentsline {section}{\numberline {A.3}Metric Definitions}{66}{section.A.3}%
+\contentsline {subsection}{\numberline {A.3.1}Ask mode metrics}{66}{subsection.A.3.1}%
+\contentsline {subsection}{\numberline {A.3.2}Code mode metrics}{66}{subsection.A.3.2}%
+\contentsline {subsection}{\numberline {A.3.3}Agentic mode metrics}{67}{subsection.A.3.3}%
+\contentsline {section}{\numberline {A.4}Ask Mode Benchmark Prompts}{67}{section.A.4}%
+\contentsline {section}{\numberline {A.5}Code Mode Benchmark Prompts}{67}{section.A.5}%
+\contentsline {section}{\numberline {A.6}Agentic Mode Benchmark Prompt}{68}{section.A.6}%
+\contentsline {section}{\numberline {A.7}Registered Tool Schemas}{68}{section.A.7}%
+\contentsline {section}{\numberline {A.8}Host Configuration Flags}{69}{section.A.8}%
+\contentsline {section}{\numberline {A.9}Reproduction Commands}{69}{section.A.9}%
+\contentsline {section}{\numberline {A.10}Primary Agentic Trace Summary}{70}{section.A.10}%
+\contentsline {section}{\numberline {A.11}Extension Source Modules}{70}{section.A.11}%
+\contentsline {section}{\numberline {A.12}Host Python Modules}{70}{section.A.12}%
+\contentsline {section}{\numberline {A.13}Glossary of Benchmark Identifiers}{71}{section.A.13}%
+\contentsline {section}{\numberline {A.14}Prompt Engineering Files}{71}{section.A.14}%
+\contentsline {section}{\numberline {A.15}Sample Ask Response Characteristics}{72}{section.A.15}%
+\contentsline {section}{\numberline {A.16}Environment Setup}{72}{section.A.16}%
+\contentsline {section}{\numberline {A.17}Document Revision History}{73}{section.A.17}%

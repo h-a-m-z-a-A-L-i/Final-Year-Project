@@ -1,16 +1,385 @@
+%!TEX root = ../_fyp-ch1-preview.tex
 \chapter{Methodology}
 \label{c-methods}
 
-This part of the FYP/thesis is much more free-form. It may have several subsections. But it all has only one purpose: to convince the examiners about the answer to the research question(s) or solution to the problem(s) that you set for yourself in the proposal.
+Chapter~\ref{c-review} established that effective Kaggle notebook assistance requires \ac{DOM}-grounded context, a bounded agentic execution contract, and a split trust boundary between browser and host. This chapter describes how those requirements were realised: research design, system architecture, component implementation, and the empirical evaluation protocol used in Chapters~\ref{c-results} and~\ref{chap:discussion}.
 
-\begin{definition}[Testing 1,2,3]
-This definition is placed within a chapter so is its number.
-\end{definition}
+\section{Research Design and Development Approach}
+\label{sec:research-design}
 
-\begin{figure}[htp]
-\begin{center}
-  \includegraphics[width=0.7\columnwidth]{img/dslogo.png}
-  \caption{\ac{CDS} Emblem.}
-  \label{f-CDS}
-\end{center}
+This project follows a \emph{design-and-development} research design centred on an engineered artefact: an agentic \ac{LLM} assistant that operates on live Kaggle notebook \texttt{/edit} pages. The research question is not whether a language model can generate data-science code in isolation---that capability is well documented in prior work \parencite{hou2024llm4se,ziegler2024copilot}---but whether a deployable client--host system can \emph{ground} model reasoning in scraped notebook state and \emph{execute} vetted cell operations reliably within platform constraints identified in Chapters~\ref{c-intro} and~\ref{c-review}. Success is therefore judged by whether the implemented architecture satisfies the objectives in Section~\ref{sec:objectives}: context pipeline fidelity, tool-mediated manipulation, session binding, and bounded agentic behaviour.
+
+Development proceeded as an \emph{iterative prototype cycle} rather than a linear waterfall. Each iteration targeted one integration risk: (i)~serialising notebook cells from the editor \ac{DOM}; (ii)~routing messages between extension and host; (iii)~injecting snapshots into \ac{LLM} prompts across Ask, Code, and Agentic modes; (iv)~registering and dispatching browser tools; and (v)~enforcing the mandatory two-phase query--implement protocol with host-side batch reordering. Unit tests and monitor scripts under \texttt{testing/host/tests/} and \texttt{testing/host/scripts/} supported regression checks during iteration \parencite{hou2024llm4se}. Empirical benchmarks are reported in Chapter~\ref{c-results}.
+
+The methodology deliberately separates \emph{what the user sees} (the Kaggle editor in Chrome) from \emph{what the model reasons over} (JSON snapshots and tool results on the host). This mirrors the trust-boundary pattern discussed in Section~\ref{sec:lit-web-integration}: the extension holds privileged \ac{DOM} access within the user's browser session; the host holds \ac{API} credentials, chat history, and deterministic tool orchestration. No Kaggle platform partnership or kernel WebSocket access is assumed; observability of cell runs and structural changes relies on scrape-based monitors, consistent with the limitations acknowledged in Section~\ref{sec:limitations}.
+
+\section{System Architecture Overview}
+\label{sec:architecture-overview}
+
+The system comprises five cooperating layers, shown conceptually in Figure~\ref{f-architecture}. User interaction begins on a Kaggle notebook \texttt{/edit} tab. A Chrome extension injects content scripts, scrapes cell structure and content, and exposes a chat user interface. Messages traverse a native messaging bridge to a locally installed Python process (\texttt{host.py}). The host loads or refreshes notebook JSON snapshots, assembles mode-specific prompts, calls GLM~4.7 through the Cerebras \ac{API}, and dispatches tool commands back to the extension for \ac{DOM}-level execution. Snapshot files in \texttt{live/} and \texttt{persistent/} directories provide the canonical notebook representation consumed by prompts and local read tools.
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=0.95\textwidth]{f_architecture_system.png}
+\caption{High-level architecture of the Kaggle notebook assistant. Solid arrows indicate primary data flow for a single user turn in Agentic mode.}
+\label{f-architecture}
 \end{figure}
+
+Table~\ref{tab:components} summarises each layer's responsibility and primary artefacts.
+
+\begin{table}[!ht]
+\centering
+\caption{Major system components and their roles.}
+\label{tab:components}
+\small
+\begin{tabular}{|p{2.8cm}|p{4.2cm}|p{5.2cm}|}
+\hline
+\textbf{Component} & \textbf{Role} & \textbf{Key artefacts} \\ \hline
+Chrome extension & \ac{DOM} scrape, chat interface, execute cell tools & \texttt{manifest.json}, \texttt{background.js}, content scripts \\ \hline
+Native messaging bridge & Framed JSON over stdio between extension and host & Chrome native host manifest, \texttt{connectNative} port \\ \hline
+Python host & \ac{LLM} orchestration, snapshots, tool dispatch, session keys & \texttt{host.py}, \texttt{tool\_registry.py}, \texttt{agentic\_batch\_executor.py} \\ \hline
+Cerebras / GLM~4.7 & Remote inference with native \texttt{tool\_calls} & \texttt{cerebras\_client.py}, \texttt{llm\_provider.py} \\ \hline
+Notebook JSON stores & Canonical cell lists for prompts and local tools & \texttt{live/}, \texttt{persistent/} under \texttt{data/notebooks/} \\ \hline
+\end{tabular}
+\end{table}
+
+Three interaction modes govern host behaviour on each user message. \textbf{Ask} mode supplies conversational answers grounded in the current notebook snapshot without mutating cells. \textbf{Code} mode emphasises code-oriented assistance with the same grounding. \textbf{Agentic} mode enables the registered browser and local tools under a mandatory two-phase contract: round~0 is query-only (\texttt{notebook\_list\_cells}, \texttt{notebook\_get\_cell}); round~1 performs writes and runs (\texttt{insert\_cell}, \texttt{edit\_cell\_by\_index}, \texttt{delete\_by\_index}, \texttt{run\_cell}). Agentic mode is gated by both a host environment flag (\texttt{LLM\_AGENTIC\_ENABLED}) and the user's mode selection in the extension interface.
+
+\section{Chrome Extension}
+\label{sec:chrome-extension}
+
+The extension targets Manifest~V3 and declares permissions for \texttt{tabs}, \texttt{nativeMessaging}, \texttt{scripting}, and \texttt{webNavigation}, with host permissions for \texttt{kaggle.com} and related Jupyter-proxy domains used by Kaggle's in-browser kernel. A service worker (\texttt{background.js}) maintains the native messaging port, coordinates tab-scoped scrape schedules, and routes host-issued commands to the correct frame and \texttt{tab\_id}. Figure~\ref{f-chrome-extension} shows the extension architecture and component structure.
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=0.95\textwidth]{chrome_extension_architecture_structure.png}
+\caption{Chrome extension architecture and component structure.}
+\label{f-chrome-extension}
+\end{figure}
+
+Content scripts run at \texttt{document\_start} on Kaggle notebook pages. They include utilities for cell indexing, kernel state observation, optional debug chat, and interface injection. Because Kaggle embeds notebook cells inside nested frames and shadow \ac{DOM} trees, scraping cannot assume a flat document: the function \texttt{scrapeNotebook()} walks the document, descends into open shadow roots and accessible iframes, and collects elements matching Jupyter-style selectors (\texttt{.jp-Cell}, \texttt{.code\_cell}, \texttt{.markdown\_cell}, and related markers).
+
+For each collected cell, the scraper extracts:
+\begin{itemize}
+  \item positional index (application-visible, one-based where required for tool alignment);
+  \item cell type (code versus markdown);
+  \item source text from input areas;
+  \item optional output text from output wrappers; and
+  \item execution metadata where present in the \ac{DOM} (prompt numbers, button titles signalling queued, running, or executed state).
+\end{itemize}
+
+Scrape events are debounced and deduplicated to limit load on both the editor and the host. Figure~\ref{f-scrape-pipeline} illustrates the DOM scrape pipeline from editor cells to host ingestion.
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=0.95\textwidth]{notebook_scrape_pipeline_diagram.png}
+\caption{Notebook DOM scrape pipeline from Kaggle editor to host ingestion.}
+\label{f-scrape-pipeline}
+\end{figure}
+
+When a scrape completes, the extension forwards a structured payload---notebook URL, optional Kaggle kernel identifier, \texttt{tab\_id}, and the serialised cell list---to the host via native messaging. The extension also executes inverse operations when the host dispatches tool commands: inserting cells, editing source by index, deleting by index, running cells, and selecting or clicking cells to focus the editor. Each dispatch is correlated with the originating \texttt{tab\_id} so that multi-tab sessions do not cross-contaminate.
+
+\section{Native Messaging Bridge}
+\label{sec:native-messaging}
+
+Chrome native messaging provides a length-prefixed JSON channel over standard input and output between the extension and the Python host process. The extension connects through \texttt{chrome.runtime.connectNative} to obtain a persistent port; messages are serialised as JSON objects with a \texttt{type} field that discriminates chat requests, notebook data uploads, tool commands, and results. Figure~\ref{f-native-messaging} summarises the bridge message flows.
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=0.95\textwidth]{native_messaging_bridge_flows.png}
+\caption{Native messaging bridge message flows between extension and Python host.}
+\label{f-native-messaging}
+\end{figure}
+
+The bridge enforces a strict process boundary. The extension never holds \ac{API} keys; the host never directly manipulates the \ac{DOM}. Tool arguments that omit session metadata are coerced on the host before dispatch: canonical notebook URL and \texttt{tab\_id} from the active chat turn are injected into each browser tool payload, satisfying Objective~3 in Section~\ref{sec:objectives}. Result messages use mirrored type names (for example, \texttt{INSERT\_CODE\_CELL\_RESULT} or error variants) so the host's stdin reader can pair completions with pending tool calls.
+
+This design trades remote deployability for local installation overhead: the user must register the native host manifest with Chrome. In return, the assistant gains stable, full-duplex communication without exposing a network listener on the public internet; the host binds an optional local HTTP endpoint (\texttt{127.0.0.1:8080}) for development dashboards only.
+
+\section{Python Native Host}
+\label{sec:python-host}
+
+The host entry point is \texttt{testing/host/host.py}. On startup it loads configuration from \texttt{config.py} (environment variables and \texttt{.env}), initialises data directories under \texttt{testing/host/data/}, and starts the native messaging I/O loop via the dispatcher module. Incoming messages are classified by type and routed to specialised modules: notebook ingestion (\texttt{notebook\_data\_handler.py}), streaming chat (\texttt{streaming.py}), and tool execution (\texttt{tool\_registry.py} and \texttt{agentic\_batch\_executor.py}).
+
+\subsection{Prompt assembly and chat modes}
+\label{sec:prompt-assembly}
+
+Prompt templates reside under \texttt{testing/host/prompts/}, with mode-specific files for Ask, Code, and Agentic behaviour. The module \texttt{prompt\_engineering.py} composes the message list sent to the \ac{API}: a base notebook-assistant system prompt, Jupyter structure guidance, mode instructions, a packed notebook context slice, and recent chat history subject to token budgets ({\ttfamily\seqsplit{MAX\_INPUT\_TOKENS}} and {\ttfamily\seqsplit{MAX\_NOTEBOOK\_CONTEXT\_CHARS}}). Context packing can operate in \texttt{full} or \texttt{intent} mode; the default favours complete cell lists when token limits allow, supporting faithful positional references in tool arguments. Figure~\ref{f-context-packing} depicts the context-packing and notebook-intelligence pipeline.
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=0.95\textwidth]{context_packing_notebook_intelligence.png}
+\caption{Context packing and notebook intelligence pipeline on the host.}
+\label{f-context-packing}
+\end{figure}
+
+Chat history is keyed by a stable notebook identity resolved from the Kaggle kernel id when available ({\ttfamily\seqsplit{kaggle:kernel:<id>}}) or from a normalised URL fallback (\texttt{notebook\_identity.py}). This key aligns snapshot filenames, SQLite session storage, and tool \texttt{url} arguments.
+
+\subsection{Tool registry and agentic execution contract}
+\label{sec:tool-registry}
+
+Tools are registered in \texttt{tool\_registry.py} with JSON-schema argument validation. They fall into two classes:
+\begin{itemize}
+  \item \textbf{Local read tools} execute entirely on the host against persisted JSON snapshots. Examples include \texttt{notebook\_list\_cells}, \texttt{notebook\_get\_cell}, and \texttt{notebook\_snapshot\_status}.
+  \item \textbf{Browser tools} are forwarded to the extension for \ac{DOM} operations. Examples include \texttt{insert\_cell}, \texttt{edit\_cell\_by\_index}, \texttt{delete\_by\_index}, and \texttt{run\_cell}.
+\end{itemize}
+
+Agentic execution is governed by configuration flags in \texttt{config.py}:
+\begin{itemize}
+  \item {\ttfamily\seqsplit{AGENTIC\_MANDATORY\_TWO\_PHASE}} (default on): round~0 strips write tools; round~1 strips redundant list/query tools.
+  \item {\ttfamily\seqsplit{AGENTIC\_MAX\_TOOL\_ROUNDS}} (default 2): hard cap on \ac{LLM} \ac{API} calls per user message.
+  \item {\ttfamily\seqsplit{AGENTIC\_FIRE\_AND\_FORGET}} (default on): the host dispatches an ordered tool batch without waiting for per-cell snapshot reconciliation before the model's implement round completes.
+\end{itemize}
+
+The batch executor (\texttt{agentic\_batch\_executor.py}) integrates with \texttt{strict\_execution\_engine.py} to build a deterministic queue. Bulk \texttt{delete\_by\_index} and \texttt{insert\_cell} operations are sorted in \emph{descending} index order on the host before browser dispatch, mitigating index-shift errors when multiple positional edits occur in one turn. \texttt{run\_cell} actions are ordered after structural mutations. Tool dispatches are logged through \texttt{tool\_call\_terminal.py} for development-time auditing.
+
+Scrape-based observers include \texttt{cell\_execution\_observer.py} and \texttt{cell\_structure\_observer.py}. They update operational state asynchronously when cells run or the notebook layout changes, supplying feedback for monitors without a closed-loop replanning cycle in the current implementation.
+
+\section{LLM Integration: GLM~4.7 via Cerebras}
+\label{sec:llm-integration}
+
+Remote inference uses the Cerebras \ac{API} with model identifier \texttt{zai-glm-4.7} (GLM~4.7), configured through \texttt{CEREBRAS\_MODEL} in the environment. The client module \texttt{cerebras\_client.py} submits chat completions with tool definitions generated from the registry and prompt autogen files under \texttt{prompts/tool\_calling/}. GLM~4.7 supports \emph{native parallel} \texttt{tool\_calls} in a single completion when the model can plan an entire implement batch at once; the provider module \texttt{llm\_provider.py} records this capability and applies Cerebras free-tier rate limits (requests and tokens per minute).
+
+\enlargethispage{1\baselineskip}
+Temperature and top-$p$ are set conservatively (\texttt{LLM\_TEMPERATURE} default 0.5) to favour deterministic tool selection over creative variation. When Agentic mode is active and the server allows it, tool schemas are attached to the completion request; the host parses returned \texttt{tool\_calls}, validates arguments, applies phase guards, and either executes local tools immediately or enqueues browser tools for the extension. Streaming responses (\texttt{streaming.py}) support incremental user-interface updates in Ask and Code modes; Agentic batches may still stream textual narration while tools are queued.
+
+The integration is intentionally single-provider for the FYP artefact: \texttt{LLM\_PROVIDER} normalises to \texttt{cerebras}, keeping evaluation comparable and configuration reproducible. \ac{API} keys reside only in the host environment (\texttt{CEREBRAS\_API\_KEY}), never in the extension package.
+
+\section{Notebook JSON Persistence}
+\label{sec:notebook-json}
+
+Notebook state is materialised as JSON documents under \texttt{testing/host/data/notebooks/}, managed by \texttt{notebook\_storage.py} and \texttt{persistence\_helpers.py}. Each notebook is addressed by a \emph{storage key}: preferentially \texttt{kaggle:kernel:<numeric\_id>}, which maps to filenames such as \texttt{kaggle\_kernel\_112732919.json}; if no kernel id is known, a sanitised URL slug is used instead. Figure~\ref{f-notebook-persistence} shows data ingestion and persistence across live and persistent stores.
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=0.95\textwidth]{notebook_data_ingestion_persistence.png}
+\caption{Notebook data ingestion and persistence across live and persistent JSON stores.}
+\label{f-notebook-persistence}
+\end{figure}
+
+Two parallel stores exist for every key:
+\begin{itemize}
+  \item \textbf{Live} (\texttt{live/}): updated on each successful scrape from the extension. Reflects the notebook as currently rendered, including cells the user has not yet saved to a long-term Kaggle revision.
+  \item \textbf{Persistent} (\texttt{persistent/}): updated when scrapes pass verification checks and after successful browser tool mutations (via \texttt{sync\_persistence\_for\_action} in the tool registry). Serves as the durable baseline for prompts and local read tools when live data is temporarily unavailable.
+\end{itemize}
+
+Each JSON document follows a common schema: a top-level \texttt{cells} array with objects carrying index, type, source, optional outputs, and execution metadata fields stripped or retained according to \texttt{KERNEL\_EXECUTION\_METADATA\_ENABLED}. Hash and execution-state sidecars under \texttt{data/meta/} detect whether a new scrape materially changes structure or run status, reducing redundant writes and supporting monitor scripts.
+
+This dual-store design implements the context-grounding strategy from Section~\ref{sec:lit-rag}: the \ac{LLM} is not given a static file export but a continuously refreshed, positional cell list aligned with the user's session. Live snapshots maximise freshness; persistent snapshots maximise availability across turns and brief navigation away from the editor. Together they enable the host to inject notebook context into every mode without manual copy-and-paste from the user.
+
+\section{Evaluation Design}
+\label{sec:evaluation}
+
+Empirical evaluation assesses whether the three interaction modes---Ask, Code, and Agentic---behave according to their declared contracts when grounded in frozen Kaggle notebook snapshots. Experiments were executed with GLM~4.7 (\texttt{zai-glm-4.7}) via the Cerebras \ac{API}, using harness scripts under \texttt{testing/host/scripts/}. Each suite comprises four scenario tests aligned with mode-specific objectives identified in the literature on notebook assistants \parencite{mcnutt2023notebookassistants} and tool-augmented language models \parencite{qin2024toolllm,yao2023react}.
+
+\subsection{Benchmark suites}
+
+\textbf{Ask mode} measures explanation quality only: no code generation, no tool execution, and no notebook modification. Tests cover notebook workflow explanation, single-cell explanation, error diagnosis, and empty-cell handling. Metrics include topic coverage, evidence alignment, and a heuristic hallucination rate derived from snapshot ground truth.
+
+\textbf{Code mode} measures code-generation quality in chat: runnable \texttt{python} blocks, placement guidance, and run-order instructions, without browser writes. Metrics include code-correctness (keyword alignment with notebook variables) and placement accuracy (cited cell indices relative to notebook flow).
+
+\textbf{Agentic mode} measures \emph{LLM tool dispatch} under the mandatory two-call contract. Each user task consumes exactly two \ac{API} calls. In \emph{round~0}, the model may issue read-only notebook queries such as \texttt{notebook\_list\_cells} and \texttt{notebook\_get\_cell}. In \emph{round~1}, it emits the implement batch---including \texttt{insert\_cell}, \texttt{edit\_cell\_by\_index}, and \texttt{run\_cell}---which the host dispatches in fire-and-forget mode without a closed-loop ReAct replanning cycle \parencite{yao2023react,shinn2023reflexion}. Success is judged by dispatch fidelity of tool types, not by post-hoc execution verification (which the current artefact does not implement).
+
+\subsection{Notebooks and harness}
+
+Benchmarks used persistent JSON snapshots from public Kaggle kernels \parencite{quaranta2021kgtorrent}. Primary fixtures were Pakistan housing ({\ttfamily\seqsplit{kaggle\_kernel\_113620421.json}}) and testing-ol ({\ttfamily\seqsplit{kaggle\_kernel\_112732919.json}}). The harness replays chat requests through \texttt{streaming.py} with browser tools mocked at the extension boundary. Trace logs are written to {\ttfamily\seqsplit{agentic\_tool\_trace.jsonl}}.
+
+\subsection{Limitations of the evaluation protocol}
+
+Results characterise \emph{dispatch fidelity} and \emph{mode-contract compliance} under snapshot grounding. They do not constitute a live Kaggle \ac{DOM} study or a human expert rubric. Agentic scores therefore reflect planning and batching behaviour within the two-call cap rather than full autonomous notebook completion. A future release could add a ReAct-style observe--act loop \parencite{yao2023react} with per-cell feedback; that capability is explicitly out of scope for the present version.
+
+\section{Interaction Mode Specifications}
+\label{sec:mode-specs}
+
+Each mode is enforced at three layers: the extension user-interface dropdown, host-side mode resolution in \texttt{streaming.py}, and prompt/tool-filter rules in \texttt{prompt\_engineering.py}. Table~\ref{tab:mode-contracts} states the behavioural contract evaluated in Chapter~\ref{c-results}.
+
+\begin{table}[!ht]
+\centering
+\caption{Interaction mode contracts.}
+\label{tab:mode-contracts}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.05}
+\begin{tabular}{|>{\raggedright\arraybackslash}p{1.55cm}|>{\raggedright\arraybackslash}p{2.85cm}|>{\raggedright\arraybackslash}p{3.35cm}|>{\raggedright\arraybackslash}p{3.35cm}|}
+\hline
+\textbf{Mode} & \textbf{Primary output} & \textbf{Tool policy} & \textbf{Notebook side effects} \\ \hline
+Ask & Natural-language explanation & No \texttt{tool\_calls} & None \\ \hline
+Code & Placement + \texttt{python} block & Prefetch reads only; no browser writes & None (user copies code) \\ \hline
+Agentic & Tool batch + brief summary & Two-phase: query then implement & Dispatched via extension \\ \hline
+\end{tabular}
+\end{table}
+
+\subsection{Ask mode}
+
+Ask mode loads \texttt{prompts/ask.txt} and packs notebook context without attaching browser tool schemas. The model is instructed to explain cells, diagnose errors, and describe workflows using snapshot evidence \parencite{rule2018exploration,mcnutt2023notebookassistants}. Streaming delivers incremental prose to the chat panel. This mode aligns with read-only tutoring scenarios in educational contexts \parencite{finnieansley2022codex}. Figure~\ref{f-ask-flow} illustrates the Ask mode advisory flow.
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=0.95\textwidth]{ask_mode_advisory_flow.png}
+\caption{Ask mode advisory flow (read-only explanation, no tool calls).}
+\label{f-ask-flow}
+\end{figure}
+
+\subsection{Code mode}
+
+Code mode loads \texttt{prompts/code.txt} and supports optional placement prefetch. Tools include \texttt{notebook\_recommend\_placement} and \texttt{notebook\_find\_symbol}. Replies are structured as Placement bullets followed by a single fenced \texttt{python} cell when generating code. Empty target cells trigger a clarification flow: the model acknowledges emptiness, asks intent, and defers full code until the user specifies a task---a pattern validated in Code benchmarks (Chapter~\ref{c-results}). Figure~\ref{f-code-flow} shows the Code mode generation flow.
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=0.95\textwidth]{code_mode_generation_flow.png}
+\caption{Code mode generation flow (placement guidance and runnable cells, no browser writes).}
+\label{f-code-flow}
+\end{figure}
+
+\subsection{Agentic mode}
+
+Agentic mode loads \texttt{prompts/agentic.txt} plus tool-calling autogen descriptors. Each user message triggers exactly two \ac{API} completions when tools are enabled:
+
+\begin{enumerate}
+  \item \textbf{Round~0 (query).} The model may call local read tools only. Typical calls include \texttt{notebook\_list\_cells} and \texttt{notebook\_get\_cell}. Write tools are stripped by the phase guard.
+  \item \textbf{Round~1 (implement).} The model emits the implement batch, including \texttt{insert\_cell}, \texttt{edit\_cell\_by\_index}, \texttt{delete\_by\_index}, and \texttt{run\_cell}. Redundant query tools are stripped. The host reorders bulk positional operations, then dispatches the batch in fire-and-forget mode.
+\end{enumerate}
+
+This protocol is \emph{not} a full ReAct loop \parencite{yao2023react}: the host does not feed per-cell execution results back into a third model turn within the same user message. Future work may add such a loop using scrape-based observers (Section~\ref{sec:future-react}). Figure~\ref{f-agentic-workflow} summarises the Agentic mode workflow.
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=0.95\textwidth]{agentic_mode_workflow.png}
+\caption{Agentic mode workflow (two-phase query and implement with tool dispatch).}
+\label{f-agentic-workflow}
+\end{figure}
+
+\section{Message Protocol and Session Lifecycle}
+\label{sec:message-protocol}
+
+Communication between extension and host uses typed JSON messages. Representative types include:
+
+\begin{itemize}
+  \item \texttt{CHAT\_REQUEST} --- user prompt, selected mode, \texttt{tab\_id}, notebook URL;
+  \item \texttt{NOTEBOOK\_DATA} --- scraped cell list from extension;
+  \item \texttt{INSERT\_CODE\_CELL}, \texttt{EDIT\_CELL\_BY\_INDEX}, \texttt{DELETE\_BY\_INDEX}, \texttt{RUN\_CELL} --- host-to-extension tool dispatches;
+  \item \texttt{CHAT\_STREAM\_DELTA}, \texttt{CHAT\_STREAM\_END} --- streaming tokens to the user interface.
+\end{itemize}
+
+Session lifecycle for a single Agentic turn proceeds as follows:
+
+\begin{enumerate}
+  \item User selects Agentic mode and submits a prompt on a Kaggle \texttt{/edit} tab.
+  \item Extension forwards \texttt{CHAT\_REQUEST} with \texttt{tab\_id} and URL; host resolves notebook storage key.
+  \item Host packs context from live/persistent JSON and initiates round~0 completion with read tools.
+  \item Local read tools execute against snapshots; results are appended to the message history.
+  \item Host initiates round~1 completion; model returns parallel \texttt{tool\_calls}.
+  \item Host validates arguments, applies phase guards, reorders batch, dispatches browser tools.
+  \item Extension executes \ac{DOM} operations; results return asynchronously; trace logs record dispatch.
+\end{enumerate}
+
+Session keys (\texttt{kaggle:kernel:<id>}) align chat history, snapshot filenames, and tool arguments, preventing cross-notebook contamination when users switch tabs \parencite{lewis2020rag}.
+
+\section{Implementation Phases}
+\label{sec:impl-phases}
+
+Table~\ref{tab:phases} maps development phases to deliverables. Each phase concluded with targeted tests under \texttt{testing/host/tests/}.
+
+\begin{table}[!ht]
+\centering
+\caption{Implementation phases and deliverables.}
+\label{tab:phases}
+\small
+\begin{tabular}{|c|p{4.2cm}|p{6.8cm}|}
+\hline
+\textbf{Phase} & \textbf{Focus} & \textbf{Deliverable} \\ \hline
+1 & \ac{DOM} scrape and snapshot ingest & Extension scrape pipeline; \texttt{notebook\_data\_handler.py} \\ \hline
+2 & Native messaging and host I/O & \texttt{host.py} dispatcher; Chrome host manifest \\ \hline
+3 & Ask/Code streaming chat & \texttt{streaming.py}; mode prompts \\ \hline
+4 & Tool registry and browser dispatch & Six browser tools; session coercion \\ \hline
+5 & Agentic two-phase batching & Phase guards; \texttt{agentic\_batch\_executor.py} \\ \hline
+6 & Benchmark harness and evaluation & \texttt{run\_*\_tests.py}; trace metrics \\ \hline
+\end{tabular}
+\end{table}
+
+\section{Registered Tools}
+\label{sec:tools-table}
+
+Table~\ref{tab:tools} lists tools exposed to the model in Agentic mode.
+
+\begin{table}[!ht]
+\centering
+\caption{Registered notebook tools.}
+\label{tab:tools}
+\small
+\begin{tabular}{|p{3.6cm}|p{2.2cm}|p{6.8cm}|}
+\hline
+\textbf{Tool} & \textbf{Executor} & \textbf{Purpose} \\ \hline
+\texttt{notebook\_list\_cells} & Host (local) & Enumerate cells with indices and types \\ \hline
+\texttt{notebook\_get\_cell} & Host (local) & Fetch source/output for one index \\ \hline
+\texttt{insert\_cell} & Browser & Insert code/markdown at position \\ \hline
+\texttt{edit\_cell\_by\_index} & Browser & Replace cell source \\ \hline
+\texttt{delete\_by\_index} & Browser & Remove cell at index \\ \hline
+\texttt{run\_cell} & Browser & Execute cell in kernel \\ \hline
+\end{tabular}
+\end{table}
+
+Tool schemas are generated from \texttt{prompts/tool\_calling/} autogen files, keeping documentation synchronized with the registry \parencite{qin2024toolllm,li2023apibank}.
+
+\subsection{Detailed benchmark scenarios}
+\label{sec:benchmark-scenarios}
+
+\textbf{Ask suite.} (1)~Explain full notebook workflow; (2)~explain cell~17; (3)~diagnose error in cell~31. Metrics: topic coverage, evidence alignment, hallucination heuristic; contract: zero tools and zero writes.
+
+\textbf{Code suite.} (1)~XGBoost pipeline cell; (2)~replace cell~21 preprocessing; (3)~feature-engineering module; (4)~empty-cell workflow. Metrics: code correctness, placement accuracy; contract: zero browser writes.
+
+\section{Data Flow for a Single User Turn}
+\label{sec:data-flow}
+
+Figure~\ref{f-dataflow} summarises the message sequence for Agentic mode. Ask and Code modes omit round~1 tool dispatch but share the scrape-and-pack path.
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=0.95\textwidth]{f_dataflow_agentic.png}
+\caption{Agentic mode data flow for one user message (two LLM calls).}
+\label{f-dataflow}
+\end{figure}
+
+\subsection{Snapshot schema}
+
+Each cell object in the JSON snapshot typically contains:
+
+\begin{itemize}
+  \item \texttt{index} --- positional label aligned with tool arguments;
+  \item \texttt{type} --- \texttt{code} or \texttt{markdown};
+  \item \texttt{source} --- cell input text;
+  \item \texttt{outputs} --- optional list of stdout/stderr/display data when scraped;
+  \item \texttt{execution\_count} --- optional prompt number when visible in the \ac{DOM}.
+\end{itemize}
+
+The host strips or retains execution metadata according to flag {\ttfamily\seqsplit{KERNEL\_EXECUTION\_METADATA\_ENABLED}}, balancing token budget against diagnostic value for Ask mode error explanation.
+
+\subsection{Token budgeting}
+
+Context packing applies two limits. {\ttfamily\seqsplit{MAX\_INPUT\_TOKENS}} caps the full message list; {\ttfamily\seqsplit{MAX\_NOTEBOOK\_CONTEXT\_CHARS}} caps the notebook slice. When limits are exceeded, older chat history is truncated first; notebook cells are packed from the start of the document unless intent-based packing selects a window around a cited cell index. This policy explains workflow-level Ask behaviour on long notebooks discussed in Chapter~\ref{chap:discussion}.
+
+\section{Security and Trust Model}
+\label{sec:security}
+
+The trust model assigns capabilities to each component:
+
+\begin{itemize}
+  \item \textbf{Extension.} Same-origin \ac{DOM} access on Kaggle pages the user has opened; no network egress except native messaging and Kaggle itself.
+  \item \textbf{Host.} Holds \ac{API} credentials; reads/writes local snapshot files; dispatches tool commands only to the connected extension port.
+  \item \textbf{Remote model.} Receives prompts and tool schemas; does not receive browser cookies or Kaggle authentication tokens.
+\end{itemize}
+
+Tool argument validation rejects out-of-range cell indices and malformed JSON before dispatch. Session coercion overwrites model-supplied URLs with the canonical notebook URL from the active turn, reducing the risk of cross-tab misrouting when the model hallucinates a different kernel link.
+
+\section{Testing and Quality Assurance}
+\label{sec:qa}
+
+Quality assurance combined unit tests, smoke scripts, and benchmark suites:
+
+\begin{itemize}
+  \item \textbf{Unit tests} (\texttt{testing/host/tests/}) cover cell indexing, batch reordering, phase guards, and tool-chain parsing.
+  \item \textbf{Smoke scripts} (\texttt{smoke\_*.py}) exercise individual browser tools against mock or live sessions.
+  \item \textbf{Monitor scripts} (\texttt{monitor\_*.py}) observe cell additions and kernel execution during manual testing.
+  \item \textbf{Benchmark suites} provide reproducible mode-contract evaluation documented in Appendix~\ref{app:benchmarks}.
+\end{itemize}
+
+Regression failures in phase guards or index coercion were treated as release blockers because they directly threaten notebook integrity---a lesson consistent with notebook best-practice literature emphasising reproducible execution order \parencite{rule2019tenrules}.

@@ -1,0 +1,45 @@
+{
+  "manifest_version": 3,
+  "name": "Tab URL Printer",
+  "version": "1.1",
+  "description": "Prints all open tab URLs to a local Python script via Native Messaging.",
+  "permissions": ["tabs", "nativeMessaging", "scripting", "webNavigation"],
+  "host_permissions": [
+    "*://kaggle.com/*",
+    "*://*.kaggle.com/*",
+    "*://jupyter-proxy.kaggle.net/*",
+    "*://*.jupyter-proxy.kaggle.net/*",
+    "*://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://kaggle.com/*",
+        "*://*.kaggle.com/*",
+        "*://jupyter-proxy.kaggle.net/*",
+        "*://*.jupyter-proxy.kaggle.net/*"
+      ],
+      "all_frames": true,
+      "js": ["cell_index_utils.js", "kernel_state_listener.js", "markdown-it.min.js", "cell_index_badges.js", "cell_debug_chat.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "action": {
+    "default_title": "Kernel State Detector",
+    "default_popup": ""
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["markdown-it.min.js"],
+      "matches": [
+        "*://kaggle.com/*",
+        "*://*.kaggle.com/*",
+        "*://jupyter-proxy.kaggle.net/*",
+        "*://*.jupyter-proxy.kaggle.net/*"
+      ]
+    }
+  ]
+}

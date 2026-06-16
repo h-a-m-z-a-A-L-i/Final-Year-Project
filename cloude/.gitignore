@@ -1,0 +1,30 @@
+.env
+.env.*
+!.env.example
+kaggle json/
+**/kernel-metadata.json
+
+# Local host runtime (never commit)
+testing/host/data/logs/
+testing/host/data/sessions/*.sqlite3
+testing/host/data/sessions/*.sqlite3-shm
+testing/host/data/sessions/*.sqlite3-wal
+testing/host/data/meta/execution_state.json
+testing/host/data/meta/notebook_registry.json
+testing/host/data/meta/rate_limit_tracker.json
+testing/host/data/meta/hashes.json
+testing/host/data/meta/kernel_metadata/
+testing/host/data/meta/kernel_slug_index.json
+testing/host/data/meta/bot_*.jsonl
+testing/host/data/meta/token_usage.jsonl
+testing/host/data/meta/eval_*
+testing/host/data/meta/cerebras_*
+testing/host/data/meta/glm_*
+testing/host/data/meta/prompt_baselines/
+testing/host/data/notebooks/live/
+testing/host/data/notebooks/persistent/
+# Legacy URL-slug notebook copies (canonical: kaggle_kernel_<id>.json in persistent/)
+testing/host/data/notebooks/https___www_kaggle_com_*.json
+testing/host/__pycache__/
+**/__pycache__/
+*.pyc

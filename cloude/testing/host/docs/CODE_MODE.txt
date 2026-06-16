@@ -1,0 +1,422 @@
+================================================================================
+CODE MODE — TECHNICAL REFERENCE (normal-chrome / Kaggle Notebook Copilot)
+================================================================================
+Repository path: testing/host/
+Companion doc: ASK_MODE.txt, AGENTIC_ENGINE_REFERENCE.txt
+
+This document describes Code mode as implemented in code. Code mode generates
+runnable Python for notebook cells and tells the user where to place it — but
+does NOT write to the browser notebook. The user copies code or uses separate
+UI insert actions; only Agentic mode dispatches browser write tools.
+
+================================================================================
+1. PURPOSE AND INTENDED USE
+================================================================================
+
+Code mode is for users who want implementable notebook code in chat.
+
+Primary use cases:
+  - Generate a new code cell script with placement guidance
+  - Fill or replace logic in a specific cell (after intent is clear)
+  - Advise insert position using symbol/placement tools ("where should I put…")
+  - Produce run-order instructions (which cells to execute first)
+
+Explicit contract (prompts/code.txt, prompt_engineering._SYSTEM_NOTES_CODE):
+  - Generate runnable code in chat for copy/insert
+  - No browser tool_calls or notebook writes from the LLM
+  - User-facing reply: **Placement** bullets + one `python` code block when
+    generating code
+  - Empty target cell: ask what the user wants first — no Placement/Code until
+    they confirm or specify the task
+
+Code mode is NOT:
+  - Ask mode (explain-only, no full cell scripts)
+  - Agentic mode (automated insert/edit/run via browser tools)
+  - A browser automation tool loop (include_tools=false)
+
+================================================================================
+2. USER-FACING RUNTIME BEHAVIOR
+================================================================================
+
+When the user selects "Code" in the copilot panel and sends a message:
+
+1. CHAT_REQUEST with mode: "code" reaches host.py.
+2. Notebook context is packed with _pack_code (unless CONTEXT_PACK_MODE=full).
+3. Host prefetches read tools (placement, symbols, cell content).
+4. Cerebras streams a reply; UI splits prose vs fenced code blocks.
+5. Code blocks appear in separate cards with a Copy button.
+6. User manually inserts code into the notebook (Kaggle UI or future
+   INSERT_CODE_CELL host action — not triggered automatically by Code chat).
+
+Expected reply structure when generating code (prompts/code.txt):
+  1. **Plan** — 2–4 bullets (optional, keep short)
+  2. **Placement** — "Insert new Code cell below Cell [M]" or "Fill Cell [N]"
+     with one-line evidence and run order
+  3. **Code** — single fenced ```python block (full cell body)
+  4. **Notes** — assumptions only (optional)
+
+Empty-cell flow (no code block yet):
+  - State Cell [N] is empty
+  - Ask what they want the cell to do
+  - Offer 1–2 flow-appropriate options citing upstream/downstream cells
+  - Wait for confirmation before Placement + Code sections
+
+Placement rules (prompts/jupyter_structure.txt, code.txt):
+  - Default: new Code cell **below** the cell where a variable is defined
+  - Do not recommend distant empty cells unrelated to the data flow
+  - Do not duplicate work already in the next downstream cell
+  - Use prefetch notebook_recommend_placement / notebook_find_symbol evidence
+
+================================================================================
+3. MODE DETECTION AND SELECTION (UI → HOST)
+================================================================================
+
+UI (testing/extension/ui_injector.js):
+  - <option value="code">Code</option> in #chat-mode dropdown
+  - Sent as mode: "code" in CHAT_REQUEST
+
+Host:
+  ui_mode = msg.mode → resolve_effective_chat_mode (only downgrades agentic)
+  mode = detect_mode(prompt, ui_mode) → normalize_mode → "code"
+
+detect_mode (prompt_engineering.py):
+  - Uses UI selection only — no auto-switch from keywords
+  - Invalid modes fall back to "ask", not code
+
+If user requests Agentic but LLM_AGENTIC_ENABLED=0:
+  resolve_effective_chat_mode downgrades to "code" with a host log warning.
+  That is the only automatic mode change involving Code.
+
+================================================================================
+4. END-TO-END REQUEST PIPELINE
+================================================================================
+
+Same CHAT_REQUEST skeleton as Ask (host.py); Code-specific differences:
+
+  pack_context(mode="code", ...)
+    → _pack_code when CONTEXT_PACK_MODE=intent
+    → _pack_full_notebook when CONTEXT_PACK_MODE=full
+
+  build_chat_messages(mode="code", include_tools=False, ...)
+    → load_mode_sections("code") + query_tools_code.txt guidance
+
+  streaming._run_streaming_chat:
+    agentic_active = False
+    include_tools = False
+    prefetch_notebook_queries(mode="code", ...) — placement-biased plan
+    Single prose stream → memory_store.append(assistant text)
+    skip_post_stream_tools = True (no post-stream tool rounds)
+    filter_tool_calls_for_mode → [] if model emits stray tool_calls
+
+================================================================================
+5. PROMPT ENGINEERING
+================================================================================
+
+5.1 Prompt file map
+-------------------
+  prompts/base_notebook_assistant.txt       — shared base
+  prompts/code.txt                          — Code Role, Task, Specifics, Examples
+  prompts/jupyter_structure.txt               — placement mental model
+  prompts/tool_calling/query_tools_code.txt   — prefetch usage for placement/code
+
+Legacy note: prompts/react_code_addon.txt (legacy filename) exists for Code +
+browser tools when react_browser is true on code mode. In current code,
+agentic_runtime_enabled returns True only for mode=="agentic", so react_code_addon
+is NOT merged for normal Code mode. _SYSTEM_NOTES_CODE_REACT applies only if that
+legacy path were enabled — it is not active in the default UI workflow.
+
+5.2 System prompt assembly (build_system_content for code)
+----------------------------------------------------------
+  ## Role — base + code.txt + "Active UI mode: **code** (Code)."
+  ## Task — code.txt Task (plan → read evidence → Placement → Code)
+  ## Specifics — empty cell vs filled/confirmed task
+  ## Context
+    - Jupyter notebook model
+    - Notebook query guidance (query_tools_code.txt) — always included
+    - Notebook URL, grounding rules
+    - ### Notebook evidence (pack or static baseline)
+    - NO tool calling section, NO tool descriptions (include_tools=False)
+  ## Examples — code.txt Examples
+  ## Notes — code.txt + base + _SYSTEM_NOTES_CODE
+
+5.3 Hard rules tail (_SYSTEM_NOTES_CODE)
+----------------------------------------
+  - Generate runnable code in chat — no browser tool_calls or notebook writes
+  - Read CONTEXT_MANIFEST and TARGET_CELL_STATUS before citing cells
+  - Only cite cells in listed_cells or tool/prefetch results
+  - Empty target cell: ask intent, suggest options — no Placement/Code yet
+  - New scripts: recommend Insert Code Cell Below defining cell
+  - User reply: Placement bullets + one python block when generating
+  - INSUFFICIENT_CONTEXT if coverage partial/none and tools lack data
+  - Host prefetch may include read-tool results; respond in prose + code blocks
+    — never emit browser tool_calls
+
+5.4 Placement instructions in prompts
+---------------------------------------
+code.txt Task step 5: "State Placement (new cell below Cell [M], or fill Cell [N])"
+code.txt Task step 6: "List Run steps (numbered cell indices)"
+
+jupyter_structure.txt (injected in Context):
+  - Call notebook_find_symbol / notebook_recommend_placement before citing indices
+  - Default: insert below definition cell
+  - Placement section: short bullets; Code section: one python fence
+
+Ask mode explicitly forbids Placement / Insert UI language; Code mode requires it
+when shipping code.
+
+================================================================================
+6. CONTEXT PACKING (pack_context for code)
+================================================================================
+
+6.1 CONTEXT_PACK_MODE=full (default)
+------------------------------------
+Same as Ask: entire notebook via _pack_full_notebook regardless of mode.
+_pack_code intent slicing is skipped.
+
+6.2 CONTEXT_PACK_MODE=intent
+----------------------------
+_pack_code (notebook_context.py):
+
+  Header: "## Code mode context"
+
+  If cell_index is set:
+    - direct_upstream and downstream from dependency graph
+    - Target cell block with output (symbol graph enrichment if enabled)
+    - Up to 6 upstream cells (truncated input, output if present)
+
+  If cell_index is None:
+    - Falls back to _pack_simple (target or first 5 code previews)
+
+  CONTEXT_MANIFEST with coverage full|partial based on listed cells.
+
+6.3 Shared pack behaviors
+-------------------------
+  - load_notebook_snapshot: live then persistent
+  - _empty_cell_context_note for empty targets
+  - _truncate_at_cell_boundaries at MAX_NOTEBOOK_CONTEXT_CHARS / full cap
+  - editor_loading stale snapshot warning
+
+6.4 Static cache (CEREBRAS_STATIC_NOTEBOOK_CACHE)
+-------------------------------------------------
+When enabled:
+  - Frozen compact baseline in system prompt (session start)
+  - Live cell changes in turn_tail on user message only
+  - Prefetch still runs each turn and prepends to user content
+
+================================================================================
+7. CHAT HISTORY HANDLING
+================================================================================
+
+Identical mechanics to Ask mode (see ASK_MODE.txt Section 7).
+
+Code and Ask share session_id by default (CHAT_SESSION_PER_MODE=0).
+Assistant messages store the full streamed text including Placement headers
+and markdown code fences (not split into separate DB fields).
+
+Prefetch blocks and turn_tail are not persisted.
+
+================================================================================
+8. TOOLS — NO BROWSER WRITES VS CODE MODE SPECIFICS
+================================================================================
+
+8.1 What Code mode does NOT do (critical)
+-----------------------------------------
+  - LLM include_tools = False → no native tool schema on API request
+  - filter_tool_calls_for_mode strips any tool_calls from model response
+  - browser_tool_allowed("code", ...) → False for BROWSER_TOOL_NAMES
+  - No insert_cell, edit_cell_by_index, run_cell, delete_by_index from chat
+  - No post-stream tool rounds (skip_post_stream_tools=True)
+  - Host does not auto-run INSERT_CODE_CELL after Code replies
+
+The model must describe placement in prose; the user executes manually.
+
+8.2 What Code mode DOES use (host prefetch read tools)
+-----------------------------------------------------
+tools_allowed_for_mode("code", agentic=False) returns ALL local read tools
+(full LLM_LOCAL_TOOL_NAMES set) — broader than Ask.
+
+build_query_plan for code emphasizes:
+  - notebook_get_cell when cell_index known
+  - notebook_recommend_placement + notebook_find_symbol when:
+      intent==placement OR (mode==code and symbols extracted from prompt)
+  - notebook_overview, notebook_executed_cells, notebook_search for context
+  - notebook_graph_query for dependency questions
+
+Host executes the plan once per turn via prefetch_notebook_queries.
+Results appear as "## Notebook query results (host prefetch)" on the user message.
+
+query_tools_code.txt instructs the model to use prefetch JSON before Placement.
+
+8.3 Code vs Agentic tool contrast
+---------------------------------
+| Capability                    | Code mode              | Agentic mode
+|------------------------------|------------------------|---------------------------
+| notebook_get_cell (prefetch) | Host runs              | LLM + host
+| notebook_recommend_placement | Host runs              | LLM + host
+| insert_cell                  | Not available          | Browser tool
+| edit_cell_by_index           | Not available          | Browser tool
+| run_cell                     | Not available          | Browser tool
+| Placement in reply           | Required (prose)       | Forbidden until summary
+| Code in reply                | python fence in chat   | Optional in summary;
+|                              |                        | real edit via tools
+
+8.4 INSERT_CODE_CELL (separate from chat)
+-----------------------------------------
+host.py handles INSERT_CODE_CELL as an explicit extension message (insert below
+anchor cell). This is NOT invoked by the Code mode streaming pipeline. Current
+ui_injector.js code snippet cards expose Copy only, not Insert below.
+
+================================================================================
+9. CODE GENERATION BEHAVIOR (DETAIL)
+================================================================================
+
+9.1 When to generate a full code block
+--------------------------------------
+  - Target cell has content AND user gave a concrete task, OR
+  - User confirmed an option after empty-cell clarification, OR
+  - User asked for new script with clear requirements
+
+9.2 When to withhold code
+-------------------------
+  - Target cell empty + vague "improve/fix cell N" without spec
+  - coverage none/partial and prefetch lacks needed symbols/cells
+  → INSUFFICIENT_CONTEXT or clarifying question
+
+9.3 Code quality expectations (prompts)
+---------------------------------------
+  - Reuse variable names from notebook evidence
+  - One python fence only — no duplicate script copies
+  - Full cell body (not fragments) unless editing a small section
+  - Run order: numbered list of cells user should execute
+
+9.4 UI presentation
+-------------------
+mountAssistantContent (ui_injector.js):
+  - Parses ```lang ... ``` fences from assistant text
+  - Prose → markdown bubble (markdown-it)
+  - Code → code-snippet-card with Copy button
+  - During streaming: code-snippet-stack hidden until complete
+
+9.5 Stray tool_calls from model
+-------------------------------
+If the LLM emits tool_calls despite include_tools=False, filter_tool_calls_for_mode
+returns [] — they are not executed. The prose stream is still shown.
+
+================================================================================
+10. STREAMING FLOW
+================================================================================
+
+Identical to Ask mode technically (streaming.py, agentic_active=False branch):
+
+  1. build_chat_messages
+  2. prefetch_notebook_queries → prepend to user message
+  3. fit_messages_to_budget + TPM preflight
+  4. chat.completions.create(stream=True)
+  5. CHAT_STREAM deltas
+  6. Optional non-stream fallback if empty response
+  7. CHAT_STREAM_END + SQLite append
+
+No "Working…" tool-first skip (that is Agentic-only).
+
+Token usage logged with mode=code, label=stream.
+
+================================================================================
+11. DIFFERENCES FROM ASK AND AGENTIC MODES
+================================================================================
+
+| Aspect              | Ask                      | Code (this mode)          | Agentic
+|---------------------|--------------------------|---------------------------|------------------
+| Output type         | Prose explanation        | Placement + python block  | Tool batch
+| Full cell scripts   | Forbidden                | Expected                  | Via edit tool
+| Placement section   | Prose only if asked      | Mandatory when shipping   | No (tools only)
+| Prefetch focus      | explain/error/dataset    | placement + symbols       | target cell
+| Local tools in plan | Subset (11 read tools)   | All local read tools      | Minimal + writes
+| Context packer      | _pack_ask + intents      | _pack_code                | pack + tools
+| Browser automation  | Never                    | Never                     | Yes
+| include_tools       | false                    | false                     | true
+
+Switching UI from Ask → Code on the same session keeps shared history unless
+CHAT_SESSION_PER_MODE=1.
+
+================================================================================
+12. CONFIGURATION (ENVIRONMENT VARIABLES AFFECTING CODE)
+================================================================================
+
+Same context/history vars as Ask (CONTEXT_PACK_MODE, MAX_*_CHARS, static cache,
+CHAT_SESSION_PER_MODE, token budgets).
+
+Code-specific behavioral notes:
+  - LLM_AGENTIC_ENABLED does not enable browser tools in Code mode
+  - SYMBOL_CONTEXT_ENABLED enriches _pack_code target/upstream blocks
+  - QUERY_TOOL_MAX_OUTPUT_CHARS / QUERY_TOOL_MAX_INPUT_CHARS cap prefetch payloads
+
+Recommended for large notebooks:
+  CONTEXT_PACK_MODE=intent — uses _pack_code slicing instead of full notebook
+
+================================================================================
+13. KEY SOURCE FILES
+================================================================================
+
+  testing/extension/ui_injector.js
+    Mode dropdown, CHAT_REQUEST, fenced code → Copy cards
+
+  testing/host/host.py
+    CHAT_REQUEST, pack_context(mode), INSERT_CODE_CELL (separate action)
+
+  testing/host/streaming.py
+    Prefetch, prose stream, filter_tool_calls_for_mode, skip_post_stream_tools=True
+
+  testing/host/prompt_engineering.py
+    build_system_content, _SYSTEM_NOTES_CODE, _MODE_FILE_MAP["code"]
+
+  testing/host/notebook_context.py
+    pack_context → _pack_code, TOOL_FIRST_MODES
+
+  testing/host/notebook_query.py
+    build_query_plan (code placement bias), prefetch_notebook_queries
+
+  testing/host/prompts/code.txt
+    Code generation and placement instructions
+
+  testing/host/prompts/jupyter_structure.txt
+    Insert-below-default placement rules
+
+  testing/host/prompts/tool_calling/query_tools_code.txt
+    How to read prefetch for Placement and code generation
+
+  testing/host/prompts/react_code_addon.txt (legacy filename)
+  prompt_engineering._SYSTEM_NOTES_CODE_REACT
+    Legacy Code+browser path (inactive unless react enabled on code — not default)
+
+  testing/host/agentic_mode.py
+    agentic_session_active — false for code; browser_tool_allowed gate
+
+  testing/host/local_notebook_tools.py
+    Read tool implementations used by prefetch
+
+  testing/host/tool_registry.py
+    BROWSER_TOOL_NAMES vs local tools
+
+  testing/host/config.py
+    ALLOWED_MODES, CONTEXT_PACK_MODE, limits
+
+================================================================================
+14. EXAMPLE TURN (CONCEPTUAL)
+================================================================================
+
+User (Code mode): "Normality plots for model_df — where should I insert?"
+
+Host:
+  1. cell_index from prompt or None
+  2. pack_context → manifest + target/upstream cells (intent mode)
+  3. prefetch: notebook_recommend_placement(symbols=["model_df"]),
+     notebook_find_symbol("model_df"), notebook_overview
+  4. System prompt: code.txt + query_tools_code + notebook evidence
+  5. User message: prefetch JSON + user question
+  6. Stream reply with Placement + python block
+
+User copies code and inserts below recommended cell in Kaggle UI manually.
+
+================================================================================
+END OF CODE_MODE.txt
+================================================================================

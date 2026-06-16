@@ -1,0 +1,11 @@
+{
+  "tabUrl": "https://www.kaggle.com/code/test/titanic-pipeline/edit",
+  "cells": [
+    {"type": "code", "index": 1, "input": "import pandas as pd\nimport numpy as np\nfrom sklearn.ensemble import RandomForestClassifier", "output": "", "execution_order": 1},
+    {"type": "code", "index": 2, "input": "train_df = pd.read_csv('/kaggle/input/titanic/train.csv')\ntest_df = pd.read_csv('/kaggle/input/titanic/test.csv')", "output": "", "execution_order": 2},
+    {"type": "code", "index": 3, "input": "def preprocess_data(df):\n    df = df.copy()\n    df['Age'].fillna(df['Age'].median(), inplace=True)\n    return df", "output": "", "execution_order": 3},
+    {"type": "code", "index": 4, "input": "train_df = preprocess_data(train_df)", "output": "", "execution_order": 4},
+    {"type": "code", "index": 5, "input": "def train_model(X, y):\n    model = RandomForestClassifier(n_estimators=100)\n    model.fit(X, y)\n    return model", "output": "", "execution_order": 5},
+    {"type": "code", "index": 6, "input": "X = train_df.drop('Survived', axis=1).select_dtypes(include='number')\ny = train_df['Survived']\nclf = train_model(X, y)", "output": "", "execution_order": 6}
+  ]
+}

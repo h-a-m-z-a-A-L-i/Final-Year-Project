@@ -1,0 +1,447 @@
+================================================================================
+AGENTIC MODE — TWO-PHASE TOOL EXECUTION
+================================================================================
+Normal-chrome / Kaggle Notebook Copilot — FYP
+Distilled from: testing/host/docs/AGENTIC_ENGINE_REFERENCE.txt
+Companion docs: CHAT_REQUEST_TO_LLM_RESPONSE.txt,
+                 SYSTEM_ARCHITECTURE_AND_MESSAGE_BRIDGE.txt
+Source: testing/host/streaming.py, agentic_batch_executor.py, agentic_mode.py
+
+================================================================================
+1. PURPOSE
+================================================================================
+
+Agentic mode lets the LLM modify the live Kaggle notebook via browser
+automation tools: insert cells, edit content, delete cells, run cells. There is
+no iterative ReAct loop. The host uses a **two-phase agentic flow** (default):
+a read/query LLM call, then an implementation LLM call for write/run
+tool_calls. The host executes each batch on the server/extension, then emits a
+dispatch summary.
+
+Ask and Code modes never enter this flow. See ASK_MODE_AND_CODE_MODE_WORKFLOWS.txt.
+
+================================================================================
+2. AGENTIC GATES (ALL REQUIRED)
+================================================================================
+
+Agentic behavior activates only when ALL gates pass:
+
+  GATE 1 — Server allow (.env)
+    LLM_AGENTIC_ENABLED=1 in config.py / .env
+    agentic_mode.server_agentic_allowed() → True
+
+  GATE 2 — Dashboard setting (legacy file)
+    data/meta/agentic_settings.json {"dashboard_enabled": true}
+    Note: current code treats dashboard_agentic_enabled() as always True;
+    the UI mode dropdown is the practical user gate.
+
+  GATE 3 — UI mode
+    User selects "Agentic" in #chat-mode dropdown
+    CHAT_REQUEST mode=agentic
+    agentic_session_active(mode) → True only when mode=="agentic" AND gate 1
+
+  Downgrade path:
+    If user selects agentic but LLM_AGENTIC_ENABLED=0:
+      resolve_effective_chat_mode() → downgrades to "code" + host log warning
+
+  browser_tool_allowed(mode, tool_name):
+    BROWSER_TOOL_NAMES require agentic_session_active(mode)
+    Local read tools allowed in all modes (prefetch or agentic reads)
+
+================================================================================
+3. AGENTIC VS ASK/CODE (ORCHESTRATION)
+================================================================================
+
+  ┌────────────────────┬────────────────────────────────────────────────────┐
+  │ Aspect             │ Agentic                                            │
+  ├────────────────────┼────────────────────────────────────────────────────┤
+  │ include_tools      │ true                                               │
+  │ LLM tool format    │ <agent_tool_batch> text (Cerebras default) OR      │
+  │                    │ native tool_calls (GLM / AGENTIC_TEXT_TOOLS=0)     │
+  │ Host prefetch      │ yes (minimal — target cell / error bias)           │
+  │ Initial prose      │ skipped — tool-first path ("Working…")             │
+  │ Two-phase flow     │ yes — first call reads, second call implements     │
+  │ Browser writes     │ insert_cell, edit_cell_by_index, run_cell, etc.    │
+  │ Reply style        │ tools first → host dispatch summary                │
+  │ Placement prose    │ forbidden until tool_queue_status=complete         │
+  │ Run cells          │ run_cell tool in batch (host dispatches)           │
+  └────────────────────┴────────────────────────────────────────────────────┘
+
+================================================================================
+4. END-TO-END AGENTIC WORKFLOW (NUMBERED)
+================================================================================
+
+  STEP 1 — User selects Agentic, sends actionable request
+           e.g. "Fix the error in cell 12 and run it"
+
+  STEP 2 — CHAT_REQUEST mode=agentic → host.py (shared handler)
+           pack_context + prefetch (same entry as other modes)
+
+  STEP 3 — streaming._run_streaming_chat:
+           agentic_active = True
+           include_tools = True
+           use_text_tools = text_tool_calling_enabled() — default ON for Cerebras
+           Skips Ask/Code prose stream; emits "Working…" and enters two-phase tool flow
+
+  STEP 4 — build_chat_messages(mode="agentic"):
+           prompts/agentic.txt + react_agent*.txt (legacy filenames) + tool descriptions
+           query_tools_agentic.txt in Context
+
+  STEP 5 — Agentic action tail appended to turn_tail if actionable request
+           Nudges model to emit full tool batch in one response per phase
+
+  STEP 6 — prefetch_notebook_queries(mode="agentic") — read tools for indices
+
+  STEP 7 — fit_messages_to_budget()
+
+  STEP 8 — Two-phase LLM calls (see Section 5)
+           Parse tool batch from each response
+           execute_agentic_batch() runs full queue on host
+
+  STEP 9 — Verification: queue_cell_evidence, close_react_loop decision
+           (internal flag name; not a user-facing ReAct loop)
+
+  STEP 10 — Default (fire-and-forget): host dispatch summary → CHAT_STREAM
+
+  STEP 11 — Optional verification follow-up (only when AGENTIC_FIRE_AND_FORGET=0)
+            Error recovery nudge → extra LLM round (capped)
+
+  STEP 12 — memory_store.append(assistant, final_summary) unless stopped
+
+  STEP 13 — CHAT_STREAM_END → UI renders summary markdown
+
+================================================================================
+5. TWO-PHASE AGENTIC FLOW (streaming.py)
+================================================================================
+
+5.1 Round limits (defaults)
+---------------------------
+  AGENTIC_FIRE_AND_FORGET=1 (default):
+    max_tool_rounds = AGENTIC_MAX_TOOL_ROUNDS (default 2)
+    Mandatory two-phase: round 0 = reads only, round 1 = writes + runs
+    At most 2 LLM API calls per user message (query + implement)
+    After writes dispatch: host emits dispatch summary and stops
+
+  AGENTIC_FIRE_AND_FORGET=0 (non-default):
+    max_tool_rounds = LLM_REACT_MAX_ROUNDS (default 15; legacy env name)
+    Verification follow-up rounds allowed after batch errors
+    Host may request another LLM call when workflow_needs_llm_followup()
+
+  MAX_ERROR_RECOVERY_ROUNDS — caps fix attempts after queue errors (non-FF path)
+  MAX_INCOMPLETE_BATCH_NUDGES — caps nudges when model emits prose without tools
+  MAX_PROSE_ONLY_ROUNDS = 2 — stops when model keeps replying with prose only
+
+5.2 Default two-phase structure
+-------------------------------
+
+  messages = build_chat_messages(...) + prefetch prepended to user turn
+
+  ROUND 0 — First LLM call (query phase):
+      Non-streaming LLM call with tools enabled
+      Host strips write tools if AGENTIC_MANDATORY_TWO_PHASE=1 (default)
+      Model emits read tools: notebook_get_cell, notebook_list_cells, etc.
+      execute_agentic_batch() runs read tools against host JSON snapshots
+      Phase-1 implementation nudge appended to messages
+
+  ROUND 1 — Second LLM call (implementation / tool_calls phase):
+      Non-streaming LLM call; host strips query tools from batch
+      Model emits write + run tools in one assistant message
+      execute_agentic_batch() dispatches browser tools via extension
+      Host emits build_fire_and_forget_user_summary() and breaks
+
+  No further LLM rounds in default configuration.
+
+5.3 Non-default verification follow-up (AGENTIC_FIRE_AND_FORGET=0)
+------------------------------------------------------------------
+  When batch verification reports queue errors or incomplete goals:
+    Host injects error_recovery nudge into tool_messages
+    Another LLM call may run (up to LLM_REACT_MAX_ROUNDS)
+    execute_agentic_batch() runs fix queue
+    Continues until close_react_loop=True (internal) or caps exhausted
+
+  This is bounded error recovery, not an open-ended ReAct loop.
+
+5.4 Direct edit fast path
+-------------------------
+  build_direct_edit_from_prompt() may bypass LLM for simple edit patterns:
+    If prompt maps cleanly to edit_cell_by_index → registry.call() immediately
+    Emits "Updated cell N" stream delta; skips two-phase LLM calls
+
+================================================================================
+6. TEXT TOOLS VS NATIVE tool_calls
+================================================================================
+
+6.1 Text tool batch (agentic_text_tools.py) — DEFAULT for Cerebras gpt-oss
+---------------------------------------------------------------------------
+  text_tool_calling_enabled(provider, agentic=True):
+    AGENTIC_TEXT_TOOLS env (default ON for cerebras gpt-oss)
+    Model emits:
+
+      <agent_tool_batch>
+      [
+        {"tool": "notebook_get_cell", "args": {"cell_index": 4, "url": "..."}},
+        {"tool": "edit_cell_by_index", "args": {...}},
+        {"tool": "run_cell", "args": {"cell_index": 4, "url": "..."}}
+      ]
+      </agent_tool_batch>
+
+  parse_agent_tool_batch() extracts ParsedToolCall list
+  Recovery parsers handle malformed JSON (tool_parser_recovery.py)
+
+6.2 Native tool_calls — GLM or AGENTIC_TEXT_TOOLS=0
+---------------------------------------------------
+  build_cerebras_tools(include_browser=True) → API tools schema
+  parallel_tool_calls enabled for agentic
+  Model returns tool_calls array on assistant message
+  Same execute_agentic_batch() after parsing
+
+6.3 Prompt contract (prompts/agentic.txt)
+-----------------------------------------
+  Round 0: read only — notebook_get_cell, notebook_list_cells, notebook_snapshot_status
+  Round 1: implement — insert, edit, delete, run (no list_cells on round 1)
+  One assistant message should contain ALL tools for the phase
+  delete before insert; edits before run_cell; all run_cell calls last
+
+================================================================================
+7. TOOL BATCH EXECUTOR (agentic_batch_executor.py)
+================================================================================
+
+7.1 Entry: execute_agentic_batch()
+----------------------------------
+  Input: tool_calls list, user_prompt, url, tab_id, registry, mode, ...
+
+  Pipeline:
+    1. Parse → ParsedToolCall objects
+    2. enrich_run_cells_from_prompt() — expand "run last N cells"
+    3. enrich_prerequisite_runs_from_kernel() — re-run imports after restart
+    4. resolve_batch_cell_indices() — normalize cell indices
+    5. partition_batch() — order: reads → writes → runs
+    6. Execute queue with INTER_TOOL_DELAY_SEC (1s) between tools
+    7. fetch_queue_cell_evidence() after runs complete
+    8. finalize_react_loop_verification() → close_react_loop decision
+       (function name is legacy; sets verification payload only)
+
+7.2 Tool ordering (partition_batch)
+------------------------------------
+  One host batch = all pre-run tools, then every run_cell, in LLM emission order.
+  Tools listed AFTER first run_cell that are not run_cell → deferred to next batch.
+
+  Preferred order within batch:
+    delete_by_index → insert_cell / creating_markdown → edit_cell_by_index → run_cell
+
+7.3 Read vs write tool routing (tool_registry.py)
+-------------------------------------------------
+  LOCAL READ TOOLS (local_notebook_tools.py):
+    notebook_get_cell, notebook_list_cells, notebook_snapshot_status,
+    notebook_graph_query, notebook_find_symbol, etc.
+    Execute in host process against JSON snapshots — no browser.
+
+  BROWSER WRITE TOOLS (tool_registry → bot_command.py):
+    insert_cell, edit_cell_by_index, delete_by_index, run_cell,
+    creating_markdown_by_index, click_cell, select_cell, etc.
+    registry.call() enqueues command → bot_commands.jsonl
+    background.js polls / receives → dispatchBrowserTool()
+    kernel_state_listener.js performs DOM automation in tab
+
+7.4 run_cell execution
+----------------------
+  execute_run_queue_dispatch_only() — fire-and-forget dispatch
+  OR execute_run_queue_sequential() — wait for execution completion
+  Run waits collected → merged into queue_cell_evidence
+
+  After run_cell: scheduleNotebookScrape() in extension for fresh outputs
+
+7.5 sync_persistence after writes
+---------------------------------
+  tool_registry syncs live/persistent JSON after browser edits
+  Ensures pack_context and read tools see updated cell content
+
+7.6 Phase filtering (filter_tools_for_phase)
+--------------------------------------------
+  When AGENTIC_MANDATORY_TWO_PHASE=1:
+    Round 0: strip write tools; may auto-inject query tool
+    Round 1: strip query tools; writes + runs only
+
+================================================================================
+8. VERIFICATION (queue_cell_evidence, close_react_loop)
+================================================================================
+
+8.1 fetch_queue_cell_evidence()
+-------------------------------
+  After tool queue finishes, host reads target cells from snapshot:
+    { cells: [{ cell_index, input, output, has_error, ... }, ...] }
+
+  Merges run_cell wait results (success/error output from kernel)
+
+8.2 finalize_react_loop_verification()
+--------------------------------------
+  Sets verification payload fields (legacy function name):
+    tool_queue_status: "complete" | "error"
+    queue_cell_evidence: { cells: [...] }
+    target_cells, run_requested, run_completed, run_pending
+    error_recovery: { failed_cell_index, pending_run_cells, ... }
+    close_react_loop: true | false
+    continue_react_loop: true | false (internal; triggers follow-up when FF=0)
+    await_llm_summary: true when success path ready for Summary
+
+  Default fire-and-forget path ignores multi-round verification;
+  host summary is emitted after round-1 write dispatch.
+
+8.3 Goal verification (agent_goal_verification.py)
+--------------------------------------------------
+  strict_goal_verified checks user intent against evidence
+  May override close_react_loop if goals not met (non-FF path)
+
+8.4 Verification injected back to LLM (non-default path only)
+-------------------------------------------------------------
+  When AGENTIC_FIRE_AND_FORGET=0, JSON block appended to tool_messages:
+    tool_queue_status, queue_cell_evidence, error_recovery,
+    close_react_loop, user_response_gate
+
+  Prompts (react_agent_host_batch.txt, legacy filename) instruct error recovery behavior.
+
+================================================================================
+9. ERROR RECOVERY AND FOLLOW-UP ROUNDS
+================================================================================
+
+  Default (AGENTIC_FIRE_AND_FORGET=1):
+    No verification follow-up loop after dispatch summary.
+    User sees host-generated dispatch summary in chat.
+
+  Non-default (AGENTIC_FIRE_AND_FORGET=0):
+    When tool_queue_status="error":
+      streaming.py injects error_recovery nudge into messages
+      error_recovery_attempts incremented (cap: MAX_ERROR_RECOVERY_ROUNDS)
+      LLM emits new tool batch with edit_cell_by_index + run_cell fixes
+      execute_agentic_batch() runs fix queue
+      Bounded follow-up until close_react_loop=True or caps exhausted
+
+  Incomplete batch (prose without tools when action required):
+    incomplete_batch_nudges incremented (cap: MAX_INCOMPLETE_BATCH_NUDGES)
+    should_reject_prose_final() may block premature summaries
+
+================================================================================
+10. BROWSER TOOLS VIA EXTENSION (DETAIL)
+================================================================================
+
+  Host tool_registry.call("edit_cell_by_index", args)
+        │
+        ▼
+  bot_command.py — append to bot_commands.jsonl
+        │
+        ▼
+  background.js — bot command listener
+        │
+        ▼
+  chrome.tabs.sendMessage(tabId, { type: "SET_CELL_CONTENT", ... })
+        │
+        ▼
+  kernel_state_listener.js — DOM automation
+    - select cell by index
+    - focus CodeMirror editor
+    - set content / click run / insert cell
+        │
+        ▼
+  bot_results.jsonl — result back to host
+        │
+        ▼
+  execute_agentic_batch records { tool, ok, phase, cell_index }
+
+  Tab context required: tab_id from CHAT_REQUEST bot_state
+
+================================================================================
+11. AGENTIC PROMPT FILES
+================================================================================
+
+  prompts/agentic.txt                    — Role, two-phase contract, kernel rules
+  prompts/tool_calling/react_agent.txt (legacy filename)   — Observe → Act → Verify (prompt only)
+  prompts/tool_calling/react_agent_host_batch.txt (legacy filename) — queue_cell_evidence protocol
+  prompts/tool_calling/react_agent_cerebras.txt (legacy filename)    — Cerebras-specific batching
+  prompts/tool_calling/query_tools_agentic.txt     — prefetch + post-queue verify
+  prompts/tool_calling/browser_tools.txt           — browser tool descriptions
+  prompts/tool_calling/tool_descriptions_autogen.txt
+
+  Note: filenames containing "react_" are legacy naming; runtime is two-phase.
+
+  _SYSTEM_NOTES_AGENTIC (prompt_engineering.py):
+    One assistant message = ALL tool_calls for the task
+    Pass exact notebook URL on every tool call
+    No Placement / Run order prose until queue completes
+    Summarize only after tool_queue_status is complete
+
+================================================================================
+12. FIRE-AND-FORGET MODE (DEFAULT)
+================================================================================
+
+  AGENTIC_FIRE_AND_FORGET=1:
+    Host dispatches tools immediately; does not run verification follow-up loop
+    AGENTIC_MAX_TOOL_ROUNDS=2 hard cap per user message
+    Round 0: reads; Round 1: full implement batch
+    After dispatch: host emits dispatch summary
+    Model should not expect additional LLM rounds after implementation
+
+  AGENTIC_MANDATORY_TWO_PHASE=1:
+    Enforces read-only round 0, write round 1
+
+================================================================================
+13. END-TO-END DIAGRAM
+================================================================================
+
+  User (Agentic): "Add normalization code below cell 8 and run it"
+        │
+        ▼
+  CHAT_REQUEST → pack_context + prefetch
+        │
+        ▼
+  First LLM call (round 0): query tools
+    [notebook_get_cell(8), notebook_list_cells]
+        │
+        ▼
+  execute_agentic_batch → read tools (host JSON only)
+        │
+        ▼
+  Second LLM call (round 1): implementation tool_calls
+    [insert_cell(below 8), edit_cell_by_index(9), run_cell(9)]
+        │
+        ▼
+  execute_agentic_batch:
+    partition → insert → edit → run_cell dispatch
+    browser tools → extension → DOM
+        │
+        ▼
+  Host dispatch summary: "Dispatched insert + edit + run for cell 9…"
+        │
+        ▼
+  CHAT_STREAM / CHAT_STREAM_END → UI
+
+================================================================================
+14. KEY SOURCE FILES
+================================================================================
+
+  testing/host/agentic_mode.py           — gates, browser_tool_allowed
+  testing/host/streaming.py              — two-phase orchestration
+  testing/host/agentic_batch_executor.py — queue execution, verification
+  testing/host/agentic_text_tools.py     — <agent_tool_batch> parse/emit
+  testing/host/agentic_action_guard.py   — action detection, recovery caps
+  testing/host/agent_goal_verification.py — goal checks
+  testing/host/agentic_verification.py   — verification helpers
+  testing/host/tool_registry.py          — local + browser tool dispatch
+  testing/host/bot_command.py            — browser command queue
+  testing/host/local_notebook_tools.py   — read tool implementations
+  testing/extension/background.js        — browser tool relay
+  testing/extension/kernel_state_listener.js — DOM automation
+  testing/host/prompts/agentic.txt
+
+================================================================================
+15. CROSS-REFERENCES
+================================================================================
+
+  CHAT_REQUEST_TO_LLM_RESPONSE.txt      — shared steps before agentic branch
+  SYSTEM_ARCHITECTURE_AND_MESSAGE_BRIDGE.txt — browser tool message types
+  ASK_MODE_AND_CODE_MODE_WORKFLOWS.txt  — modes without browser writes
+
+  Full reference: testing/host/docs/AGENTIC_ENGINE_REFERENCE.txt
+
+================================================================================
+END OF AGENTIC_MODE_TOOL_EXECUTION.txt
+================================================================================

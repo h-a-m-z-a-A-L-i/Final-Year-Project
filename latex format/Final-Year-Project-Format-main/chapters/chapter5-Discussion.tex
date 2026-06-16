@@ -1,66 +1,121 @@
 %!TEX root = ../_fyp.tex
-\chapter{Discussion} % (fold)
+\chapter{Discussion}
 \label{chap:discussion}
 
-\section{Section 1} % (fold)
-\label{sec:section_11}
-Led ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem. Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur?
+Chapter~\ref{c-results} established that Ask, Code, and Agentic modes satisfy distinct contracts on shared notebook snapshots. This chapter interprets those findings relative to prior work on notebook assistants \parencite{mcnutt2023notebookassistants,rule2018exploration}, tool-augmented \acp{LLM} \parencite{schick2023toolformer,qin2024toolllm}, and interactive programming cost models \parencite{mozannar2024reading}.
 
-\par
-Led ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem. Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur?
+\section{Agentic Tool Dispatch}
 
-\subsection{Subsection 1} % (fold)
-\label{sub:subsection_111}
+The primary Agentic result---37 tools dispatched in the second \ac{API} call after a read-only query round---confirms that GLM~4.7 can emit large parallel \texttt{tool\_calls} batches when native tool schemas are attached \parencite{qin2024toolllm}. The two-call design trades the flexibility of open-ended ReAct trajectories \parencite{yao2023react} for predictable latency and cost, consistent with fire-and-forget batching described in Section~\ref{sec:tool-registry}.
 
-Led ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem (see Fig. \ref{fig:demo_figure_1}). Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur? \cite{bruno,smith}
+Importantly, the present artefact \emph{does not} close the loop with per-cell observation and replanning. Dispatch success therefore indicates planning fidelity at the host boundary, not guaranteed kernel outcomes in the live editor. This distinction aligns with \textcite{hou2024llm4se}, who note that software-engineering agents require explicit evaluation criteria matched to deployment contracts. For the FYP, dispatch-only scoring is the appropriate metric until a future ReAct implementation is added (Section~\ref{sec:future-react}).
 
-\begin{figure}[h]
+Host-side descending reorder for bulk inserts and deletes mitigated index-shift risk identified in notebook integration literature \parencite{rule2019tenrules,chasins2018roussillon}. The Pakistan housing pipeline batch suggests that domain-specific tool narrowing---six vetted cell operations rather than open web APIs \parencite{patil2023gorilla}---improves batch coherence.
+
+\section{Ask Mode: Explanation Without Side Effects}
+
+Ask mode achieved strong performance on cell-local explanation (cell~17) and error diagnosis (cell~31) while maintaining zero side effects. Zero tool calls eliminate the verification burden that \textcite{vaithilingam2022expectation} associate with generative coding tools, because the assistant cannot mutate the artefact under discussion.
+
+The notebook workflow test exhibited 89\% topic coverage, indicating that the model recognised standard data-science stages (loading, cleaning, feature work, modelling, evaluation) from packed context---a form of lightweight retrieval grounding \parencite{lewis2020rag}. The remaining limitation is depth: without full notebook coverage in the prompt window \parencite{wei2022chain,brown2020language}, workflow answers may summarise stages rather than exhaustively trace every cell. This is an expected trade-off for closed-platform assistants that lack platform \ac{API} access \parencite{chasins2018roussillon}.
+
+For educational use in \acf{BSDS} coursework, Ask mode is best positioned as a \emph{read-only tutor}: explain cells, diagnose errors, and clarify intent before the student authors or runs code \parencite{finnieansley2022codex}.
+
+\section{Code Mode: Implementation Guidance}
+
+Code mode passed all four reported scenarios while preserving the no-write contract. Correct XGBoost training code (100\% keyword alignment with notebook variables) shows that snapshot grounding suffices for variable reuse without live kernel introspection \parencite{lewis2020rag}. Cell replacement and feature-engineering tests further indicate that the model can emit self-contained cells matching notebook naming conventions \parencite{wang2021welldocumented}.
+
+The empty-cell workflow result---asking intent before emitting Placement and Code sections---implements the deferral pattern recommended for notebook copilots \parencite{mcnutt2023notebookassistants} and reduces the risk of unsolicited code dumps \parencite{mozannar2024reading}.
+
+The principal weakness is placement accuracy under partial context: correct code may be paired with suboptimal insert indices. This mirrors IDE copilot findings that suggestion quality depends on visible context \parencite{ziegler2024copilot}, extended to positional notebook cells rather than flat files.
+
+\section{Mode Selection Implications}
+
+Table~\ref{tab:mode-guidance} translates results into practical guidance. The separation supports Objective~6 in Section~\ref{sec:objectives}: empirical validation across modes, not a single monolithic assistant score.
+
+\begin{table}[!ht]
 \centering
-\includegraphics[width=0.5\textwidth]{./img/350x150.png}
-\caption{The caption of the figure goes here.}
-\label{fig:demo_figure_1}
-\end{figure}
+\caption{Practical mode selection guidance derived from benchmarks.}
+\label{tab:mode-guidance}
+\small
+\begin{tabular}{|p{3.2cm}|p{4.2cm}|p{4.8cm}|}
+\hline
+\textbf{User goal} & \textbf{Recommended mode} & \textbf{Evidence} \\ \hline
+Understand notebook or cell & Ask & 89\% workflow coverage; 0\% hallucination on cell~17 \\
+Diagnose execution error & Ask & Correct root-cause on cell~31 \\
+Implement new cell safely & Code & Runnable blocks; 0 browser writes \\
+Automate multi-cell batch & Agentic & 37-tool dispatch after query call \\ \hline
+\end{tabular}
+\end{table}
 
-\par
-Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat \cite{bruno}. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. (see Fig. \ref{fig:demo_figure_2}) Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. \cite{smith}
-% subsection subsection_111 (end)
+\section{Threats to Validity}
 
-\subsection{Subsection 2} % (fold)
-\label{sub:subsection_112}
-Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur. Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur.
+Three threats qualify the generalisability of findings. \textbf{Harness fidelity:} Agentic tests mock browser execution; traces record dispatch, not live Kaggle latency. \textbf{Heuristic scoring:} Coverage and code-correctness metrics automate keyword rubrics rather than expert judgment \parencite{chen2021codex}. \textbf{Single-model scope:} All runs use GLM~4.7; cross-model replication would strengthen claims \parencite{hou2024llm4se}. Despite these limits, the benchmarks provide reproducible evidence that mode contracts are enforceable in a deployable Chrome extension architecture.
 
-\begin{figure}[h]
+\section{Comparison with Prior Notebook Assistants}
+\label{sec:comparison-prior}
+
+\textcite{mcnutt2023notebookassistants} prototyped inline suggestions within JupyterLab-style environments where extension APIs expose cell metadata directly. The present artefact operates on Kaggle's closed \texttt{/edit} surface without platform cooperation, trading API richness for \ac{DOM} scraping \parencite{chasins2018roussillon}. Relative to their design probes, this FYP adds three distinctions:
+
+\begin{itemize}
+  \item \textbf{Explicit mode contracts} separate read-only tutoring (Ask), copy-paste generation (Code), and batched dispatch (Agentic) rather than a single inline suggestion channel.
+  \item \textbf{Native tool calling} replaces free-form code fences with schema-validated \texttt{insert\_cell} and \texttt{run\_cell} operations \parencite{qin2024toolllm}.
+  \item \textbf{Host-side batch reordering} addresses positional index shift---a notebook-specific hazard absent in flat-file copilots \parencite{rule2019tenrules}.
+\end{itemize}
+
+IDE copilots such as GitHub Copilot excel at file-buffer completion \parencite{ziegler2024copilot} but do not model markdown/code interleaving or kernel execution order. The benchmark evidence suggests that notebook assistance requires platform-specific grounding even when the underlying model is shared.
+
+\section{Educational Implications for BSDS}
+\label{sec:edu-implications}
+
+For \acf{BSDS} coursework at \acf{GCUF}, the mode separation maps onto pedagogical stages:
+
+\begin{enumerate}
+  \item \textbf{Exploration phase.} Students use Ask mode to understand forked Kaggle kernels before editing---mirroring \textcite{rule2018exploration}'s distinction between exploration and explanation notebooks.
+  \item \textbf{Implementation phase.} Code mode supports assessed assignments where students must author cells themselves but benefit from placement hints and runnable templates \parencite{finnieansley2022codex}.
+  \item \textbf{Automation phase.} Agentic mode demonstrates how tool-augmented models plan multi-cell workflows, preparing advanced students for agentic data-science tooling while remaining bounded by the two-call contract.
+\end{enumerate}
+
+The empty-cell deferral results (Code Test~4) are particularly relevant: assistants should clarify intent before filling cells in graded work, reducing academic integrity concerns associated with unsolicited code dumps \parencite{vaithilingam2022expectation}.
+
+\section{Architectural Trade-offs}
+\label{sec:arch-tradeoffs}
+
+The split extension--host design embodies deliberate trade-offs summarised in Table~\ref{tab:tradeoffs}.
+
+\begin{table}[!ht]
 \centering
-\includegraphics[width=0.5\textwidth]{./img/500X300.png}
-\caption{The caption of the figure goes here.}
-\label{fig:demo_figure_2}
-\end{figure}
+\caption{Architectural trade-offs in the implemented system.}
+\label{tab:tradeoffs}
+\small
+\begin{tabular}{|p{3.4cm}|p{4.8cm}|p{4.8cm}|}
+\hline
+\textbf{Decision} & \textbf{Benefit} & \textbf{Cost} \\ \hline
+Native messaging & API keys never in extension; full-duplex I/O & Local install and host registration \\ \hline
+DOM scraping & Works without Kaggle API & Fragile to front-end changes \\ \hline
+Two-call Agentic cap & Predictable latency and billing & No mid-batch replanning \\ \hline
+Fire-and-forget dispatch & High throughput (37 tools in one batch) & No execution verification in same turn \\ \hline
+Dual JSON stores & Fresh live + durable persistent context & Storage sync complexity \\ \hline
+\end{tabular}
+\end{table}
 
-\par
-Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur. Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur.
-% subsection subsection_112 (end)
-% section section_11 (end)
+These trade-offs reflect FYP scope constraints (Section~\ref{sec:scope}) while remaining transferable to other closed notebook platforms identified in Chapter~\ref{c-review}.
 
-\section{Section 2} % (fold)
-\label{sec:section_12}
-Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur. Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur.
+\section{Context Packing as a Cross-Mode Bottleneck}
+\label{sec:context-bottleneck}
 
-\par
-Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur. Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur.
+Ask Test~1 and Code placement limitations share a root cause: the host packs notebook context subject to \texttt{MAX\_NOTEBOOK\_CONTEXT\_CHARS} and \texttt{MAX\_INPUT\_TOKENS}. Long competition notebooks exceed single-window coverage \parencite{wei2022chain}. The model's appropriate response---high-level workflow summary rather than per-cell invention---is pedagogically sound but reduces automated accuracy scores.
 
-\subsection{Subsection 1} % (fold)
-\label{sub:subsection_121}
-Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur. Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur.
+Mitigations proposed in Section~\ref{sec:future-react} include hierarchical section summaries and retrieval over cell embeddings \parencite{lewis2020rag,jiang2023structgpt}. Until implemented, practitioners should prefer cell-local Ask queries and verify Code placement against the visible editor.
 
-\par
-Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur. Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur.
-% subsection subsection_121 (end)
+\section{Reliability and Safety Posture}
+\label{sec:safety}
 
-\subsection{Subsection 2} % (fold)
-\label{sub:subsection_122}
-Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur. Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur.
+From a safety perspective, mode contracts provide defence in depth:
 
-\par
-Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur. Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur.
-% subsection subsection_122 (end)
-% section section_12 (end)
+\begin{itemize}
+  \item Ask mode cannot mutate notebooks---eliminating accidental destructive edits during explanation.
+  \item Code mode requires explicit user copy-paste---preserving human approval before execution.
+  \item Agentic mode batches all writes in one host-validated queue---enabling user review of planned operations before browser execution completes.
+\end{itemize}
+
+This posture aligns with \textcite{mozannar2024reading}'s finding that users accept AI assistance when edit semantics are predictable. Future ReAct loops must preserve these guardrails rather than bypassing them for autonomy \parencite{shinn2023reflexion}.

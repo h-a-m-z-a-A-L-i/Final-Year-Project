@@ -1,26 +1,167 @@
-\chapter{Literature Review}\label{c-review}
-Here you review the state of the art relevant to your FYP/thesis proposal. The idea is to present the major ideas in the state of the art right up to, but not including, your own personal brilliant ideas.
+%!TEX root = ../_fyp.tex
+\chapter{Literature Review}
+\label{c-review}
 
-Critical analysis and comparisons should be made by pointing out the weakness of existing solutions and strengths of your proposal. You organize this section by idea, and not by author or by publication.
+Chapter~\ref{c-intro} established that mainstream \ac{LLM} assistants remain poorly integrated with proprietary, browser-hosted notebook editors such as Kaggle. The problem couples two research threads: how analysts work in computational notebooks, and how modern language models can be grounded in live application state while executing structured tool actions. This chapter surveys prior work along those threads, organised by idea rather than chronology. We first examine notebook-centric data science practice and the Kaggle ecosystem; then review \ac{LLM} applications to code and data science; discuss retrieval-augmented and context-grounded generation; analyse agentic models that interleave reasoning with tool use; and address integration challenges for web-based notebook environments. The chapter closes by synthesising the research gap and positioning the present FYP relative to notebook assistants, IDE copilots, and platform-native tooling.
 
-In certain situations, a background of the underlying concepts is required for better understanding of the research problem and also to improve the flow of the FYP/thesis. This could either be made an introductory part of this section or separately written in a prior section.
+\section{Computational Notebooks and Data Science Workflows}
+\label{sec:lit-notebooks}
 
-\begin{table}[!th]
+Computational notebooks interleave executable code, narrative text, and rich outputs in a single literate document. \textcite{perez2007ipython} introduced \texttt{IPython} as an interactive shell and architecture for scientific computing in Python, emphasising a read--eval--print loop that keeps code, results, and visualisations co-located. That design philosophy matured into the Jupyter ecosystem described by \textcite{kluyver2016jupyter}, who characterised Jupyter Notebooks as a publishing format for \emph{reproducible computational workflows}. Cells can be reordered and re-executed non-linearly; markdown supports exposition; and kernel outputs embed directly beneath the code that produced them. For data science education and practice---including programmes such as the \acf{BSDS} at \acf{GCUF}---notebooks lower the barrier between exploratory analysis and communicable artefact.
+
+Empirical studies clarify how practitioners actually use this medium. \textcite{rule2018exploration} distinguish \emph{exploration} notebooks, in which analysts iteratively probe data, from \emph{explanation} notebooks intended for presentation and reuse. The same structural affordances that support experimentation---mutable cell order, inline outputs, and narrative/code interleaving---also complicate maintenance when notebooks evolve from private sketches into shared deliverables. \textcite{rule2019tenrules} codify practical guidance for writing and sharing analyses in Jupyter, stressing clear sectioning, reproducible execution order, and documentation habits that later readers can follow without re-running every cell blindly.
+
+Kaggle has become a prominent venue for notebook-centric data science at scale. \textcite{quaranta2021kgtorrent} released KGTorrent, a corpus of Python Jupyter notebooks harvested from Kaggle, enabling mining of structural and content patterns across thousands of public analyses. \textcite{wang2021welldocumented} studied documentation practices in Kaggle notebooks through interviews and content analysis, finding that effective notebooks balance code, markdown explanation, and visual evidence---yet many notebooks remain under-documented or difficult to reuse. \textcite{quaranta2022bestpractices} extended this line by eliciting collaborative best practices for computational notebooks and assessing their adoption in Kaggle-derived notebooks; experts recognise recommendations such as modular cell structure and explicit data provenance, but tool support and competition deadlines often impede consistent adherence.
+
+Together, this literature establishes three properties relevant to the present project. First, notebook work is \emph{cell-oriented}: meaningful units are indexed positions containing code or markdown, not abstract symbols in a flat source file. Second, workflows are \emph{iterative and non-linear}; assistance must tolerate reordering, re-execution, and partial drafts. Third, Kaggle notebooks sit within a \emph{web platform} whose social and competitive context shapes authoring norms. Competition deadlines, public leaderboards, and fork-and-remix culture encourage rapid experimentation over polished software engineering discipline---a tension \textcite{quaranta2022bestpractices} document when recommended practices collide with time pressure.
+
+From a systems perspective, notebooks also decouple \emph{authoring state} from \emph{execution state}. A cell may contain code that has not been run, code whose output is stale, or markdown that documents results from an earlier kernel session. Assistants that treat notebook files as static text risk proposing edits that contradict execution order or ignore hidden failures in prior cells. \textcite{rule2018exploration} note that analysts frequently pivot between exploratory and explanatory stances within the same document, interleaving throwaway diagnostics with narrative intended for peers. An effective copilot must therefore present the model with both structural layout (which cells exist, in what order, and of what type) and, where observable, signals about whether cells have been executed---even if full runtime introspection is unavailable on Kaggle. Any assistant targeting Kaggle must respect positional cell identity, mixed markdown/code structure, and the analyst's live editing session rather than a static export alone.
+
+\section{Large Language Models for Code and Data Science}
+\label{sec:lit-llm-code}
+
+The emergence of large language models trained on vast code corpora has reshaped software development assistance. \textcite{hou2024llm4se} provide a systematic literature review spanning model architectures, training data, and downstream software engineering tasks---including code generation, repair, summarisation, and test synthesis---concluding that \acp{LLM} are increasingly embedded across the development lifecycle but that task-specific evaluation and human factors remain active research areas. Among early demonstrations of code-capable models, \textcite{finnieansley2022codex} examined OpenAI Codex in introductory programming education, reporting that students could solve standard exercises with model-generated solutions while raising concerns about over-reliance, assessment integrity, and the gap between generated snippets and pedagogically scaffolded understanding.
+
+Commercial code-completion systems have since moved from research prototypes to everyday IDE features. \textcite{ziegler2024copilot} measured GitHub Copilot's impact on developer productivity in a controlled trial, finding that access to AI suggestions reduced task completion time for a representative sample of implementation tasks. The study underscores that \emph{context}---the code already visible in the editor---is central to suggestion quality. Copilot and analogous tools, however, assume an IDE buffer with stable file semantics. They do not natively observe notebook cell indices, markdown neighbours, or execution state on a remote platform.
+
+Human--computer interaction research complements these performance studies by examining how programmers \emph{experience} AI-generated code. \textcite{vaithilingam2022expectation} compared user expectations with actual behaviour when using LLM-powered code generation tools, highlighting mismatches between anticipated automation and the verification burden users still carry. \textcite{mozannar2024reading} modelled user behaviour and cognitive costs in AI-assisted programming, identifying phases of suggestion review, deferral, and acceptance that influence whether AI accelerates or disrupts flow. Both studies imply that trustworthy assistance requires not only fluent generation but also alignment with the user's current artefact and predictable edit semantics.
+
+Computational notebooks introduce a distinct gap within this landscape. \textcite{mcnutt2023notebookassistants} conducted design probes for AI-powered code assistants \emph{in notebooks}, arguing that notebooks afford interleaved narrative and code, rich outputs, and non-linear execution---properties that generic copilots under-exploit. Participants in their studies valued suggestions that respect cell boundaries, appear adjacent to the code under edit, and preserve the literate narrative surrounding analytics steps. Their prototypes explore inline suggestions and notebook-aware interaction models, yet remain oriented toward JupyterLab-style environments with extension APIs rather than closed, browser-only editors such as Kaggle's \texttt{/edit} interface.
+
+The systematic review by \textcite{hou2024llm4se} further shows that most LLM4SE deployments target repository mining, bug repair, or test generation in traditional software projects. Notebook-centric tasks---markdown generation, cell reordering, competition-specific feature engineering---appear less frequently and are rarely evaluated on live web editors. Pedagogical studies such as \textcite{finnieansley2022codex} focus on whether novices can complete exercises with generated code, not whether an agent can maintain a multi-cell analytical storyline under continuous user edits. Usability findings from \textcite{vaithilingam2022expectation} and \textcite{mozannar2024reading} imply that even strong generators frustrate users when suggestions are hard to verify against the artefact in view. Pasting notebook fragments into a separate chat window exacerbates this verification gap because the assistant's context may omit neighbouring markdown, prior outputs, or cells the user deleted seconds earlier.
+
+No surveyed system provides the combination of live \ac{DOM}-grounded notebook state, native tool calling for cell insert/edit/delete/run, and session binding to a specific browser tab on Kaggle. General chat interfaces remain the de facto workaround for data science students, including those in coursework aligned with \acf{BSDS} learning outcomes, yet they offload integration labour onto the user. The notebook assistance literature thus motivates platform-specific integration work beyond porting IDE copilots.
+
+\section{Retrieval-Augmented and Context-Grounded Generation}
+\label{sec:lit-rag}
+
+Pure parametric knowledge inside an \ac{LLM} is insufficient when answers must reflect private, volatile, or fine-grained state---such as the cells currently visible in a user's notebook. \textcite{lewis2020rag} introduced Retrieval-Augmented Generation (\ac{RAG}), conditioning generation on passages retrieved from an external corpus so that outputs cite up-to-date evidence rather than relying solely on weights frozen at training time. \ac{RAG} decouples \emph{what the model knows parametrically} from \emph{what it is allowed to assert in this turn}, a separation that maps naturally onto assistant design: the notebook snapshot acts as a retrieved document bundle injected into the prompt.
+
+For coding assistants, context grounding takes several forms. IDE copilots ground on open files and cursor position; repository-level systems ground on retrieved functions or documentation from version control. In closed web applications, none of these channels exist unless the client explicitly serialises application state. The Kaggle editor renders cells in the \ac{DOM}; without scraping or privileged \ac{API} access, an external chat panel sees only what the user copies. Static exports (downloaded \texttt{.ipynb} files) lag behind live edits and omit execution ordering cues. Consequently, \emph{DOM-grounded context}---maintaining live and persistent JSON snapshots of cell type, index, and content---is not merely an implementation convenience but a response to the retrieval problem posed by closed platforms.
+
+In-context learning provides a complementary mechanism: models conditioned on exemplars or structured state in the prompt can adapt behaviour without weight updates. Notebook assistance exploits this by serialising cell lists with positional labels (\texttt{Cell 0}, \texttt{Cell 1}, \ldots) so that tool arguments referencing indices align with user-visible structure. Unlike corpus \ac{RAG}, where retrievers rank passages from a static index, notebook grounding resembles \emph{continuous retrieval} from a single mutable document whose authoritative rendering lives in the browser rather than on disk.
+
+The present architecture maintains two snapshot classes---\emph{live} captures refreshed on scrape events and \emph{persistent} copies keyed by notebook URL---so the host can inject context even when the user briefly navigates away or when a turn spans multiple model calls. This design echoes \textcite{lewis2020rag}'s separation of parametric memory and retrieved evidence, but the retriever is deterministic: the extension serialises whatever the editor currently displays. The limitation is context window size and staleness: if scraping is delayed or the user edits during generation, retrieved notebook state may drift. \ac{RAG} literature emphasises freshness and provenance; notebook copilots must likewise refresh snapshots before mutating operations and bind each request to a canonical session URL and tab identifier.
+
+Closed web applications amplify grounding difficulty. Local Jupyter users can point assistants at on-disk \texttt{.ipynb} JSON; Kaggle's editor abstracts that file behind authenticated endpoints and a React \ac{DOM}. Without platform cooperation, the assistant cannot subscribe to kernel messages or file-save events. \ac{DOM} grounding is therefore not an inferior substitute for an \ac{API} so much as the feasible channel for third-party integrators. These requirements extend \ac{RAG} from document collections to \emph{application-state corpora} maintained by a browser extension.
+
+\section{Agentic LLMs and Tool Use}
+\label{sec:lit-agents}
+
+Recent models go beyond single-shot completion by invoking external tools through structured interfaces. \textcite{schick2023toolformer} showed that language models can learn---via self-supervised demonstration---when to call APIs such as calculators or search engines and how to incorporate results into continued generation. \textcite{yao2023react} proposed ReAct, interleaving chain-of-thought reasoning with environment actions in a single trajectory, improving synergy between planning and execution on knowledge-intensive and decision-making benchmarks. \textcite{qin2024toolllm} scaled tool learning to thousands of real-world APIs, highlighting both the promise and the brittleness of open-ended tool selection without domain-specific contracts.
+
+Agentic patterns matter for notebook editing because user requests are seldom atomic. A prompt such as ``add preprocessing, train a model, and evaluate'' implies read--write--execute sequences across multiple cells. Unconstrained agents may hallucinate cell contents, operate on stale indices, or issue parallel edits that race with the editor's positional semantics. Production-oriented designs therefore impose \emph{execution contracts}: bounded tool sets, phased protocols, and deterministic ordering. The present FYP adopts a mandatory two-phase \emph{query--implement} cycle---first read-only inspection (\texttt{list\_cells}, \texttt{notebook\_get\_cell}), then mutating operations---mirroring ReAct's alternation of reasoning and action while constraining write phases to at most two model calls per user message. Host-side reordering of bulk deletes and inserts in descending index order further mitigates index-shift errors endemic to positional notebook models.
+
+Tool mediation also separates \emph{planning} from \emph{side effects}. The Python native host registers tools with the Cerebras \ac{API}; the Chrome extension executes \ac{DOM} operations. This split echoes \textcite{qin2024toolllm}'s separation between language reasoning and API execution, but narrows the API surface to vetted notebook operations (\texttt{insert\_cell}, \texttt{edit\_cell\_by\_index}, \texttt{delete\_by\_index}, \texttt{run\_cell}, \texttt{list\_cells}, \texttt{notebook\_get\_cell}) rather than arbitrary web APIs. \textcite{schick2023toolformer} demonstrate that models can learn \emph{when} to invoke tools; \textcite{yao2023react} show that interleaving deliberation with actions improves multi-step tasks. The FYP combines these insights with domain-specific guardrails: Agentic mode is not an open-ended ReAct loop but a capped two-call protocol that forces inspection before mutation.
+
+Fire-and-forget batch dispatch---where the host emits an ordered tool batch without waiting for per-cell acknowledgement before the model's second call---reflects latency constraints identified in interactive programming studies \parencite{mozannar2024reading}. Full closed-loop replanning after every cell run would exceed practical \ac{API} budgets for classroom and competition settings. Instead, scrape-based monitors surface execution and structural changes asynchronously, allowing the user or a subsequent turn to react. Such narrowing trades generality for safety and testability---a deliberate response to closed-platform constraints where unvetted automation could corrupt user work or violate terms of service.
+
+\section{Web-Based Notebook Environments and Integration Challenges}
+\label{sec:lit-web-integration}
+
+Kaggle notebooks execute in the browser without exposing a documented automation \ac{API} to third-party assistants. Unlike local JupyterLab, where extensions can hook kernel messages and editor events, integrators on Kaggle must treat the rendered editor as the source of truth. Web scraping research offers conceptual tools for this setting. \textcite{chasins2018roussillon} present Rousillon, a system for scraping hierarchical web data through programmatic interaction with page structure; although aimed at data extraction rather than authoring, it illustrates the fragility and expressiveness of DOM-level automation when no server cooperation exists.
+
+Browser extensions occupy a pragmatic middle ground. They run with the user's consent in the same origin as the editor, can observe \ac{DOM} mutations, and communicate with native hosts via Chrome's messaging channel. This architecture avoids credential sharing with remote scrapers while enabling periodic serialisation of notebook state. Challenges remain substantial:
+
+\begin{itemize}
+  \item \textbf{Structural volatility.} Front-end refactors can break selectors; scrape-based monitors must be maintained.
+  \item \textbf{Positional identity.} Cells are identified by index; inserts and deletes shift subsequent indices, requiring ordered batch operations.
+  \item \textbf{Execution observability.} Without kernel WebSocket access, run completion must be inferred from \ac{DOM} changes rather than explicit events.
+  \item \textbf{Session multiplicity.} Users may open several notebook tabs; assistance must coerce \texttt{tab\_id} and notebook URL on every tool dispatch.
+  \item \textbf{Latency and cost.} Agentic loops multiply \ac{LLM} calls; hard caps and fire-and-forget batching bound responsiveness.
+\end{itemize}
+
+\textcite{mcnutt2023notebookassistants} identify notebook-specific affordances---inline outputs, narrative context, cell boundaries---that generic assistants ignore; the integration literature adds that \emph{access mechanism} determines whether those affordances are machine-readable. Privileged platform APIs, local kernel bridges, and \ac{DOM} scraping form a spectrum of fidelity and maintenance burden. \textcite{chasins2018roussillon} remind implementers that hierarchical web data extraction requires robust selectors and tolerance for layout variation---lessons directly applicable when Kaggle updates editor markup.
+
+Native messaging between the extension and a Python host further mirrors how production assistants separate \emph{trust boundaries}: the browser handles same-origin \ac{DOM} access; the host stores snapshots, calls the remote \ac{LLM}, and normalises tool arguments. This mirrors the split in enterprise copilots where IDE plugins collect context and cloud services run models, except here the ``IDE'' is a scraped web surface. Kaggle's closed editor pushes this project toward extension-mediated scraping plus native-host orchestration, accepting observational delay and layout sensitivity in exchange for user-side deployability without platform partnership.
+
+\section{Research Gap and Positioning}
+\label{sec:lit-gap}
+
+Synthesising the preceding sections reveals a convergent gap aligned with Chapter~\ref{c-intro}. Computational notebook research documents how analysts explore, explain, and collaborate on Kaggle \parencite{rule2018exploration,wang2021welldocumented,quaranta2022bestpractices}, yet stops short of agentic systems that \emph{mutate} live browser sessions. \ac{LLM} for software engineering surveys catalog code intelligence advances \parencite{hou2024llm4se} and Copilot-style productivity gains \parencite{ziegler2024copilot}, but IDE-centric tools do not address positional cell workflows or markdown/code interleaving on proprietary web editors. \ac{RAG} and tool-augmented models \parencite{lewis2020rag,schick2023toolformer,yao2023react,qin2024toolllm} supply architectural ingredients---retrieved context, API calls, interleaved reasoning---without specifying how to harvest notebook state from a closed \ac{DOM} or enforce safe edit ordering.
+
+Table~\ref{tab:positioning} contrasts representative approaches with the present FYP along dimensions salient to Kaggle notebook assistance.
+
+\begin{table}[!ht]
 \centering
-% Use, for example, p{3.5cm} style for fixed sized columns
-% consider using vbox to ensure large text is wrapped inside a column
-\begin{tabular}{|p{3cm}|p{9cm}|}
+\caption{Positioning of the proposed system relative to prior assistant paradigms.}
+\label{tab:positioning}
+\small
+\begin{tabular}{|p{2.4cm}|p{2.6cm}|p{2.6cm}|p{2.6cm}|p{2.4cm}|}
 \hline
-\textbf{Reference Type} & \textbf{Citation}\\ \hline
-Article & \cite{iqbal2018generic}\\ \hline
-Book & \cite[p.127-133]{tayyaba20205g}\\ \hline
-InProceedings & \cite{khattak2019perception}\\ \hline
-InCollection & \cite{khattak2019perception}\\ \hline
-PhD Dissertation & \cite{khattak2019perception}\\ \hline
-Masters Thesis & \cite{khattak2019toward}\\ \hline
-Technical Report & \cite{khattak2019perception}\\ \hline
-Misc & \cite{khattak2014coap}\\ \hline
+\textbf{Dimension} & \textbf{IDE Copilot} \parencite{ziegler2024copilot} & \textbf{Notebook design probes} \parencite{mcnutt2023notebookassistants} & \textbf{Kaggle-native tooling} & \textbf{This FYP} \\ \hline
+Deployment surface & Local IDE & Jupyter-oriented & Platform UI & Chrome extension + native host \\ \hline
+Notebook context & Open files & Prototype hooks & Internal only & DOM-scraped JSON snapshots \\ \hline
+Cell operations & Text edit & Suggested inserts & Manual UI & Tool-mediated insert/edit/delete/run \\ \hline
+Agentic control & Single-shot completion & Exploratory & N/A & Two-phase query--implement, bounded calls \\ \hline
+Session binding & Workspace & N/A & Account session & URL + \texttt{tab\_id} coercion \\ \hline
 \end{tabular}
-\caption{Citation Styles.}
-\label{t-References}
 \end{table}
+
+The proposed system occupies an under-explored niche: \emph{agentic, tool-mediated notebook editing on Kaggle \texttt{/edit} pages} with explicit context grounding and execution contracts. It extends \textcite{mcnutt2023notebookassistants} by implementing a deployable split architecture rather than laboratory probes alone; it extends Copilot-style assistants by targeting positional notebook structure rather than flat source buffers; and it extends generic ReAct/tool-learning frameworks by specialising tools, enforcing read-then-write phases, and reconciling index shifts on the host before browser dispatch.
+
+Limitations acknowledged in Chapter~\ref{c-intro} remain grounded in this literature. Without privileged APIs, scraping cannot match kernel-level introspection; without closed-loop verification, agentic reliability depends on scrape monitors and bounded rounds rather than full replanning \parencite{mozannar2024reading,vaithilingam2022expectation}. Future work might combine DOM grounding with richer execution feedback or platform partnerships; for the scope of this FYP, the literature justifies DOM-grounded snapshots and constrained tool batches as a principled response to closed web notebook environments.
+
+The next chapter details the methodology used to realise this positioning---architecture, scraping pipeline, tool registry, and evaluation scenarios---building on the foundations established here.
+
+\section{Evaluation Methodologies for LLM Assistants}
+\label{sec:lit-evaluation}
+
+Empirical assessment of coding assistants spans productivity trials, usability studies, and task-specific benchmarks \parencite{ziegler2024copilot,vaithilingam2022expectation,chen2021codex}. Productivity studies measure task completion time when suggestions are available \parencite{ziegler2024copilot}; usability studies capture expectation mismatches and verification effort \parencite{vaithilingam2022expectation,mozannar2024reading}. For tool-augmented agents, additional metrics include tool-call accuracy, API selection correctness, and hallucination of successful execution \parencite{qin2024toolllm,li2023apibank,patil2023gorilla}.
+
+Notebook assistants introduce evaluation dimensions absent from flat-file coding tasks:
+
+\begin{itemize}
+  \item \textbf{Positional fidelity.} Do tool arguments reference valid cell indices after structural changes?
+  \item \textbf{Mode-contract compliance.} Does Ask mode avoid writes? Does Code mode defer empty-cell code?
+  \item \textbf{Context grounding.} Do explanations cite cells and variables present in the snapshot?
+  \item \textbf{Dispatch correctness.} In bounded agentic settings, does the model emit read-then-write batches?
+\end{itemize}
+
+\textcite{hou2024llm4se} emphasise aligning metrics with deployment contracts rather than importing generic code-generation scores. This FYP adopts that principle: Agentic mode is scored on \emph{tool dispatch} under a two-call cap; Ask and Code modes are scored on side-effect-free behaviour plus automated rubrics for coverage and code alignment. Human expert grading remains recommended future work \parencite{wang2021welldocumented,chen2021codex}.
+
+\section{Ethical and Pedagogical Considerations}
+\label{sec:lit-ethics}
+
+LLM assistance in educational settings raises integrity and dependency concerns \parencite{finnieansley2022codex}. Ask mode's read-only contract supports formative learning---students can request explanations without automated submission of solutions. Code mode requires manual insertion, preserving a deliberate human step before code enters the notebook. Agentic mode automates edits and should be positioned as an advanced workflow tool rather than a default for graded assignments without instructor policy.
+
+From a safety perspective, constraining tools to six vetted cell operations reduces the attack surface compared with arbitrary code execution or unrestricted web API access \parencite{patil2023gorilla,schick2023toolformer}. Session binding via URL and \texttt{tab\_id} limits cross-notebook accidents when multiple kernels are open.
+
+\section{Synthesis: Design Principles for Notebook Agents}
+\label{sec:lit-synthesis}
+
+Drawing on the surveyed literature, five design principles informed the methodology in Chapter~\ref{c-methods}:
+
+\begin{enumerate}
+  \item \textbf{Ground before generate.} Retrieval-augmented and in-context grounding \parencite{lewis2020rag} require fresh notebook serialisation before mutating operations---implemented as mandatory round~0 reads in Agentic mode.
+  \item \textbf{Bound autonomy.} Agentic systems without caps risk runaway tool loops \parencite{yao2023react,qin2024toolllm}; the two-call contract and six-tool surface enforce predictability.
+  \item \textbf{Respect positional semantics.} Notebook cells are not files; bulk edits need deterministic reordering \parencite{rule2019tenrules}.
+  \item \textbf{Separate explanation from execution.} Usability research shows users need predictable edit semantics \parencite{mozannar2024reading,vaithilingam2022expectation}. This motivates Ask, Code, and Agentic mode separation.
+  \item \textbf{Evaluate against contracts.} Metrics must match what the system actually does \parencite{hou2024llm4se}---dispatch scoring for Agentic, side-effect-free rubrics for Ask and Code.
+\end{enumerate}
+
+These principles bridge the gap between general-purpose \ac{LLM} tooling and the constraints of closed Kaggle notebook editors identified throughout this chapter.
+
+\section{Chronological Landscape}
+\label{sec:lit-timeline}
+
+Table~\ref{tab:timeline} situates key prior work on a simplified timeline, illustrating how notebook practice, code \acp{LLM}, and agentic tool use converged to motivate this FYP.
+
+\begin{table}[!ht]
+\centering
+\caption{Simplified chronology of related research themes.}
+\label{tab:timeline}
+\small
+\begin{tabular}{|c|p{4.2cm}|p{6.8cm}|}
+\hline
+\textbf{Period} & \textbf{Theme} & \textbf{Representative work} \\ \hline
+2007--2016 & Notebook ecosystems & IPython \parencite{perez2007ipython}; Jupyter \parencite{kluyver2016jupyter} \\ \hline
+2018--2019 & Notebook practice studies & Exploration vs.\ explanation \parencite{rule2018exploration}; ten rules \parencite{rule2019tenrules} \\ \hline
+2020--2021 & Scale and documentation & \ac{RAG} \parencite{lewis2020rag}; KGTorrent \parencite{quaranta2021kgtorrent}; Codex \parencite{chen2021codex} \\ \hline
+2022--2023 & Copilots and notebook UX & Expectation studies \parencite{vaithilingam2022expectation}; ReAct \parencite{yao2023react}; notebook assistants \parencite{mcnutt2023notebookassistants} \\ \hline
+2023--2024 & Tool learning at scale & Toolformer \parencite{schick2023toolformer}; ToolLLM \parencite{qin2024toolllm}; Copilot trial \parencite{ziegler2024copilot} \\ \hline
+2024--2026 & LLM4SE synthesis & Systematic reviews \parencite{hou2024llm4se}; present FYP artefact \\ \hline
+\end{tabular}
+\end{table}
+
+The timeline shows that while individual ingredients---notebooks, retrieval, tools, copilots---matured over two decades, integrated agentic assistance for closed web notebook editors remains under-served. This FYP contributes at the convergence point in the final row.

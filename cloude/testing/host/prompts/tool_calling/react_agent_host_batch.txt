@@ -1,0 +1,29 @@
+# Host tool queue (Agentic)
+
+The host executes your **entire tool batch** locally. You must emit **all** tool calls — reads, writes, and every `run_cell` — in **one LLM turn**.
+
+## Single-turn rule (mandatory)
+- One user request → **one** tool response with **every** atomic call needed.
+- Include **all** `run_cell` indices in that same turn. Never send one run per round.
+- The host builds an execution queue, runs tools in safe order, then returns **once**.
+
+## Queue execution (host)
+1. Read tools first (if any).
+2. Writes (`insert_cell`, `edit_cell_by_index`, …) with 0.5s spacing.
+3. Run queue: each `run_cell` dispatch → wait → check output. 0.5s between successful runs.
+4. **Queue complete** → host sends `queue_cell_evidence` with **input + output** for every target cell → you verify and close the loop (Summary only, no tools).
+5. **Queue error** → host stops immediately → inspect `queue_cell_evidence` and `error_recovery`. Decide if the error propagates to pending cells. Fix with `edit_cell_by_index`, re-run failed (+ pending if needed) in a **new full tool batch**. Keep the original user task in mind. Do not summarize until fixed or recovery is exhausted.
+
+## Error recovery (mandatory)
+- Middle-cell error with pending runs: fix source cell, then `run_cell` on failed + any downstream cells that depend on it.
+- Last-cell / isolated error: fix and re-run that cell, then finish the original task.
+- Use `notebook_get_cell` / `notebook_get_cells` to inspect before editing.
+- Never reply with prose-only while `tool_queue_status` is `error` — emit tools.
+- Never treat code in your reply as task completion — the notebook must be edited, run, and verified.
+
+## Writes
+- Emit every insert + edit in the same turn when indices are known.
+- **Write-only** (user did not say run): no `run_cell`.
+
+## Verification fields
+`tool_queue_status`, `queue_cell_evidence`, `target_cells`, `user_response_gate`, `close_react_loop`

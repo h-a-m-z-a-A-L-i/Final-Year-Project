@@ -21,6 +21,32 @@
 \newcommand{\regno}[1]{\gdef\@regno{#1}}
 \newcommand{\address}[1]{\gdef\@address{#1}}
 
+% Dual-author / dual-regno (two-student FYP)
+\newcommand{\authorone}[1]{\gdef\@authorone{#1}}
+\newcommand{\authortwo}[1]{\gdef\@authortwo{#1}}
+\newcommand{\regnoone}[1]{\gdef\@regnoone{#1}}
+\newcommand{\regnotwo}[1]{\gdef\@regnotwo{#1}}
+\authorone{}
+\authortwo{}
+\regnoone{}
+\regnotwo{}
+
+% Prose and title-page display helpers
+\newcommand{\authorslist}{\@authorone\ and\ \@authortwo}
+\newcommand{\authorswithregnos}{%
+	\textbf{\@authorone} (Registration No \textbf{\@regnoone}) and
+	\textbf{\@authortwo} (Registration No \textbf{\@regnotwo})}
+\newcommand{\authortitleblock}{%
+	\ifx\@authorone\@empty
+		\textbf{\@author}\\
+		\expandafter\textbf{\@regno}%
+	\else
+		\textbf{\@authorone}\\
+		\textbf{\@regnoone}\\[2em]
+		\textbf{\@authortwo}\\
+		\textbf{\@regnotwo}%
+	\fi}
+
 % Title of the degree
 % Some of the degree program are defined below
 \newcommand{\degree}[1]{\gdef\@degree{#1}}
@@ -40,6 +66,19 @@
 \newcommand{\supervisor}[1]{\gdef\@supervisor{#1}}
 \newcommand{\supervisorAffiliation}[1]{\gdef\@supervisorAffiliation{#1}}
 \supervisorAffiliation{} % Default empty affiliation
+% Backward-compatible aliases (README / older templates used \adviser)
+\newcommand{\adviser}[1]{\supervisor{#1}}
+\newcommand{\adviserAffiliation}[1]{\supervisorAffiliation{#1}}
+
+% Public aliases for preface pages (avoid \@ in \input files)
+\newcommand{\fyptitle}{\@title}
+\newcommand{\fypsupervisor}{\@supervisor}
+\newcommand{\fypauthorone}{\@authorone}
+\newcommand{\fypauthortwo}{\@authortwo}
+\newcommand{\fypregnoone}{\@regnoone}
+\newcommand{\fypregnotwo}{\@regnotwo}
+\newcommand{\fypdept}{\@dept}
+\newcommand{\fypsupervisoraffiliation}{\@supervisorAffiliation}
 
 % Reset page numbering to 'arabic'
 \newcommand{\resetpagenumbering}{
@@ -67,17 +106,16 @@
     
     \begin{large}
    	By\\
-   	\textbf{\@author}\\
-   	\expandafter\textbf{\@regno} \\
+   	\authortitleblock \\
     	
    	\vspace*{\stretch{2}}
      	
    	Supervisor\\
-   	\textbf{\@adviser} \\
+   	\textbf{\@supervisor} \\
 
     \vspace*{\stretch{2}}
    	
-   	\textbf{\@adviserAffiliation}\\
+   	\textbf{\@supervisorAffiliation}\\
    	\end{large}
 
     \vspace*{\stretch{3}}

@@ -1,72 +1,65 @@
 %!TEX root = ../_fyp.tex
-\chapter{Conclusion} % (fold)
-\label{cha:_literature_review}
+\chapter{Conclusion}
+\label{cha:conclusion}
 
-\section{Section 1} % (fold)
-\label{sec:section_21}
-Led ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur.
+This FYP set out to build an agentic \ac{LLM} assistant that grounds reasoning in live Kaggle notebook state and manipulates cells through a bounded tool interface. The implemented system---a Chrome extension, Python native host, dual JSON snapshot stores, and GLM~4.7 integration via Cerebras---addresses the context-grounding and tool-mediation problems stated in Section~\ref{sec:problem-statement}.
 
-\par
-Led ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur.
+\section{Summary of Findings}
 
-\subsection{Subsection 1} % (fold)
-\label{sub:subsection_211}
-Led ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur.
+\textbf{Architecture.} The extension--host split enforces a clear trust boundary: \ac{DOM} access and tool execution remain in the browser; \ac{API} credentials and orchestration remain on the host \parencite{chasins2018roussillon,qin2024toolllm}. Session keys derived from Kaggle kernel identifiers align snapshots, chat history, and tool arguments.
 
-\begin{equation} \label{eq1}
-  \begin{split}
-    A & = \frac{\pi r^2}{2} \\
-      & = \frac{1}{2} \pi r^2
-  \end{split}
-\end{equation}
+\textbf{Agentic mode.} Under the mandatory two-call contract, the model first queries notebook structure and then dispatches an implement batch. The reported ML pipeline test achieved successful dispatch of 37 tools (24 insert, 24 edit, 24 run, 2 read) in the second \ac{API} call. This demonstrates feasible batch planning for multi-cell workflows without an open ReAct loop \parencite{yao2023react}.
 
-\par
-Adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem. Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur? \cite{bruno,smith}
+\textbf{Ask mode.} Read-only assistance achieved strong cell-level explanation (0\% heuristic hallucination on cell~17), reliable error diagnosis on cell~31, and 89\% workflow topic coverage on the notebook explanation task---all with zero tool calls and zero writes.
 
-\begin{table}[!htb]
+\textbf{Code mode.} All four reported scenarios passed under the no-write contract, including correct XGBoost training code, cell replacement, feature-engineering modules, and empty-cell intent deferral \parencite{mcnutt2023notebookassistants}.
+
+\section{Research Objectives Revisited}
+
+Objectives~1--5 (architecture, context pipeline, tools, agentic contract, scrape-based monitors) were realised in the artefact described in Chapter~\ref{c-methods}. Objective~6 (empirical validation) was addressed through the three benchmark suites in Chapter~\ref{c-results}. The evidence supports the hypothesis that \emph{mode-specific contracts}---Ask for understanding, Code for implementation guidance, Agentic for batched dispatch---produce measurably different behaviour on the same notebook corpus.
+
+\section{Contributions}
+
+Relative to generic chat interfaces and IDE copilots \parencite{ziegler2024copilot,vaithilingam2022expectation}, this work contributes: (i)~DOM-grounded notebook snapshots for a closed web editor; (ii)~a vetted six-tool surface for positional cell operations; (iii)~a mandatory query--implement two-call Agentic protocol with host-side batch reordering; and (iv)~an reproducible evaluation harness distinguishing dispatch fidelity from execution verification.
+
+\section{Future Work}
+\label{sec:future-react}
+
+The current Agentic mode deliberately omits a full ReAct-style observe--act loop with per-cell feedback \parencite{yao2023react,shinn2023reflexion}. A natural extension is to add replanning rounds that ingest execution traces from scrape-based monitors (Section~\ref{sec:tool-registry}), enabling goal verification after each \texttt{run\_cell}. Additional directions include: retrieval-augmented packing for long notebooks \parencite{lewis2020rag,jiang2023structgpt}; live Kaggle \ac{DOM} studies to complement harness results; and cross-model evaluation \parencite{hou2024llm4se,openai2023gpt4}.
+
+In sum, the project demonstrates that a deployable notebook copilot can separate explanation, code generation, and tool orchestration into three modes while sharing a common grounding pipeline---a design pattern applicable beyond Kaggle to other closed notebook platforms identified in Chapter~\ref{c-review}.
+
+\section{Lessons Learned}
+\label{sec:lessons}
+
+Development of the artefact yielded four practical lessons for future notebook-agent projects:
+
+\begin{enumerate}
+  \item \textbf{Positional identity is first-class.} Tool arguments must use the same indexing convention as the scraped \ac{DOM}; mismatches between zero-based and one-based indices were a recurring integration bug during Phase~4 (Table~\ref{tab:phases}).
+  \item \textbf{Phase guards are essential.} Without stripping write tools in round~0, models occasionally emitted premature inserts before reading notebook structure---violating the query--implement discipline advocated in agentic literature \parencite{yao2023react}.
+  \item \textbf{Batch reordering prevents index drift.} Descending-order deletes and inserts materially reduced failed dispatches in multi-cell Agentic tests compared with naive queue order.
+  \item \textbf{Evaluation must match implementation.} Scoring Agentic runs on verification criteria the host does not implement would misrepresent system capability; dispatch-only metrics align claims with the shipped artefact.
+\end{enumerate}
+
+\section{Alignment with Research Objectives}
+
+Table~\ref{tab:objective-map} maps each objective from Section~\ref{sec:objectives} to evidence in this dissertation.
+
+\begin{table}[!ht]
 \centering
-    \begin{tabular}{xyyy}
-    \hline
-    \rowcolor{Gray}
-    \textsc{Column 1} & \textsc{Column 2} & \textsc{Column 3} & \textsc{Column 4}\\
-    \hline
-    1, 1 & 1, 2 & 1, 3 & 1, 4 \\
-    2, 1 & 2, 2 & 2, 3 & 2, 4 \\
-    3, 1 & 3, 2 & 3, 3 & 3, 4 \\
-    4, 1 & 4, 2 & 4, 3 & 4, 4 \\ \hline
-    \end{tabular}
-    \caption{The caption of the table goes here.}
-    \label{tab:demo_table}
+\caption{Research objectives and supporting evidence.}
+\label{tab:objective-map}
+\small
+\begin{tabular}{|c|p{4.2cm}|p{5.8cm}|}
+\hline
+\textbf{Obj.} & \textbf{Topic} & \textbf{Evidence} \\ \hline
+1 & Architecture & Ch.~\ref{c-methods}, Fig.~\ref{f-architecture}; extension--host split \\ \hline
+2 & Context pipeline & \ref{sec:notebook-json}; dual live/persistent stores \\ \hline
+3 & Tool operations & \ref{sec:tools-table}; six registered tools \\ \hline
+4 & Agentic contract & Test~1: 37-tool batch in 2 calls \\ \hline
+5 & Scrape monitors & \texttt{cell\_execution\_observer.py} \\ \hline
+6 & Empirical validation & Ch.~\ref{c-results}; three benchmark suites \\ \hline
+\end{tabular}
 \end{table}
 
-\par
-Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco\footnote{\label{foot_note_1}Led ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam.} laboris nisi ut aliquip ex ea commodo consequat \cite{bruno}. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. \cite{smith}
-\begin{multline}
-p(x) = 3x^6 + 14x^5y + 590x^4y^2 + 19x^3y^3\\
-- 12x^2y^4 - 12xy^5 + 2y^6 - a^3b^3
-\end{multline}
-% subsection subsection_211 (end)
-
-\subsection{Subsection 2} % (fold)
-\label{sub:subsection_212}
-Led ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur.
-
-\par
-Led ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur.
-% subsection subsection_212 (end)
-% section section_21 (end)
-
-\section{Section 2} % (fold)
-\label{sec:section_22}
-Led ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur.
-
-\par
-Led ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur.
-
-\section{Future Work} % (fold)
-\label{sub:subsection_221}
-Led ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur.
-
-\par
-Led ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur.
-% subsection subsection_221 (end)
+All six objectives were addressed within stated scope limitations (Section~\ref{sec:limitations}).

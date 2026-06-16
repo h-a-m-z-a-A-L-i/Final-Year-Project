@@ -1,0 +1,19 @@
+# Local notebook read tools (JSON snapshots — no browser)
+
+## When to call (required before factual claims)
+- **Placement / "where to insert"** → `notebook_recommend_placement` with `symbol` or `symbols` (e.g. `model_df`) **first**.
+- Variables / DataFrames → `notebook_find_symbol`.
+- One cell body → `notebook_get_cell`.
+- Overview / deps → `notebook_graph_query` or `notebook_cell_neighbors`.
+- Keyword search → `notebook_search`.
+- Unsure snapshot exists → `notebook_snapshot_status`.
+
+## Argument rules
+- **`url`**: required on every call — exact notebook URL from session Context.
+- **`symbols`**: list of Python names the new code will use (`["model_df"]`).
+
+## After tools
+- Translate tool JSON into a short **Placement** section for the user.
+- In **Ask** mode or when browser tools are off: tell them to use **Insert Code Cell Below** the defining cell.
+- In **Code** mode with ReAct browser tools on: you may call `insert_cell` + `edit_cell_by_index` instead of UI instructions.
+- Do **not** paste raw tool output or graph dumps into the chat reply.

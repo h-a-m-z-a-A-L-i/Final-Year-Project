@@ -1,0 +1,387 @@
+================================================================================
+SYSTEM ARCHITECTURE AND MESSAGE BRIDGE
+================================================================================
+Normal-chrome / Kaggle Notebook Copilot — FYP
+Companion docs: NOTEBOOK_SCRAPE_AND_DATA_PIPELINE.txt,
+                 CHAT_REQUEST_TO_LLM_RESPONSE.txt
+Source roots: testing/extension/, testing/host/
+
+================================================================================
+1. PURPOSE
+================================================================================
+
+This document describes the three-tier architecture that connects a Kaggle
+notebook page in Chrome to a Python host process and back. It covers extension
+components, the native messaging bridge, host message routing, and storage at
+a high level.
+
+================================================================================
+2. HIGH-LEVEL ARCHITECTURE
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  TIER 1 — Kaggle /edit page (JupyterLab in browser)                         │
+│    Content scripts (all frames):                                            │
+│      cell_index_badges.js    — 1-based cell index overlays                  │
+│      kernel_state_listener.js — kernel on/off, bot automation hooks          │
+│      cell_debug_chat.js      — per-cell floating debug panel                │
+│      prompt_observer.js      — detects execution signals in cells           │
+│    Injected on demand:                                                      │
+│      ui_injector.js            — main copilot sidebar (chat, modes, history)  │
+└───────────────────────────────┬─────────────────────────────────────────────┘
+                                │ chrome.runtime.sendMessage / onMessage
+┌───────────────────────────────▼─────────────────────────────────────────────┐
+│  TIER 2 — background.js (Manifest V3 service worker)                        │
+│    - Persistent chrome.runtime.connectNative port → Python host             │
+│    - scrapeNotebook() injected into all frames every 300ms–5s               │
+│    - Notebook identity cache per tab (notebookIdentityByTab)                  │
+│    - Forwards extension messages to host; broadcasts host replies to tabs     │
+│    - Browser tool dispatch (INSERT_CELL, RUN_CELL_BY_INDEX, etc.)           │
+└───────────────────────────────┬─────────────────────────────────────────────┘
+                                │ stdin/stdout JSON (Chrome Native Messaging)
+                                │ 4-byte length prefix + UTF-8 payload
+┌───────────────────────────────▼─────────────────────────────────────────────┐
+│  TIER 3 — testing/host/host.py (main loop)                                  │
+│    Message router → subsystems:                                             │
+│      notebook_data_handler.py  — scrape ingest                              │
+│      memory.py                 — SQLite chat history                        │
+│      notebook_context.py       — pack_context() for LLM evidence            │
+│      prompt_engineering.py     — system prompt assembly                       │
+│      streaming.py              — LLM API + two-phase agentic flow           │
+│      tool_registry.py          — local read tools + browser write tools     │
+│      notebook_identity.py      — stable Kaggle kernel ID resolution         │
+└───────────────────────────────┬─────────────────────────────────────────────┘
+                                │
+        ┌───────────────────────┼───────────────────────┐
+        ▼                       ▼                       ▼
+  SQLite chat DB          notebooks/live/          Cerebras API
+  notebooks/persistent/   meta/*.json              (gpt-oss-120b)
+
+================================================================================
+3. NATIVE MESSAGING BRIDGE
+================================================================================
+
+3.1 Registration
+----------------
+  - Native host manifest: testing/host/host.json (or cloude/native equivalent)
+  - Host name in extension: com.testing.tabprinter (background.js HOST const)
+  - Launcher: register.ps1 / launcher.cmd starts python host.py
+
+3.2 Connection lifecycle (background.js)
+----------------------------------------
+  1. getPort() → chrome.runtime.connectNative(HOST)
+  2. port.onMessage → handleHostMessage() → broadcast to tab frames
+  3. port.onDisconnect → port = null; UI shows "Native host not connected"
+  4. Extension chrome.runtime.onMessage → attach tabId + notebook identity
+     → port.postMessage(msg) to host
+
+3.3 Message envelope
+--------------------
+  All messages are JSON objects with a "type" field.
+  Host reads via get_next_message() (4-byte LE length + body).
+  Host sends via send_msg() with same framing.
+
+3.4 Tab context attachment
+--------------------------
+  NOTEBOOK_SCOPED_MSG_TYPES (CHAT_REQUEST, GET_HISTORY, etc.):
+    - msg.url normalized to tab's /edit URL (not iframe URL)
+    - msg.tabId = sender.tab.id
+    - attachNotebookIdentity() adds notebookId + notebookKey
+
+================================================================================
+4. KAGGLE PAGE COMPONENTS
+================================================================================
+
+4.1 manifest.json
+-----------------
+  - MV3 service worker: background.js
+  - Content scripts on kaggle.com and jupyter-proxy.kaggle.net (all_frames: true)
+  - Permissions: tabs, nativeMessaging, scripting, webNavigation
+
+4.2 background.js — central orchestrator
+----------------------------------------
+  Key responsibilities:
+    sendTabs()           — scan open Kaggle edit tabs, scrape, send NOTEBOOK_DATA
+    scrapeNotebook()     — DOM extraction function injected via executeScript
+    resolveNotebookIdentity() — always via host Kaggle API (RESOLVE_NOTEBOOK_IDENTITY)
+    injectUI()           — injects ui_injector.js into edit pages
+    handleHostMessage()  — routes CHAT_STREAM, HISTORY_DATA, GRAPH_DATA, etc.
+    dispatchBrowserTool() — executes INSERT_CELL, SET_CELL_CONTENT, RUN_CELL_BY_INDEX
+
+  Scrape timing:
+    SCRAPE_MS_ACTIVE = 300ms when active tab visible
+    SCRAPE_MS_IDLE   = 5000ms otherwise
+    PROMPT_SIGNAL    → fast rescrape (~80ms delay)
+
+4.3 ui_injector.js — main copilot sidebar
+-----------------------------------------
+  Fixed right panel with:
+    - Chat input + send/stop buttons
+    - Mode dropdown: ask | code | agentic
+    - History dropdown (sessions per notebook)
+    - Markdown rendering (markdown-it)
+
+  Outbound: CHAT_REQUEST { url, notebookId, notebookKey, sessionId, mode, prompt }
+  Inbound:  CHAT_STREAM, CHAT_STREAM_END, HISTORY_DATA, NOTEBOOK_IDENTITY_UPDATED
+
+  Session: localStorage key copilot_session_{notebookKey} (UUID per conversation)
+
+4.4 cell_debug_chat.js — per-cell floating panel
+------------------------------------------------
+  Purple badge on code cells opens isolated chat panel.
+  Differences from main copilot:
+    - sessionId: cell-debug-{cellIndex}
+    - streamChannel: cell-{N} (isolated stop/cancel)
+    - prompt prefix: "cell N: {user text}"
+    - cellIndex passed in CHAT_REQUEST
+  Same host pipeline otherwise (see CHAT_REQUEST_TO_LLM_RESPONSE.txt).
+
+4.5 Supporting extension scripts
+--------------------------------
+  cell_index_utils.js / cell_index_badges.js
+    1-based indexing aligned with host JSON and tools.
+
+  kernel_state_listener.js
+    Tracks kernel on/off; executes bot commands from host (click, run, edit).
+
+  notebook_identity.js
+    Browser-side ID scrape (secondary; host Kaggle API is authoritative).
+
+  prompt_observer.js
+  Sends PROMPT_SIGNAL to background when cell execution metadata changes;
+  triggers fast rescrape.
+
+================================================================================
+5. HOST MESSAGE ROUTER (host.py)
+================================================================================
+
+Main loop: while True → get_next_message() → dispatch by m_type.
+
+Message types handled:
+
+  RESOLVE_NOTEBOOK_IDENTITY
+    → notebook_identity.resolve_notebook_identity()
+    ← NOTEBOOK_IDENTITY { tabId, url, notebookId, notebookKey }
+
+  NOTEBOOK_DATA
+    → notebook_data_handler.handle_notebook_data()
+    ← { ok: true }
+    (See NOTEBOOK_SCRAPE_AND_DATA_PIPELINE.txt)
+
+  NOTEBOOK_URL_CHANGED
+    → notebook_identity.handle_notebook_url_changed()
+    Migrates SQLite chat keys when notebook slug changes.
+
+  CHAT_REQUEST
+    → pack_context + memory + threading.Thread → streaming._run_streaming_chat()
+    (See CHAT_REQUEST_TO_LLM_RESPONSE.txt)
+
+  STOP_CHAT
+    → sets stopped flag on active stream → CHAT_STREAM_END stopped=true
+
+  GET_HISTORY / CLEAR_HISTORY
+    → memory.py SQLite operations
+    ← HISTORY_DATA / HISTORY_CLEARED
+
+  GET_GRAPH
+    → notebook_data_handler.handle_get_graph()
+    ← GRAPH_DATA (dependency panel visualization)
+
+  GET_AGENTIC_SETTINGS / SET_AGENTIC_SETTINGS
+    → agentic_mode.py (server_allowed, dashboard_enabled)
+
+  INSERT_CODE_CELL
+    → tool_adapters.insert_and_edit_cell() via bot pipeline
+    ← INSERT_CODE_CELL_RESULT
+
+  PROMPT_SIGNAL
+    → execution_signal_patch + update_cell_execution (background threads)
+
+================================================================================
+6. MESSAGE TYPE OVERVIEW (EXTENSION ↔ HOST)
+================================================================================
+
+  EXTENSION → HOST (requests)
+  ─────────────────────────────
+  NOTEBOOK_DATA              Live scrape payload (cells, kernel state)
+  RESOLVE_NOTEBOOK_IDENTITY  Resolve stable notebook key for tab URL
+  NOTEBOOK_URL_CHANGED       URL slug changed; trigger key migration
+  CHAT_REQUEST               User chat turn (all modes)
+  STOP_CHAT                  Cancel active stream
+  GET_HISTORY                Load session messages + session list
+  CLEAR_HISTORY              Delete messages for url/session
+  GET_GRAPH                  Dependency graph for debug panel
+  INSERT_CODE_CELL           User-initiated insert below anchor cell
+  PROMPT_SIGNAL              Cell execution metadata changed
+  GET/SET_AGENTIC_SETTINGS   Agentic mode server/dashboard gates
+
+  HOST → EXTENSION (responses / pushes)
+  ─────────────────────────────────────
+  CHAT_STREAM                Streaming text delta { delta, tabId, sessionId, ... }
+  CHAT_STREAM_END            Stream complete { response, stopped, error?, ... }
+  CHAT_RESPONSE              Non-streaming reply or error
+  HISTORY_DATA               { history, sessions, activeSessionId }
+  HISTORY_CLEARED            Confirmation
+  NOTEBOOK_IDENTITY          Identity resolution result
+  NOTEBOOK_IDENTITY_UPDATED  Pushed when identity changes (from background)
+  GRAPH_DATA                 Dependency graph nodes/edges
+  INSERT_CODE_CELL_RESULT    Insert operation outcome
+  AGENTIC_SETTINGS           { server_allowed, dashboard_enabled, ready }
+
+  HOST → EXTENSION (browser tool commands via background.js)
+  ──────────────────────────────────────────────────────────
+  SELECT_CELL_BY_INDEX, RUN_CELL_BY_INDEX, INSERT_CELL,
+  SET_CELL_CONTENT, DELETE_CELL, CLICK_CELL_BY_INDEX, SEND_KEY, etc.
+  (Dispatched by tool_registry → bot_command.py → extension)
+
+================================================================================
+7. END-TO-END FLOW DIAGRAMS
+================================================================================
+
+7.1 Notebook scrape loop (continuous)
+-------------------------------------
+
+  [Timer 300ms–5s OR tab complete OR PROMPT_SIGNAL]
+           │
+           ▼
+  background.sendTabs()
+           │
+           ▼
+  chrome.scripting.executeScript(scrapeNotebook, allFrames=true)
+           │
+           ▼
+  Dedupe cells across frames → NOTEBOOK_DATA
+           │
+           ▼
+  port.postMessage → host.py → handle_notebook_data()
+           │
+           ├── Write live JSON (always)
+           ├── Maybe write persistent JSON (verification gate)
+           └── Push GRAPH_DATA to extension
+
+7.2 Chat request loop (user-initiated)
+--------------------------------------
+
+  [User sends message in ui_injector.js or cell_debug_chat.js]
+           │
+           ▼
+  chrome.runtime.sendMessage(CHAT_REQUEST)
+           │
+           ▼
+  background.js: attach tabId, notebookKey → port.postMessage
+           │
+           ▼
+  host.py CHAT_REQUEST handler
+     pack_context → memory append user → Thread(_run_streaming_chat)
+           │
+           ▼
+  streaming.py: build messages → prefetch → LLM API → CHAT_STREAM deltas
+           │
+           ▼
+  background.handleHostMessage → broadcastToTabFrames
+           │
+           ▼
+  ui_injector.js: render markdown, finalize on CHAT_STREAM_END
+
+7.3 Browser tool loop (agentic only)
+------------------------------------
+
+  streaming.py parses tool batch from LLM
+           │
+           ▼
+  agentic_batch_executor.execute_agentic_batch()
+           │
+           ▼
+  tool_registry.call() → bot_command.py enqueues command
+           │
+           ▼
+  background.js receives command → content script automation
+           │
+           ▼
+  kernel_state_listener.js executes DOM actions
+           │
+           ▼
+  Result → host → verification → next LLM round or summary
+
+================================================================================
+8. STORAGE OVERVIEW (HIGH LEVEL)
+================================================================================
+
+Root: testing/host/data/
+
+  ┌────────────────────┬──────────────────────────┬─────────────────────────────┐
+  │ Layer              │ Path                     │ Update policy               │
+  ├────────────────────┼──────────────────────────┼─────────────────────────────┤
+  │ Live snapshot      │ notebooks/live/*.json    │ Every successful scrape     │
+  │ Persistent snap    │ notebooks/persistent/*.  │ Verified content change only│
+  │ Legacy copy        │ notebooks/*.json         │ With persistent write       │
+  │ Content hashes     │ meta/hashes.json         │ On persistent write         │
+  │ Execution state    │ meta/execution_state.json│ Every non-empty scrape      │
+  │ Notebook registry  │ meta/notebook_registry.  │ On identity resolve         │
+  │                    │ json                     │                             │
+  │ Kernel metadata    │ meta/kernel_metadata/    │ On Kaggle API fetch         │
+  │ Agentic settings   │ meta/agentic_settings.   │ Dashboard toggle            │
+  │                    │ json                     │                             │
+  │ Rate limit tracker │ meta/rate_limit_tracker. │ TPM preflight               │
+  │                    │ json                     │                             │
+  │ Chat history       │ sessions/chat_history.   │ Every user/assistant msg    │
+  │                    │ sqlite3                  │                             │
+  │ Host log           │ logs/host.log            │ Append                      │
+  │ Bot command queue  │ bot_commands.jsonl       │ Browser automation          │
+  │ Bot results        │ bot_results.jsonl        │ Automation outcomes         │
+  └────────────────────┴──────────────────────────┴─────────────────────────────┘
+
+SQLite schema (memory.py):
+  messages(notebook_url, session_id, role, content, timestamp)
+    — notebook_url column stores history_key (kaggle:kernel:{id} preferred)
+  profile_facts(notebook_url, session_id, fact_key, fact_value, updated_at)
+
+================================================================================
+9. NOTEBOOK IDENTITY (STABLE KEYS)
+================================================================================
+
+Problem: Kaggle notebook URLs can change (rename) but kernel id_no is stable.
+
+Resolution chain (notebook_identity.py + kaggle_kernel_client.py):
+  1. Parse /edit URL → owner/slug
+  2. Kaggle API → kernel id_no
+  3. Stable chat key: kaggle:kernel:{id_no}
+  4. notebook_registry.json maps URLs → keys
+
+Used by:
+  - CHAT_REQUEST history_key (_resolve_chat_key in host.py)
+  - NOTEBOOK_DATA storage_key
+  - GET_HISTORY / CLEAR_HISTORY
+
+URL change migration:
+  NOTEBOOK_URL_CHANGED → register_notebook_identity → migrate_notebook_keys()
+  Rewrites SQLite notebook_url column so chat history survives renames.
+
+================================================================================
+10. KEY SOURCE FILES
+================================================================================
+
+  testing/extension/manifest.json
+  testing/extension/background.js
+  testing/extension/ui_injector.js
+  testing/extension/cell_debug_chat.js
+  testing/extension/kernel_state_listener.js
+  testing/host/host.py
+  testing/host/host.json
+  testing/host/config.py
+  testing/host/memory.py
+  testing/host/persistence_helpers.py
+  testing/host/notebook_identity.py
+
+================================================================================
+11. CROSS-REFERENCES
+================================================================================
+
+  NOTEBOOK_SCRAPE_AND_DATA_PIPELINE.txt — NOTEBOOK_DATA ingest detail
+  CHAT_REQUEST_TO_LLM_RESPONSE.txt      — chat orchestration detail
+  ASK_MODE_AND_CODE_MODE_WORKFLOWS.txt  — mode-specific chat behavior
+  AGENTIC_MODE_TOOL_EXECUTION.txt — browser tools + two-phase agentic flow
+
+================================================================================
+END OF SYSTEM_ARCHITECTURE_AND_MESSAGE_BRIDGE.txt
+================================================================================

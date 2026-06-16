@@ -1,0 +1,18 @@
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {3.1}{\ignorespaces High-level architecture of the Kaggle notebook assistant. Solid arrows indicate primary data flow for a single user turn in Agentic mode.}}{23}{figure.caption.24}%
+\contentsline {figure}{\numberline {3.2}{\ignorespaces Chrome extension architecture and component structure.}}{25}{figure.caption.26}%
+\contentsline {figure}{\numberline {3.3}{\ignorespaces Notebook DOM scrape pipeline from Kaggle editor to host ingestion.}}{26}{figure.caption.27}%
+\contentsline {figure}{\numberline {3.4}{\ignorespaces Native messaging bridge message flows between extension and Python host.}}{27}{figure.caption.28}%
+\contentsline {figure}{\numberline {3.5}{\ignorespaces Context packing and notebook intelligence pipeline on the host.}}{29}{figure.caption.29}%
+\contentsline {figure}{\numberline {3.6}{\ignorespaces Notebook data ingestion and persistence across live and persistent JSON stores.}}{32}{figure.caption.30}%
+\contentsline {figure}{\numberline {3.7}{\ignorespaces Ask mode advisory flow (read-only explanation, no tool calls).}}{35}{figure.caption.32}%
+\contentsline {figure}{\numberline {3.8}{\ignorespaces Code mode generation flow (placement guidance and runnable cells, no browser writes).}}{36}{figure.caption.33}%
+\contentsline {figure}{\numberline {3.9}{\ignorespaces Agentic mode workflow (two-phase query and implement with tool dispatch).}}{37}{figure.caption.34}%
+\contentsline {figure}{\numberline {3.10}{\ignorespaces Agentic mode data flow for one user message (two LLM calls).}}{40}{figure.caption.37}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }

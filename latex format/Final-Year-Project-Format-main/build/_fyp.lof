@@ -1,0 +1,11 @@
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {3.1}{\ignorespaces High-level architecture of the Kaggle notebook assistant. Solid arrows indicate primary data flow for a single user turn in Agentic mode.}}{22}{figure.caption.24}%
+\contentsline {figure}{\numberline {3.2}{\ignorespaces Agentic mode data flow for one user message (two LLM calls).}}{33}{figure.caption.29}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }

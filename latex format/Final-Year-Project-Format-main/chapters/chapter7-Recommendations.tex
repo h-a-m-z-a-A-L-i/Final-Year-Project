@@ -1,3 +1,98 @@
+%!TEX root = ../_fyp.tex
 \chapter{Recommendations}
 \label{c-recommendation}
-This chapter presents the recommendation of the proposed work.
+
+Based on the implementation experience and benchmark outcomes in Chapters~\ref{c-results} and~\ref{chap:discussion}, we offer recommendations for practitioners, system maintainers, and future researchers.
+
+\section{Recommendations for Practitioners}
+
+Students and data-science practitioners using Kaggle notebooks should select the interaction mode that matches task risk and intent:
+
+\begin{itemize}
+  \item Use \textbf{Ask mode} to understand unfamiliar notebooks, explain individual cells, or diagnose errors before editing. Benchmarks showed zero side effects and strong cell-level accuracy \parencite{vaithilingam2022expectation}.
+  \item Use \textbf{Code mode} when ready to copy runnable cells into the editor. Verify placement suggestions against notebook flow before inserting \parencite{mcnutt2023notebookassistants}.
+  \item Use \textbf{Agentic mode} for large batched edits when willing to review dispatched operations. The two-call protocol plans writes and runs together; users should inspect the batch before relying on outcomes \parencite{mozannar2024reading}.
+\end{itemize}
+
+For empty cells, prefer Ask or Code mode clarifying questions over immediate code generation---both modes deferred full scripts until intent was clear in evaluation.
+
+\section{Recommendations for System Improvement}
+
+\begin{enumerate}
+  \item \textbf{Implement ReAct-style feedback.} Add optional replanning after \texttt{run\_cell} using scrape-based execution observers, closing the gap between dispatch-only Agentic mode and full autonomous repair \parencite{yao2023react,shinn2023reflexion}.
+  \item \textbf{Expand context packing.} Adopt hierarchical or retrieval-augmented cell selection for long notebooks to improve workflow-level Ask answers and Code placement \parencite{lewis2020rag,jiang2023structgpt}.
+  \item \textbf{Harden DOM selectors.} Maintain scrape utilities against Kaggle front-end changes, following lessons from web data extraction research \parencite{chasins2018roussillon}.
+  \item \textbf{Add human evaluation.} Supplement automated rubrics with expert grading for explanation quality and code correctness \parencite{chen2021codex,wang2021welldocumented}.
+  \item \textbf{Live browser benchmarks.} Replicate harness scenarios on actual \texttt{/edit} sessions to measure end-to-end latency and user-perceived trust \parencite{mozannar2024reading}.
+\end{enumerate}
+
+\section{Recommendations for Future Research}
+
+\begin{itemize}
+  \item Compare GLM~4.7 with additional code models \parencite{openai2023gpt4,brown2020language} on identical frozen snapshots.
+  \item Study learning outcomes when \acf{BSDS} students use Ask versus Code versus Agentic assistance during coursework \parencite{finnieansley2022codex}.
+  \item Explore narrower tool APIs inspired by API-bank and Gorilla benchmarks \parencite{li2023apibank,patil2023gorilla} tailored to competition notebooks \parencite{quaranta2022bestpractices}.
+  \item Investigate session-level memory across turns to reduce repeated query rounds in Agentic mode \parencite{park2023generative}.
+\end{itemize}
+
+These recommendations preserve the current system's strengths: grounded context, mode separation, and bounded Agentic dispatch. They also identify clear paths toward fuller autonomous notebook assistance in future iterations.
+
+\section{Deployment and Maintenance Checklist}
+\label{sec:deploy-checklist}
+
+Teams deploying or extending the artefact should complete the following steps:
+
+\begin{enumerate}
+  \item Install the Chrome extension in developer mode and register the native host manifest (\texttt{register.ps1}).
+  \item Configure \texttt{CEREBRAS\_API\_KEY} and \texttt{CEREBRAS\_MODEL} in \texttt{testing/host/.env}.
+  \item Verify native messaging connectivity by opening a Kaggle \texttt{/edit} tab and sending an Ask-mode query.
+  \item Enable Agentic mode only after confirming snapshot ingestion (\texttt{data/notebooks/live/} updates on scrape).
+  \item Run smoke scripts under \texttt{testing/host/scripts/} after any \ac{DOM} selector change.
+  \item Re-execute benchmark suites before thesis or demo updates (Appendix~\ref{app:reproduce}).
+\end{enumerate}
+
+\section{Risk Mitigation for Classroom Use}
+\label{sec:classroom-risks}
+
+Instructors adopting the assistant in \acf{BSDS} labs should communicate mode boundaries clearly:
+
+\begin{itemize}
+  \item \textbf{Assessment policy.} Code and Agentic modes can generate assignment solutions; courses should specify when AI assistance is permitted \parencite{finnieansley2022codex}.
+  \item \textbf{Verification habit.} Students must run and inspect generated cells before submission; Ask mode supports understanding without automation.
+  \item \textbf{Data privacy.} Notebook snapshots persist locally on the host machine; shared lab computers require session cleanup procedures.
+  \item \textbf{API cost.} Agentic batches consume two \ac{API} calls per message; instructors may cap usage during introductory labs.
+\end{itemize}
+
+\section{Technology Roadmap}
+\label{sec:roadmap}
+
+A pragmatic three-stage roadmap extends the current prototype:
+
+\begin{description}
+  \item[Stage~1 (completed).] DOM scrape, three modes, two-call Agentic dispatch, harness benchmarks.
+  \item[Stage~2 (near term).] Retrieval-augmented context packing; hardened selectors; live-browser benchmark replication.
+  \item[Stage~3 (research).] Optional ReAct loop with scrape-based execution feedback; cross-model evaluation; learning-outcomes study.
+\end{description}
+
+Stage~2 items deliver the highest return for maintenance effort without altering the fundamental extension--host trust boundary established in this FYP.
+
+\section{Summary Table of Recommendations}
+\label{sec:rec-summary}
+
+Table~\ref{tab:rec-summary} consolidates the recommendations in this chapter for quick reference during deployment or thesis defence.
+
+\begin{table}[!ht]
+\centering
+\caption{Consolidated recommendations by audience.}
+\label{tab:rec-summary}
+\small
+\begin{tabular}{|p{2.8cm}|p{5.2cm}|p{5.2cm}|}
+\hline
+\textbf{Audience} & \textbf{Priority action} & \textbf{Supporting evidence} \\ \hline
+Students & Match mode to task risk & Table~\ref{tab:mode-guidance} \\ \hline
+Instructors & Publish AI-use policy per mode & \ref{sec:classroom-risks} \\ \hline
+Maintainers & Run benchmarks after DOM changes & Appendix~\ref{app:reproduce} \\ \hline
+Researchers & Replicate on frozen snapshots & Appendix~\ref{app:snapshots} \\ \hline
+Future devs & Stage~2: RAG context packing & \ref{sec:roadmap}, \ref{sec:future-react} \\ \hline
+\end{tabular}
+\end{table}

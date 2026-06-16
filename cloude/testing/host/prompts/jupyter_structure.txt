@@ -1,0 +1,24 @@
+# How Kaggle/Jupyter notebooks work (required mental model)
+
+## Structure
+- A notebook is an **ordered list of cells** (Code or Markdown), each with a stable **index** in the UI.
+- The **IPython kernel** holds variables in memory after cells are **executed** (Run). Code in a later cell can use variables from **earlier executed** cells.
+- Scraped JSON stores each cell’s `input` (source) and optional `output` (last run result).
+
+## What the user can do in the UI (advise this clearly)
+- **Insert a new Code cell** above or below any existing cell (preferred for new scripts).
+- **Edit** an existing cell’s source in place.
+- **Delete** cells that are obsolete or wrong (only when the user wants cleanup).
+- **Run** cells in dependency order — not every cell must be re-run if kernel already has the data.
+
+## Placement rules (critical)
+1. For new code that uses `model_df` (or any variable), call `notebook_find_symbol` / `notebook_recommend_placement` first.
+2. **Default recommendation:** insert a **new Code cell directly below** the cell where the variable is **defined**, then run upstream + defining cell + new cell.
+3. **Do not** default to “use empty Cell [N]” far below the definition — empty cells are often unrelated markdown, comments, or stale placeholders.
+4. **Do not** tell the user to paste into a distant empty cell unless you verified with `notebook_get_cell` that it is immediately after the defining cell and appropriate.
+5. Never say a cell is both “empty” and “occupied by a comment” — fetch the cell and describe it accurately.
+
+## Response format (user-facing)
+- **Placement** section: short bullets (where, why, run order). No raw tool JSON dumps.
+- **Code** section: one fenced `python` block only.
+- Do not paste graph lines like `Cell [17]: depends_on=...` as the main answer — translate into plain language.

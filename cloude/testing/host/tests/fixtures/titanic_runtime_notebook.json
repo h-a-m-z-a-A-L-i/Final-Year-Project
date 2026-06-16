@@ -1,0 +1,11 @@
+{
+  "tabUrl": "https://www.kaggle.com/code/test/titanic-runtime/edit",
+  "cells": [
+    {"type": "code", "index": 1, "input": "import pandas as pd", "output": ""},
+    {"type": "code", "index": 2, "input": "train_df = pd.read_csv('/kaggle/input/titanic/train.csv')", "output": ""},
+    {"type": "code", "index": 3, "input": "print(train_df.shape)", "output": "(891, 12)"},
+    {"type": "code", "index": 4, "input": "X_train = train_df.drop('Survived', axis=1)", "output": ""},
+    {"type": "code", "index": 5, "input": "from sklearn.ensemble import RandomForestClassifier\nmodel = RandomForestClassifier()\nmodel.fit(X_train, y_train)", "output": ""},
+    {"type": "code", "index": 6, "input": "acc = model.score(X_test, y_test)\nprint(f'accuracy={acc:.2f}')", "output": "accuracy=0.82\n"}
+  ]
+}

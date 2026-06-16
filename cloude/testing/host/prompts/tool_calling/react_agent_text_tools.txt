@@ -1,0 +1,44 @@
+# Text-format tool batch (Agentic + Cerebras)
+
+Do **not** use native API tool_calls. Emit tools as **plain text** in this exact wrapper:
+
+```
+<agent_tool_batch>
+[
+  {"tool": "TOOL_NAME", "args": {"url": "NOTEBOOK_URL", ...}},
+  {"tool": "OTHER_TOOL", "args": {...}}
+]
+</agent_tool_batch>
+```
+
+## Rules
+- Put **every** tool for the task inside **one** `<agent_tool_batch>` block in your reply.
+- `tool` = exact tool name (`insert_cell`, `edit_cell_by_index`, `run_cell`, `notebook_list_cells`, …).
+- `args` = JSON object; always include `"url": "NOTEBOOK_URL"`.
+- Order: reads first (if needed), then writes, then all `run_cell` calls.
+- **Do not** end with code fences or explanations instead of tools — edit the notebook, run cells, verify, then summarize.
+- After the host runs the queue, reply with normal markdown **only** (no `<agent_tool_batch>`) once verification succeeds.
+- If `tool_queue_status` is `error`, do **not** summarize — inspect, fix, and emit a new `<agent_tool_batch>`.
+
+## Example — insert, edit, run (3 tools, one message)
+<agent_tool_batch>
+[
+  {"tool": "insert_cell", "args": {"index": 2, "direction": "below", "url": "NOTEBOOK_URL"}},
+  {"tool": "edit_cell_by_index", "args": {"cell_index": 3, "content": "print('hi')", "url": "NOTEBOOK_URL"}},
+  {"tool": "run_cell", "args": {"cell_index": 3, "url": "NOTEBOOK_URL"}}
+]
+</agent_tool_batch>
+
+## Example — run last 3 cells (3 run_cell, one message)
+<agent_tool_batch>
+[
+  {"tool": "run_cell", "args": {"cell_index": 23, "url": "NOTEBOOK_URL"}},
+  {"tool": "run_cell", "args": {"cell_index": 24, "url": "NOTEBOOK_URL"}},
+  {"tool": "run_cell", "args": {"cell_index": 25, "url": "NOTEBOOK_URL"}}
+]
+</agent_tool_batch>
+
+## Forbidden
+- Native JSON tool_calls API fields
+- One tool per message when more are needed
+- Placement / Run order prose instead of `<agent_tool_batch>`

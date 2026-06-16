@@ -1,0 +1,453 @@
+================================================================================
+ASK MODE — TECHNICAL REFERENCE (normal-chrome / Kaggle Notebook Copilot)
+================================================================================
+Repository path: testing/host/
+Companion doc: CODE_MODE.txt, AGENTIC_ENGINE_REFERENCE.txt
+
+This document describes Ask mode as implemented in code. Ask mode is the default
+read-only advisory mode: explain notebook cells, debug errors, review code,
+advise on placement, and answer dataset questions — without generating full
+copy-paste cell scripts or modifying the browser notebook.
+
+================================================================================
+1. PURPOSE AND INTENDED USE
+================================================================================
+
+Ask mode is for users who want understanding and guidance, not automated edits.
+
+Primary use cases:
+  - Explain what a cell does ("explain cell 4")
+  - Debug errors and tracebacks ("fix the error in cell 12")
+  - Review notebook structure, dependencies, or data-flow
+  - Advise where new logic should go (placement guidance in prose)
+  - Answer questions about the dataset or notebook pipeline
+  - Suggest next steps when a target cell is empty
+
+Explicit contract (prompts/ask.txt, prompt_engineering._SYSTEM_NOTES_ASK):
+  - Prose explanations and suggestions only
+  - Do NOT generate full notebook code blocks meant for copy-paste
+  - For runnable code, direct the user to Code or Agentic mode
+  - Minimal fix snippets (1–3 lines) are acceptable for errors only
+
+Ask mode is NOT:
+  - A code-generation mode (that is Code mode)
+  - An agent that edits or runs cells (that is Agentic mode)
+  - An auto-routing mode — the UI dropdown is authoritative
+
+================================================================================
+2. USER-FACING RUNTIME BEHAVIOR
+================================================================================
+
+When the user selects "Ask" in the copilot panel and sends a message:
+
+1. The extension sends CHAT_REQUEST with mode: "ask" to the Python host.
+2. The host packs notebook context, assembles a system prompt, optionally
+   prefetches read-tool evidence, and streams a prose reply from Cerebras.
+3. The UI receives CHAT_STREAM deltas and renders markdown in the sidebar.
+4. Fenced code blocks (if any) are split into separate "code snippet" cards
+   with a Copy button (ui_injector.js mountAssistantContent).
+5. During streaming, code-snippet cards are hidden until the stream ends.
+6. The final assistant text is saved to SQLite chat history (unless stopped).
+
+Typical reply shapes (from prompts/ask.txt):
+  - Empty cell: Status + one question + 1–2 suggested next steps (no code dump)
+  - Explain cell: heading, what it does, step-by-step, optional "why it matters"
+  - Error: root cause from real output, numbered fix steps, tiny fix snippet OK
+  - Placement: Placement sentence + run-order bullets (no large code fence)
+  - Insufficient evidence: starts with **INSUFFICIENT_CONTEXT** + one question
+
+Ask mode never triggers browser write tools. The user must manually edit cells.
+
+================================================================================
+3. MODE DETECTION AND SELECTION (UI → HOST)
+================================================================================
+
+UI (testing/extension/ui_injector.js):
+  - Dropdown: <select id="chat-mode"> with options ask (default), code, agentic
+  - On send: chrome.runtime.sendMessage({ type: 'CHAT_REQUEST', mode, prompt, ... })
+  - Title tooltip: "Ask = explain; Code = generate; Agentic = browser tools"
+
+Host (testing/host/host.py, CHAT_REQUEST handler):
+  1. ui_mode = str(msg.get("mode") or "ask").strip().lower()
+  2. resolve_effective_chat_mode(ui_mode) — only downgrades agentic if server
+     disallows it; Ask is never auto-changed.
+  3. mode = detect_mode(prompt, ui_mode, has_cell_context=...)
+
+Mode resolution (prompt_engineering.detect_mode):
+  - Uses the UI-selected mode ONLY (no keyword-based auto-switch to Code)
+  - Legacy aliases map to ask: auto, simple, dependency, explain_error,
+    explain_code, code_review, general, general help
+  - Unknown modes fall back to "ask"
+  - ALLOWED_MODES in config.py: {"ask", "code", "agentic"}
+
+Sub-intents inside Ask (NOT separate UI modes):
+  classify_ask_intent(prompt) in prompt_engineering.py returns one of:
+    placement | error | dependency | review | explain | general
+  These affect context packing and prefetch planning only.
+
+================================================================================
+4. END-TO-END REQUEST PIPELINE
+================================================================================
+
+CHAT_REQUEST (host.py) — Ask-specific highlights:
+
+  A. Cell index resolution
+     cell_num from, in order:
+       - msg.cellIndex (per-cell debug chat passes this)
+       - _extract_cell_number(prompt) — regex for "cell 7", etc.
+       - resolve_cell_index(prompt, cells) — "last cell" heuristics
+
+  B. Context pack
+     ctx_pack = pack_context(mode="ask", url, prompt, cell_index, bot_state)
+     See Section 6.
+
+  C. Session / memory key
+     memory_session_id = effective_session_id(session_id, mode)
+     - Default (CHAT_SESSION_PER_MODE=0): same session_id for ask/code/agentic
+     - If CHAT_SESSION_PER_MODE=1: session_id::mode::ask
+
+  D. Static cache branch (CEREBRAS_STATIC_NOTEBOOK_CACHE)
+     If enabled:
+       - System "Notebook evidence" = frozen baseline at session start
+       - turn_tail = live delta + profile facts on current user turn
+     Else:
+       - context = merge_context_with_profile(ctx_pack.text, profile_context)
+
+  E. History
+     history = memory_store.get_history(history_key, memory_session_id)
+     User message appended BEFORE streaming thread starts
+
+  F. Worker thread → streaming._run_streaming_chat(..., mode, ui_mode, context_meta)
+
+_run_streaming_chat (streaming.py) — Ask path:
+
+  1. resolved_mode = detect_mode(...) → "ask"
+  2. agentic_active = agentic_runtime_enabled("ask") → False
+  3. include_tools = False (no LLM-native tool schema in API call)
+  4. build_chat_messages(mode="ask", history, context, turn_tail, ...)
+  5. prefetch_notebook_queries(...) — host runs read tools, prepends block
+     to the current user message (always for ask; see Section 8)
+  6. fit_messages_to_budget(messages)
+  7. Single streaming LLM call (not Agentic tool-first path)
+  8. CHAT_STREAM deltas → UI
+  9. memory_store.append(assistant, final_text) if not stopped
+  10. skip_post_stream_tools = True — no post-stream tool rounds
+
+================================================================================
+5. PROMPT ENGINEERING
+================================================================================
+
+5.1 Prompt file map
+-------------------
+  prompts/base_notebook_assistant.txt  — shared Role, Context, Notes (all modes)
+  prompts/ask.txt                      — Ask Role, Task, Specifics, Examples, Notes
+  prompts/jupyter_structure.txt        — Jupyter mental model (injected in Context)
+  prompts/tool_calling/query_tools_ask.txt — how to use prefetch evidence (read-only)
+
+Mode file loaded by load_mode_sections("ask") → prompts/ask.txt
+
+5.2 System prompt assembly (build_system_content)
+---------------------------------------------------
+Order (lost-in-the-middle mitigation — hard rules last):
+
+  ## Role
+    - base_notebook_assistant Role
+    - ask.txt Role
+    - "Active UI mode: **ask** (Ask)."
+
+  ## Task
+    - ask.txt Task
+
+  ## Specifics
+    - ask.txt Specifics (empty cell, explain, errors, placement, review)
+
+  ## Context
+    - ### Jupyter notebook model (jupyter_structure.txt)
+    - ### Notebook query guidance (query_tools_ask.txt) — always for ask because
+      include_tools=False → include_query_guidance=True in build_chat_messages
+    - base_notebook_assistant Context
+    - Notebook URL
+    - "Ground answers only in CONTEXT_MANIFEST, notebook evidence..."
+    - ### Notebook evidence (packed context OR static baseline)
+    - NOT included in Ask: tool calling docs, tool descriptions, tool examples
+      (include_tools=False)
+
+  ## Examples
+    - ask.txt Examples
+
+  ## Notes
+    - ask.txt Notes
+    - base_notebook_assistant Notes
+    - _SYSTEM_NOTES_ASK (hard rules appended last in prompt_engineering.py)
+
+5.3 Hard rules tail (_SYSTEM_NOTES_ASK)
+---------------------------------------
+  - Explain/debug/review/suggest — no full notebook code blocks
+  - Read CONTEXT_MANIFEST and TARGET_CELL_STATUS before citing cells
+  - Only cite cells in listed_cells or evidence — never invent contents
+  - Empty target cell: acknowledge, ask intent, suggest 1–2 options — no dump
+  - Reply directly; no meta preamble; no UI button language
+  - Clean Markdown; minimal fix snippets OK for errors
+  - INSUFFICIENT_CONTEXT if coverage is none/partial and evidence missing
+
+5.4 Chat message list (build_chat_messages)
+---------------------------------------------
+  [
+    { role: "system", content: <assembled system> },
+    ... trim_history_for_api(history) ...,
+    { role: "user", content: "<turn_tail>\n\n---\n\n<prefetch>\n\n---\n\n<prompt>" }
+  ]
+
+turn_tail (when CEREBRAS_STATIC_NOTEBOOK_CACHE=1):
+  Live notebook delta since frozen baseline + profile memory block.
+
+Prefetch block is prepended in streaming.py to the user message, not stored
+in history.
+
+================================================================================
+6. CONTEXT PACKING (pack_context)
+================================================================================
+
+Entry: notebook_context.pack_context(mode="ask", url, prompt, cell_index, bot_state)
+Returns: ContextPack(text, coverage, snapshot, cell_index, manifest)
+
+6.1 Snapshot source
+-------------------
+load_notebook_snapshot(url) prefers live JSON, then persistent snapshot.
+Freshness metadata includes kernel_scenario, editor_loading, snapshot_mtime.
+
+6.2 CONTEXT_PACK_MODE (config.py, default: "full")
+----------------------------------------------------
+Two behaviors — both apply to Ask; the difference is HOW cells are selected.
+
+  CONTEXT_PACK_MODE=full (default)
+    - _pack_full_notebook: every cell with index, input, output (code cells)
+    - coverage: "full" when cells exist
+    - Char budget: MAX_FULL_NOTEBOOK_CONTEXT_CHARS (default 30000) or
+      MAX_NOTEBOOK_CONTEXT_CHARS (6000)
+    - Intent sub-classification is SKIPPED for packing (whole notebook sent)
+    - Dependency graph slicing not used for the main body
+
+  CONTEXT_PACK_MODE=intent
+    - classify_ask_intent(prompt) chooses packer:
+        placement  → _pack_dependency (full graph; cell_index cleared for
+                      misleading "cell N" in placement questions)
+        error      → _pack_explain_error (target + upstream + symbol graph)
+        dependency → _pack_dependency (graph + target cell detail)
+        review     → _pack_code_review (all code cells, truncated input)
+        explain    → _pack_explain_code (target + upstream definitions)
+        general    → _pack_simple (target cell or first 5 code previews)
+    - SYMBOL_CONTEXT_ENABLED=1 may enrich explain/error paths via symbol_graph
+
+6.3 CONTEXT_MANIFEST block (always prepended)
+---------------------------------------------
+Every pack includes:
+  CONTEXT_MANIFEST
+  coverage: full | partial | none
+  snapshot: live | persistent | none
+  kernel_scenario: ...
+  cell_indexing: 1-based
+  target_cell: N or none
+  listed_cells: comma-separated indices actually in the body
+  rules: Only cite listed cells...
+
+6.4 Empty target cell hint
+--------------------------
+_empty_cell_context_note appends TARGET_CELL_STATUS when the referenced cell
+has no input — instructs the model to ask intent before suggesting code.
+
+6.5 Truncation
+--------------
+_truncate_at_cell_boundaries enforces MAX_NOTEBOOK_CONTEXT_CHARS / full cap.
+listed_cells recomputed from surviving ### Cell [n] headers after truncation.
+
+6.6 Static cache interaction
+----------------------------
+When CEREBRAS_STATIC_NOTEBOOK_CACHE=1:
+  - pack_context output may not go directly into system on later turns
+  - prepare_static_cache_context freezes a compact baseline once per session
+  - Live changes appear only in turn_tail delta on the user message
+
+================================================================================
+7. CHAT HISTORY HANDLING
+================================================================================
+
+Storage: SQLite at testing/host/data/sessions/chat_history.sqlite3 (memory.py)
+
+Limits (config.py):
+  MAX_HISTORY_MESSAGES = 24        — loaded for UI + passed to streaming
+  MAX_HISTORY_MESSAGES_API = 3 (full pack) or 10 (intent); reduced to 2 if
+                             static cache enabled without override
+  MAX_HISTORY_CHARS_PER_MSG = 1000 — per-message truncation in API payload
+
+trim_history_for_api (context_budget.py):
+  - Takes last MAX_HISTORY_MESSAGES_API turns
+  - Truncates each content field
+  - Only roles user | assistant | system
+
+Shared across modes by default:
+  Ask, Code, and Agentic share the same session_id bucket unless
+  CHAT_SESSION_PER_MODE=1.
+
+Not stored in history:
+  - Prefetch JSON blocks (recomputed each turn)
+  - Tool batches / verification payloads
+  - turn_tail delta blocks (rebuilt each turn)
+
+Stop behavior:
+  - STOP_CHAT sets stream stopped flag
+  - If stopped: no assistant message appended; CHAT_STREAM_END stopped=true
+
+Per-cell debug chat (cell_debug_chat.js):
+  - Same pipeline, mode can still be "ask"
+  - session_id pattern: cell-debug-cell-N (separate from main copilot session)
+  - cellIndex passed in CHAT_REQUEST
+
+================================================================================
+8. TOOLS — WHAT IS AND ISN'T AVAILABLE
+================================================================================
+
+8.1 LLM-invoked tools (API tool_calls)
+----------------------------------------------
+OFF in Ask mode:
+  - include_tools = agentic_runtime_enabled("ask") → False
+  - filter_tool_calls_for_mode drops any stray tool_calls from the model
+  - No browser tools (insert_cell, edit_cell_by_index, run_cell, etc.)
+  - No post-stream tool rounds (skip_post_stream_tools = not agentic_active)
+
+8.2 Host-side prefetch (read tools executed by host, not by LLM)
+---------------------------------------------------------------
+ON for every Ask turn (streaming.py: resolved_mode in TOOL_FIRST_MODES).
+
+tools_allowed_for_mode("ask", agentic=False) — subset of local read tools:
+  notebook_snapshot_status, notebook_list_cells, notebook_overview,
+  notebook_executed_cells, notebook_get_cell, notebook_get_cells,
+  notebook_search, notebook_find_symbol, notebook_cell_neighbors,
+  notebook_graph_query, notebook_recommend_placement
+
+Plan built by notebook_query.build_query_plan based on:
+  - classify_ask_intent(prompt)
+  - cell_index if known
+  - static_cache flag
+  - search terms from prompt (dataset, traceback, etc.)
+
+Results formatted as "## Notebook query results (host prefetch)" JSON blocks
+and prepended to the current user message.
+
+The LLM does not call these tools itself in Ask mode; it reads prefetch output
+and packed notebook evidence. query_tools_ask.txt explains how to interpret them.
+
+8.3 UI / host actions outside chat
+----------------------------------
+INSERT_CODE_CELL (host.py) is a separate message type from the extension UI,
+not triggered by Ask mode chat replies.
+
+================================================================================
+9. STREAMING FLOW
+================================================================================
+
+Message types to extension:
+  CHAT_STREAM      — { delta, tabId, url, notebookKey, sessionId }
+  CHAT_STREAM_END  — { response, stopped, error?, ... }
+  CHAT_RESPONSE    — non-streaming error path
+
+Ask mode path (agentic_active=False):
+  1. Open streaming completion (temperature/top_p from config)
+  2. For each chunk: _emit_stream_delta → CHAT_STREAM
+  3. If stream empty: one non-streaming fallback call
+  4. send_stream_end with full text
+  5. Append assistant text to memory_store
+
+Rate limiting:
+  - Local TPM preflight (ENABLE_TPM_PREFLIGHT)
+  - Cerebras RPM spacing (_llm_react_throttle)
+  - Token budget fit_messages_to_budget before API call
+
+UI rendering (ui_injector.js):
+  - Streaming text accumulates in streamBuffer
+  - On CHAT_STREAM_END: mountAssistantContent splits prose vs fenced code
+  - Ask should produce mostly prose; any code fences get Copy-only cards
+
+================================================================================
+10. DIFFERENCES FROM CODE AND AGENTIC MODES
+================================================================================
+
+| Aspect              | Ask                         | Code                      | Agentic
+|---------------------|-----------------------------|---------------------------|---------------------------
+| Primary output      | Prose explanation           | Placement + python block  | Tool batch + Summary
+| Full code blocks    | Discouraged (contract)      | Expected when task clear  | Via edit_cell tool
+| include_tools       | false                       | false                     | true (if server allows)
+| Browser writes      | Never                       | Never                     | Yes (insert/edit/run)
+| Host prefetch       | Yes (read tools)            | Yes (placement-heavy)     | Yes (minimal)
+| Context pack intent | classify_ask_intent slices    | _pack_code (target+upstream)| agentic uses tools
+| Placement language  | Prose only in Ask           | Mandatory **Placement**   | No Placement prose
+| Agentic tool phases | No                          | No                        | Two-phase (read then implement)
+| Empty cell behavior | Ask questions, no code      | Ask then code when clear  | edit via tools
+
+Code mode shares the same prose-only LLM API path but different prompts,
+context packer (_pack_code), and allows full python fences.
+
+================================================================================
+11. CONFIGURATION (ENVIRONMENT VARIABLES AFFECTING ASK)
+================================================================================
+
+  CONTEXT_PACK_MODE=full|intent     — full notebook vs intent slicing (default full)
+  MAX_NOTEBOOK_CONTEXT_CHARS        — truncation budget (default 6000)
+  MAX_FULL_NOTEBOOK_CONTEXT_CHARS   — full-mode cap (default 30000)
+  MAX_CELL_OUTPUT_CHARS             — per-cell output in pack (default 2500)
+  SYMBOL_CONTEXT_ENABLED=1          — symbol graph enrichment in intent paths
+  CEREBRAS_STATIC_NOTEBOOK_CACHE=1  — frozen baseline + per-turn delta
+  CHAT_SESSION_PER_MODE=0|1         — separate SQLite history per mode
+  MAX_HISTORY_MESSAGES_API          — API history depth (3 full / 10 intent)
+  MAX_INPUT_TOKENS                  — budget fitting (7000 default)
+  ENABLE_TPM_PREFLIGHT=1            — block oversized prompts locally
+
+Ask mode does NOT require LLM_AGENTIC_ENABLED.
+
+================================================================================
+12. KEY SOURCE FILES
+================================================================================
+
+  testing/extension/ui_injector.js
+    Copilot UI, mode dropdown, CHAT_REQUEST send, stream render
+
+  testing/host/host.py
+    CHAT_REQUEST handler: mode resolution, pack_context, history, thread start
+
+  testing/host/streaming.py
+    _run_streaming_chat: prefetch, streaming, memory append, tool gate
+
+  testing/host/prompt_engineering.py
+    detect_mode, classify_ask_intent, build_system_content, build_chat_messages,
+    _SYSTEM_NOTES_ASK, load_mode_sections
+
+  testing/host/notebook_context.py
+    pack_context, _pack_ask, intent-specific packers, CONTEXT_MANIFEST
+
+  testing/host/notebook_query.py
+    build_query_plan, prefetch_notebook_queries, tools_allowed_for_mode
+
+  testing/host/prompts/ask.txt
+    Mode-specific instructions and response formats
+
+  testing/host/prompts/tool_calling/query_tools_ask.txt
+    Prefetch evidence interpretation guide
+
+  testing/host/config.py
+    ALLOWED_MODES, CONTEXT_PACK_MODE, history/token limits
+
+  testing/host/context_budget.py
+    trim_history_for_api, fit_messages_to_budget
+
+  testing/host/prompt_cache_baseline.py
+    Static notebook cache baseline + delta for Cerebras prefix caching
+
+  testing/host/memory.py
+    SQLite chat persistence
+
+  testing/host/agentic_mode.py
+    agentic_session_active (always false for ask)
+
+================================================================================
+END OF ASK_MODE.txt
+================================================================================
