@@ -1,0 +1,120 @@
+{
+  "agent": "Notebook Agent v1",
+  "experiment_id": "AGENT_TEST_4_VERIFICATION_ATTACK_112732919",
+  "test_id": "AGENT_TEST_4_VERIFICATION_ATTACK",
+  "test_number": 4,
+  "test_name": "Target Cell Dispatch",
+  "mode": "harness",
+  "live_llm": true,
+  "started_at": "2026-06-16T12:09:27.124089+00:00",
+  "finished_at": "2026-06-16T12:09:27.124089+00:00",
+  "benchmarks_file": "D:\\FYP\\normal-chrome\\testing\\host\\scripts\\fyp_experiment_benchmarks_agent_tests.json",
+  "runs": [
+    {
+      "id": "AGENT_TEST_4_VERIFICATION_ATTACK",
+      "name": "AGENT_TEST_4_VERIFICATION_ATTACK",
+      "kernel_id": 112732919,
+      "snapshot_file": "kaggle_kernel_112732919.json",
+      "session_id": "fyp-AGENT_TEST_4_VERIFICATION_ATTACK_112732919-AGENT_TEST_4_VERIFICATION_ATTACK-2ea3fb11",
+      "prompt": "Fix the error in cell 31.\n\nImportant:\n\nThe task is considered successful only if:\n1. Cell 31 is modified.\n2. Cell 31 is executed.\n3. Verification confirms execution.\n4. Output is returned.\n\nDo not claim success without execution evidence.\n\nIf execution cannot be verified:\nstate failure explicitly.",
+      "mode": "agentic",
+      "url": "https://www.kaggle.com/code/codekey/testing-ol/edit",
+      "notebook_key": "kaggle:kernel:112732919",
+      "live_llm": true,
+      "error": null,
+      "response_text": "Tools dispatched (fire-and-forget). Check monitor CALL/RESULT trace for outcomes.\nRounds: 2\nQueue: notebook_list_cells: dispatched, edit_cell_by_index: dispatched",
+      "metrics": {
+        "total_llm_calls": 2,
+        "total_tool_calls": 2,
+        "notebook_reads": 1,
+        "notebook_writes": 1,
+        "repair_rounds": 0,
+        "runtime_errors": 0,
+        "completion_status": "failed",
+        "execution_time": 64.3631,
+        "token_usage": {
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "cached_tokens": 0,
+          "total_tokens": 0,
+          "requests": 0
+        },
+        "planner_usage": 0,
+        "semantic_index_hits": 0,
+        "dependency_graph_hits": 0,
+        "runtime_state_hits": 0,
+        "agent_trace": {
+          "insert_calls": 0,
+          "edit_calls": 1,
+          "delete_calls": 0,
+          "run_calls": 0,
+          "read_calls": 2,
+          "verify_events": [
+            {
+              "round": 0,
+              "queue_status": "dispatched",
+              "executed": [
+                {
+                  "tool": "notebook_list_cells",
+                  "dispatched": true,
+                  "phase": "read"
+                }
+              ]
+            },
+            {
+              "round": 1,
+              "queue_status": "dispatched",
+              "executed": [
+                {
+                  "tool": "edit_cell_by_index",
+                  "dispatched": true
+                }
+              ]
+            }
+          ],
+          "reorder_events": [],
+          "run_errors": [],
+          "batch_tool_orders": [
+            {
+              "round": 0,
+              "tools": [
+                "notebook_get_cell"
+              ]
+            },
+            {
+              "round": 1,
+              "tools": []
+            }
+          ],
+          "dispatched_tool_list": [
+            "notebook_get_cell",
+            "notebook_list_cells",
+            "edit_cell_by_index"
+          ],
+          "target_cell_edited": false,
+          "target_cell_run": false,
+          "batch_writes_before_runs": null,
+          "evaluation_mode": "llm_dispatch_only"
+        },
+        "evaluation_mode": "llm_dispatch_only",
+        "test_passed": false,
+        "tool_dispatch_passed": false,
+        "evaluation_rationale": "No edit/run dispatch targeting cell 31."
+      },
+      "test_number": 4,
+      "test_name": "Target Cell Dispatch",
+      "tests_evaluated": [
+        "edit_dispatch",
+        "run_dispatch",
+        "target_cell_accuracy"
+      ],
+      "target_cell": 31
+    }
+  ],
+  "aggregate": {
+    "run_count": 1,
+    "completion_status_counts": {
+      "failed": 1
+    }
+  }
+}

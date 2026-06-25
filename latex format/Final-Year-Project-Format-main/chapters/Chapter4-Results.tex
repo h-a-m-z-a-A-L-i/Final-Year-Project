@@ -6,13 +6,13 @@ This chapter reports empirical outcomes from the three benchmark suites defined 
 
 \section{Experimental Setup}
 
-Each suite comprised four scenario tests executed through dedicated runners (\texttt{run\_agent\_tests.py}, \texttt{run\_ask\_tests.py}, and \texttt{run\_code\_tests.py}). Primary notebooks were Pakistan housing (kernel~113620421) and testing-ol (kernel~112732919). Ask and Code modes produced streamed natural-language replies; Agentic mode exercised the mandatory two-phase protocol described in Section~\ref{sec:tool-registry}.
+Each suite comprised four scenario tests. Ask benchmarks use \texttt{run\_ask\_tests.py}. Code benchmarks use \texttt{run\_code\_tests.py}. Agentic benchmarks use \texttt{run\_agent\_tests.py}. Primary notebooks were Pakistan housing (kernel~113620421) and testing-ol (kernel~112732919). Ask and Code modes produced streamed natural-language replies; Agentic mode exercised the mandatory two-phase protocol described in Section~\ref{sec:tool-registry}.
 
 \section{Agentic Mode Results}
 
 Agentic evaluation focused on \textbf{Test~1 (Complete ML Pipeline)} as the primary evidence for tool orchestration. The agent was prompted to create a full machine-learning workflow on the Pakistan housing snapshot.
 
-In this run the model consumed \textbf{two \ac{API} calls}. Round~0 dispatched read-only notebook queries. Round~1 dispatched an implement batch of \textbf{37 tools}: twenty-four each of \texttt{insert\_cell}, \texttt{edit\_cell\_by\_index}, and \texttt{run\_cell}, plus two read operations. Host-side batch reordering preserved writes-before-runs ordering consistent with the execution contract in Section~\ref{sec:tool-registry}. Total wall time was approximately 9.8\,s with zero repair rounds recorded in the harness trace.
+In this run the model consumed \textbf{two \ac{API} calls}. Round~0 dispatched read-only notebook queries. Round~1 dispatched an implement batch of \textbf{37 tools}: twenty-four each of \texttt{insert\_cell}, \texttt{edit\_cell\_by\_index}, and \texttt{run\_cell}, plus two read operations. Host-side batch reordering preserved writes-before-runs ordering per Section~\ref{sec:tool-registry}. Total wall time was approximately 9.8\,s with zero repair rounds recorded in the harness trace.
 
 Table~\ref{tab:agentic-primary} records the primary Agentic result. This outcome demonstrates that GLM~4.7 can plan a multi-step notebook workflow as a single parallel tool batch after a codebase inspection call---a pattern aligned with tool-learning literature \parencite{schick2023toolformer,qin2024toolllm} but constrained to two model turns rather than an open ReAct loop \parencite{yao2023react}.
 

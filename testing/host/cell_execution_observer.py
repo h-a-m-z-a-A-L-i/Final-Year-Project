@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Iterable
@@ -132,6 +133,37 @@ def _title_is_executed(title: str) -> bool:
     if not t or "not executed yet" in t:
         return False
     return "cell executed" in t or t.startswith("execution") or "executed" in t
+
+
+_EXECUTION_TIME_SEC_RE = re.compile(
+    r"executed\s+in\s+([\d.]+)\s*(?:s|sec|secs|second|seconds)\b",
+    re.IGNORECASE,
+)
+
+
+def normalize_execution_title(execution_title: str) -> str:
+    """'Cell executed in 0.005s at 9:18am' -> 'Cell executed in 0.005s'."""
+    text = str(execution_title or "").strip()
+    if not text:
+        return ""
+    match = re.match(r"^(Cell executed in [\d.]+s)", text, re.IGNORECASE)
+    if match:
+        return match.group(1)
+    return re.sub(r"\s+at\s+[\d:]+\s*(?:am|pm)?\s*$", "", text, flags=re.IGNORECASE).strip()
+
+
+def parse_execution_time_sec(execution_title: str) -> float | None:
+    """Parse Kaggle/Jupyter cell title e.g. 'Cell executed in 0.006s' -> 0.006."""
+    text = normalize_execution_title(execution_title)
+    if not text:
+        return None
+    match = _EXECUTION_TIME_SEC_RE.search(text)
+    if not match:
+        return None
+    try:
+        return round(float(match.group(1)), 6)
+    except (TypeError, ValueError):
+        return None
 
 
 def normalize_raw_execution_cell(cell: dict[str, Any]) -> CellExecutionObservation | None:

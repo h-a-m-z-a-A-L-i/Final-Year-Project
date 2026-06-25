@@ -52,7 +52,7 @@ def pick_cell_index(args: dict) -> Any:
 def pick_tab_id(args: dict) -> int | None:
     for key in ("tab_id", "tabId"):
         raw = args.get(key)
-        if isinstance(raw, int) and raw > 0:
+        if isinstance(raw, int) and _looks_like_tab_id(raw):
             return raw
     return None
 
@@ -373,6 +373,32 @@ def is_retriable_browser_error(error: str | None) -> bool:
     return any(n in lowered for n in needles)
 
 
+def resolve_browser_target(args: dict, tool_name: str) -> tuple[str, int | None, dict | None]:
+    """Browser tools need url OR tab_id — extension resolves whichever is missing."""
+    try:
+        from .browser_tool_response import validation_error
+    except Exception:
+        from browser_tool_response import validation_error
+
+    url = pick_notebook_url(args)
+    tab_id = pick_tab_id(args)
+    if not url and tab_id is None:
+        return "", None, validation_error(
+            tool_name,
+            "url or tab is required (one is enough — matching /edit page or Chrome tab id)",
+        )
+    return url, tab_id, None
+
+
+def apply_browser_target(cmd: dict, url: str, tab_id: int | None) -> dict:
+    if url:
+        cmd["url"] = url
+    if tab_id is not None:
+        cmd["tabId"] = tab_id
+        cmd["tab_id"] = tab_id
+    return cmd
+
+
 def normalize_click_cell_args(args: dict) -> tuple[dict | None, dict | None]:
     """
     Build a normalized bot command for click_cell.
@@ -380,19 +406,18 @@ def normalize_click_cell_args(args: dict) -> tuple[dict | None, dict | None]:
 
     cellIndex sent to the extension is the 0-based DOM index (data-windowed-list-index).
     """
-    url = pick_notebook_url(args)
-    if not url:
-        return None, {"ok": False, "error": "url is required (open notebook /edit URL)"}
-
-    dom_index, err = normalize_dom_cell_index_from_args(args, url=None, default_basis="app")
+    url, tab_id, err = resolve_browser_target(args, "click_cell")
     if err:
-        return None, {"ok": False, "error": err}
+        return None, err
+
+    dom_index, cell_err = normalize_dom_cell_index_from_args(args, url=None, default_basis="app")
+    if cell_err:
+        return None, {"ok": False, "error": cell_err}
 
     app_index = dom_to_app(dom_index)
 
     cmd: dict[str, Any] = {
         "action": "click",
-        "url": url,
         "cellIndex": dom_index,
         "cell_index": app_index,
         "dom_index": dom_index,
@@ -400,30 +425,24 @@ def normalize_click_cell_args(args: dict) -> tuple[dict | None, dict | None]:
         "scrollIntoView": args.get("scroll_into_view", args.get("scrollIntoView", True)) is not False,
         "runCell": False,
     }
-
-    tab_id = pick_tab_id(args)
-    if tab_id is not None:
-        cmd["tabId"] = tab_id
-        cmd["tab_id"] = tab_id
-
+    apply_browser_target(cmd, url, tab_id)
     return cmd, None
 
 
 def normalize_run_cell_args(args: dict) -> tuple[dict | None, dict | None]:
     """Build bot command for run_cell (1-based cell_index, executes cell in kernel)."""
-    url = pick_notebook_url(args)
-    if not url:
-        return None, {"ok": False, "error": "url is required (open notebook /edit URL)"}
-
-    dom_index, err = normalize_dom_cell_index_from_args(args, url=None, default_basis="app")
+    url, tab_id, err = resolve_browser_target(args, "run_cell")
     if err:
-        return None, {"ok": False, "error": err}
+        return None, err
+
+    dom_index, cell_err = normalize_dom_cell_index_from_args(args, url=None, default_basis="app")
+    if cell_err:
+        return None, {"ok": False, "error": cell_err}
 
     app_index = dom_to_app(dom_index)
 
     cmd: dict[str, Any] = {
         "action": "run_cell",
-        "url": url,
         "cellIndex": dom_index,
         "cell_index": app_index,
         "dom_index": dom_index,
@@ -432,24 +451,19 @@ def normalize_run_cell_args(args: dict) -> tuple[dict | None, dict | None]:
         "scrollIntoView": args.get("scroll_into_view", args.get("scrollIntoView", True)) is not False,
         "runCell": True,
     }
-
-    tab_id = pick_tab_id(args)
-    if tab_id is not None:
-        cmd["tabId"] = tab_id
-        cmd["tab_id"] = tab_id
-
+    apply_browser_target(cmd, url, tab_id)
     return apply_command_transport_flags(cmd, args), None
 
 
 def normalize_edit_cell_args(args: dict) -> tuple[dict | None, dict | None]:
     """Build bot command for edit_cell_by_index (1-based cell_index, replaces cell content)."""
-    url = pick_notebook_url(args)
-    if not url:
-        return None, {"ok": False, "error": "url is required (open notebook /edit URL)"}
-
-    dom_index, err = normalize_dom_cell_index_from_args(args, url=url, default_basis="app")
+    url, tab_id, err = resolve_browser_target(args, "edit_cell_by_index")
     if err:
-        return None, {"ok": False, "error": err}
+        return None, err
+
+    dom_index, cell_err = normalize_dom_cell_index_from_args(args, url=url or None, default_basis="app")
+    if cell_err:
+        return None, {"ok": False, "error": cell_err}
 
     content = args.get("content")
     if content is None:
@@ -461,7 +475,6 @@ def normalize_edit_cell_args(args: dict) -> tuple[dict | None, dict | None]:
 
     cmd: dict[str, Any] = {
         "action": "edit_cell_by_index",
-        "url": url,
         "cellIndex": dom_index,
         "cell_index": app_index,
         "dom_index": dom_index,
@@ -469,12 +482,7 @@ def normalize_edit_cell_args(args: dict) -> tuple[dict | None, dict | None]:
         "index_basis": "dom",
         "content": str(content),
     }
-
-    tab_id = pick_tab_id(args)
-    if tab_id is not None:
-        cmd["tabId"] = tab_id
-        cmd["tab_id"] = tab_id
-
+    apply_browser_target(cmd, url, tab_id)
     return apply_command_transport_flags(cmd, args), None
 
 
@@ -490,13 +498,13 @@ def normalize_edit_and_run_args(args: dict) -> tuple[dict | None, dict | None]:
 
 def normalize_insert_and_edit_args(args: dict) -> tuple[dict | None, dict | None]:
     """Build bot command for insert_and_edit_cell (1-based anchor, insert below, then fill)."""
-    url = pick_notebook_url(args)
-    if not url:
-        return None, {"ok": False, "error": "url is required (open notebook /edit URL)"}
-
-    dom_index, err = normalize_dom_cell_index_from_args(args, url=None, default_basis="app")
+    url, tab_id, err = resolve_browser_target(args, "insert_and_edit_cell")
     if err:
-        return None, {"ok": False, "error": err}
+        return None, err
+
+    dom_index, cell_err = normalize_dom_cell_index_from_args(args, url=None, default_basis="app")
+    if cell_err:
+        return None, {"ok": False, "error": cell_err}
 
     content = args.get("content")
     if content is None:
@@ -512,7 +520,6 @@ def normalize_insert_and_edit_args(args: dict) -> tuple[dict | None, dict | None
 
     cmd: dict[str, Any] = {
         "action": "insert_and_edit_cell",
-        "url": url,
         "cellIndex": dom_index,
         "cell_index": app_index,
         "index": app_index,
@@ -522,31 +529,24 @@ def normalize_insert_and_edit_args(args: dict) -> tuple[dict | None, dict | None
         "direction": direction,
         "content": str(content),
     }
-
-    tab_id = pick_tab_id(args)
-    if tab_id is not None:
-        cmd["tabId"] = tab_id
-        cmd["tab_id"] = tab_id
-
+    apply_browser_target(cmd, url, tab_id)
     return cmd, None
 
 
 def normalize_select_cell_args(args: dict) -> tuple[dict | None, dict | None]:
     """Build bot command for select_cell_by_index (focus cell, no run)."""
-    from .browser_tool_response import validation_error
-
-    url = pick_notebook_url(args)
-    if not url:
-        return None, validation_error("select_cell_by_index", "url is required (open notebook /edit URL)")
-
-    dom_index, err = normalize_dom_cell_index_from_args(args, url=None, default_basis="app")
+    url, tab_id, err = resolve_browser_target(args, "select_cell_by_index")
     if err:
-        return None, validation_error("select_cell_by_index", err)
+        return None, err
+
+    dom_index, cell_err = normalize_dom_cell_index_from_args(args, url=None, default_basis="app")
+    if cell_err:
+        from .browser_tool_response import validation_error
+        return None, validation_error("select_cell_by_index", cell_err)
 
     app_index = dom_to_app(dom_index)
     cmd: dict[str, Any] = {
         "action": "select_cell_by_index",
-        "url": url,
         "cellIndex": dom_index,
         "cell_index": app_index,
         "dom_index": dom_index,
@@ -555,20 +555,15 @@ def normalize_select_cell_args(args: dict) -> tuple[dict | None, dict | None]:
         "scrollIntoView": args.get("scroll_into_view", args.get("scrollIntoView", True)) is not False,
         "runCell": False,
     }
-    tab_id = pick_tab_id(args)
-    if tab_id is not None:
-        cmd["tabId"] = tab_id
-        cmd["tab_id"] = tab_id
+    apply_browser_target(cmd, url, tab_id)
     return cmd, None
 
 
 def normalize_insert_cell_args(args: dict) -> tuple[dict | None, dict | None]:
     """Build bot command for insert_cell (empty cell above/below anchor)."""
-    from .browser_tool_response import validation_error
-
-    url = pick_notebook_url(args)
-    if not url:
-        return None, validation_error("insert_cell", "url is required (open notebook /edit URL)")
+    url, tab_id, err = resolve_browser_target(args, "insert_cell")
+    if err:
+        return None, err
 
     anchor_raw = args.get("index")
     if anchor_raw is None:
@@ -576,22 +571,23 @@ def normalize_insert_cell_args(args: dict) -> tuple[dict | None, dict | None]:
     if anchor_raw is None:
         anchor_raw = args.get("cellIndex")
 
-    dom_index, err = normalize_dom_cell_index_from_args(
+    dom_index, cell_err = normalize_dom_cell_index_from_args(
         {"cell_index": anchor_raw, "index_basis": args.get("index_basis", "app")},
         url=None,
         default_basis="app",
     )
-    if err:
-        return None, validation_error("insert_cell", err)
+    if cell_err:
+        from .browser_tool_response import validation_error
+        return None, validation_error("insert_cell", cell_err)
 
     direction = str(args.get("direction") or "below").strip().lower()
     if direction not in {"below", "above"}:
+        from .browser_tool_response import validation_error
         return None, validation_error("insert_cell", "direction must be 'below' or 'above'")
 
     app_index = dom_to_app(dom_index)
     cmd: dict[str, Any] = {
         "action": "insert_cell",
-        "url": url,
         "cellIndex": dom_index,
         "cell_index": app_index,
         "index": app_index,
@@ -600,29 +596,24 @@ def normalize_insert_cell_args(args: dict) -> tuple[dict | None, dict | None]:
         "index_basis": "dom",
         "direction": direction,
     }
-    tab_id = pick_tab_id(args)
-    if tab_id is not None:
-        cmd["tabId"] = tab_id
-        cmd["tab_id"] = tab_id
+    apply_browser_target(cmd, url, tab_id)
     return apply_command_transport_flags(cmd, args), None
 
 
 def normalize_delete_cell_args(args: dict) -> tuple[dict | None, dict | None]:
     """Build bot command for delete_by_index (1-based cell_index)."""
-    from .browser_tool_response import validation_error
-
-    url = pick_notebook_url(args)
-    if not url:
-        return None, validation_error("delete_by_index", "url is required (open notebook /edit URL)")
-
-    dom_index, err = normalize_dom_cell_index_from_args(args, url=None, default_basis="app")
+    url, tab_id, err = resolve_browser_target(args, "delete_by_index")
     if err:
-        return None, validation_error("delete_by_index", err)
+        return None, err
+
+    dom_index, cell_err = normalize_dom_cell_index_from_args(args, url=None, default_basis="app")
+    if cell_err:
+        from .browser_tool_response import validation_error
+        return None, validation_error("delete_by_index", cell_err)
 
     app_index = dom_to_app(dom_index)
     cmd: dict[str, Any] = {
         "action": "delete_by_index",
-        "url": url,
         "cellIndex": dom_index,
         "cell_index": app_index,
         "dom_index": dom_index,
@@ -631,20 +622,15 @@ def normalize_delete_cell_args(args: dict) -> tuple[dict | None, dict | None]:
         "scrollIntoView": args.get("scroll_into_view", args.get("scrollIntoView", True)) is not False,
         "maxWaitMs": args.get("maxWaitMs", args.get("max_wait_ms", 600)),
     }
-    tab_id = pick_tab_id(args)
-    if tab_id is not None:
-        cmd["tabId"] = tab_id
-        cmd["tab_id"] = tab_id
+    apply_browser_target(cmd, url, tab_id)
     return apply_command_transport_flags(cmd, args), None
 
 
 def normalize_creating_markdown_args(args: dict) -> tuple[dict | None, dict | None]:
     """Build bot command for creating_markdown_by_index (insert markdown above anchor)."""
-    from .browser_tool_response import validation_error
-
-    url = pick_notebook_url(args)
-    if not url:
-        return None, validation_error("creating_markdown_by_index", "url is required (open notebook /edit URL)")
+    url, tab_id, err = resolve_browser_target(args, "creating_markdown_by_index")
+    if err:
+        return None, err
 
     anchor_raw = args.get("index")
     if anchor_raw is None:
@@ -652,18 +638,18 @@ def normalize_creating_markdown_args(args: dict) -> tuple[dict | None, dict | No
     if anchor_raw is None:
         anchor_raw = args.get("cellIndex")
 
-    dom_index, err = normalize_dom_cell_index_from_args(
+    dom_index, cell_err = normalize_dom_cell_index_from_args(
         {"cell_index": anchor_raw, "index_basis": args.get("index_basis", "app")},
         url=None,
         default_basis="app",
     )
-    if err:
-        return None, validation_error("creating_markdown_by_index", err)
+    if cell_err:
+        from .browser_tool_response import validation_error
+        return None, validation_error("creating_markdown_by_index", cell_err)
 
     app_index = dom_to_app(dom_index)
     cmd: dict[str, Any] = {
         "action": "creating_markdown_by_index",
-        "url": url,
         "cellIndex": dom_index,
         "cell_index": app_index,
         "index": app_index,
@@ -671,10 +657,7 @@ def normalize_creating_markdown_args(args: dict) -> tuple[dict | None, dict | No
         "app_index": app_index,
         "index_basis": "dom",
     }
-    tab_id = pick_tab_id(args)
-    if tab_id is not None:
-        cmd["tabId"] = tab_id
-        cmd["tab_id"] = tab_id
+    apply_browser_target(cmd, url, tab_id)
     return apply_command_transport_flags(cmd, args), None
 
 

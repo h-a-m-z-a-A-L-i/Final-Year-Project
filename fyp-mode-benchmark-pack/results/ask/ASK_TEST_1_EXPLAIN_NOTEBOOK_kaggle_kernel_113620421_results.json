@@ -1,0 +1,90 @@
+{
+  "suite": "ASK_MODE_BENCHMARK_SUITE",
+  "agent": "Notebook Agent v1",
+  "description": "Ask-mode evaluation: explanation quality, no tools, no notebook modifications.",
+  "live_llm": true,
+  "started_at": "2026-06-16T11:20:10.146756+00:00",
+  "finished_at": "2026-06-16T11:25:24.941370+00:00",
+  "runs": [
+    {
+      "id": "ASK_TEST_1_EXPLAIN_NOTEBOOK",
+      "name": "ASK_TEST_1_EXPLAIN_NOTEBOOK",
+      "kernel_id": 113620421,
+      "snapshot_file": "kaggle_kernel_113620421.json",
+      "session_id": "fyp-ASK_TEST_1_EXPLAIN_NOTEBOOK_113620421-ASK_TEST_1_EXPLAIN_NOTEBOOK-2d58c812",
+      "prompt": "Explain the complete workflow of this notebook.\n\nInclude:\n- Data loading\n- Cleaning\n- Feature engineering\n- Model training\n- Evaluation\n\nDo not generate code.\n\nUse notebook evidence only.",
+      "mode": "ask",
+      "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+      "notebook_key": "kaggle:kernel:113620421",
+      "live_llm": true,
+      "error": null,
+      "response_text": "Based on the provided notebook evidence (Cells 1–5), here is the current workflow:\n\n**Data Loading**\n- **Cell [1]** imports `pandas` and reads the dataset `zameen-updated.csv` into a DataFrame named `df`.\n\n**Initial Inspection**\n- **Cell [2]** calls `df.head(10)` to display the first 10 rows, allowing a preview of the columns (e.g., `property_type`, `price`, `city`, `area`) and data structure.\n\n**Data Preparation (Initial)**\n- **Cell [5]** creates a copy of the original DataFrame and assigns it to `df1`. This is typically done to preserve the raw data before modifications.\n\n**Missing Steps**\nThe following stages are not present in the current evidence:\n- **Cleaning:** There is no code for handling missing values, removing duplicates, or correcting data types. (Cells [3] and [4] are currently empty).\n- **Feature Engineering:** No logic for creating new features or transforming existing ones is visible.\n- **Model Training:** No model libraries (e.g., `sklearn`), data splitting, or training code is visible.\n- **Evaluation:** No code for calculating metrics or analyzing predictions is visible.\n\n**INSUFFICIENT_CONTEXT**\nThe notebook coverage is partial. Are there additional cells beyond Cell [5] that contain the cleaning, modeling, or evaluation steps?",
+      "metrics": {
+        "total_llm_calls": 0,
+        "total_tool_calls": 0,
+        "notebook_reads": 0,
+        "notebook_writes": 0,
+        "repair_rounds": 0,
+        "runtime_errors": 0,
+        "completion_status": "failed",
+        "execution_time": 62.2918,
+        "token_usage": {
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "cached_tokens": 0,
+          "total_tokens": 0,
+          "requests": 0
+        },
+        "planner_usage": 0,
+        "semantic_index_hits": 0,
+        "dependency_graph_hits": 0,
+        "runtime_state_hits": 0,
+        "ask_evaluation": {
+          "coverage": 0.889,
+          "coverage_hits": 8,
+          "coverage_topics_covered": [
+            "data loading",
+            "load",
+            "clean",
+            "missing",
+            "feature",
+            "train",
+            "model",
+            "evaluat"
+          ],
+          "coverage_topics_missing": [
+            "visual"
+          ],
+          "accuracy": 0.375,
+          "hallucination_rate": 0.333,
+          "hallucination_details": {
+            "cited_cell_indices": [],
+            "invalid_cell_references": [],
+            "ground_truth_hits": 0,
+            "ground_truth_total": 0,
+            "fabrication_flags": [],
+            "hallucination_rate": 0.333
+          },
+          "contract_compliance": {
+            "no_tool_calls": true,
+            "no_notebook_writes": true,
+            "no_large_code_dump": true,
+            "acknowledges_empty_cell": true,
+            "asks_clarifying_questions": true
+          },
+          "contract_passed": true,
+          "code_fence_count": 0,
+          "max_code_fence_lines": 0,
+          "test_passed": false,
+          "evaluation_rationale": "Low accuracy vs notebook evidence (38%).",
+          "response_word_count": 184,
+          "response_preview": "Based on the provided notebook evidence (Cells 1–5), here is the current workflow:\n\n**Data Loading**\n- **Cell [1]** imports `pandas` and reads the dataset `zameen-updated.csv` into a DataFrame named `df`.\n\n**Initial Inspection**\n- **Cell [2]** calls `df.head(10)` to display the first 10 rows, allowing a preview of the columns (e.g., `property_type`, `price`, `city`, `area`) and data structure.\n\n**Data Preparation (Initial)**\n- **Cell [5]** creates a copy of the original DataFrame and assigns it to `df1`. This is typically done to preserve the raw data before modifications.\n\n**Missing Steps**\nThe following stages are not present in the current evidence:\n- **Cleaning:** There is no code for handling missing values, removing duplicates, or correcting data types. (Cells [3] and [4] are currently empty).\n- **Feature Engineering:** No logic for creating new features or transforming existing ones is visible.\n- **Model Training:** No model libraries (e.g., `sklearn`), data splitting, or training code is visible.\n- **Evaluation:** No code for calculating metrics or analyzing predictions is visible.\n\n**INSUFFICIENT_CONTEXT**\nThe notebook coverage is partial. Are there additional cells beyond"
+        },
+        "test_passed": false
+      },
+      "test_number": 1,
+      "test_name": "Explain Notebook",
+      "target_cell": null
+    }
+  ]
+}

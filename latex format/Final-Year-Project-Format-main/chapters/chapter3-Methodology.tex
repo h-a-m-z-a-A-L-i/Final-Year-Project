@@ -98,7 +98,7 @@ This design trades remote deployability for local installation overhead: the use
 \section{Python Native Host}
 \label{sec:python-host}
 
-The host entry point is \texttt{testing/host/host.py}. On startup it loads configuration from \texttt{config.py} (environment variables and \texttt{.env}), initialises data directories under \texttt{testing/host/data/}, and starts the native messaging I/O loop via the dispatcher module. Incoming messages are classified by type and routed to specialised modules: notebook ingestion (\texttt{notebook\_data\_handler.py}), streaming chat (\texttt{streaming.py}), and tool execution (\texttt{tool\_registry.py} and \texttt{agentic\_batch\_executor.py}).
+The host entry point is \texttt{host.py} under \texttt{testing/host/}. On startup it loads \texttt{config.py} and initialises directories under \texttt{testing/host/data/}. The dispatcher starts the native messaging I/O loop. Messages route to \texttt{notebook\_data\_handler.py} for ingestion and to \texttt{streaming.py} for chat. Tool execution uses \texttt{tool\_registry.py}; the batch executor module handles batched dispatch.
 
 \subsection{Prompt assembly and chat modes}
 \label{sec:prompt-assembly}
@@ -112,14 +112,14 @@ Prompt templates reside under \texttt{testing/host/prompts/}, with mode-specific
 \label{f-context-packing}
 \end{figure}
 
-Chat history is keyed by a stable notebook identity resolved from the Kaggle kernel id when available ({\ttfamily\seqsplit{kaggle:kernel:<id>}}) or from a normalised URL fallback (\texttt{notebook\_identity.py}). This key aligns snapshot filenames, SQLite session storage, and tool \texttt{url} arguments.
+Chat history is keyed by a stable notebook identity resolved from the Kaggle kernel id when available ({\ttfamily\seqsplit{kaggle:kernel:<id>}}). A normalised URL fallback uses \texttt{notebook\_identity.py}. This key aligns snapshot filenames, SQLite session storage, and tool \texttt{url} arguments.
 
 \subsection{Tool registry and agentic execution contract}
 \label{sec:tool-registry}
 
 Tools are registered in \texttt{tool\_registry.py} with JSON-schema argument validation. They fall into two classes:
 \begin{itemize}
-  \item \textbf{Local read tools} execute entirely on the host against persisted JSON snapshots. Examples include \texttt{notebook\_list\_cells}, \texttt{notebook\_get\_cell}, and \texttt{notebook\_snapshot\_status}.
+  \item \textbf{Local read tools} execute entirely on the host against persisted JSON snapshots. Examples include \texttt{notebook\_list\_cells}. Cell bodies use \texttt{notebook\_get\_cell}. Status queries use \texttt{notebook\_snapshot\_status}.
   \item \textbf{Browser tools} are forwarded to the extension for \ac{DOM} operations. Examples include \texttt{insert\_cell}, \texttt{edit\_cell\_by\_index}, \texttt{delete\_by\_index}, and \texttt{run\_cell}.
 \end{itemize}
 
@@ -130,18 +130,18 @@ Agentic execution is governed by configuration flags in \texttt{config.py}:
   \item {\ttfamily\seqsplit{AGENTIC\_FIRE\_AND\_FORGET}} (default on): the host dispatches an ordered tool batch without waiting for per-cell snapshot reconciliation before the model's implement round completes.
 \end{itemize}
 
-The batch executor (\texttt{agentic\_batch\_executor.py}) integrates with \texttt{strict\_execution\_engine.py} to build a deterministic queue. Bulk \texttt{delete\_by\_index} and \texttt{insert\_cell} operations are sorted in \emph{descending} index order on the host before browser dispatch, mitigating index-shift errors when multiple positional edits occur in one turn. \texttt{run\_cell} actions are ordered after structural mutations. Tool dispatches are logged through \texttt{tool\_call\_terminal.py} for development-time auditing.
+The batch executor (\texttt{agentic\_batch\_executor.py}) builds the tool queue. Rules from \texttt{strict\_execution\_engine.py} sort bulk deletes and inserts in \emph{descending} index order, then \texttt{run\_cell} actions. Dispatches are logged through \texttt{tool\_call\_terminal.py}.
 
-Scrape-based observers include \texttt{cell\_execution\_observer.py} and \texttt{cell\_structure\_observer.py}. They update operational state asynchronously when cells run or the notebook layout changes, supplying feedback for monitors without a closed-loop replanning cycle in the current implementation.
+Scrape-based observers include \texttt{cell\_execution\_observer.py}. Layout tracking uses \texttt{cell\_structure\_observer.py}. They supply scrape-based feedback without closed-loop replanning.
 
 \section{LLM Integration: GLM~4.7 via Cerebras}
 \label{sec:llm-integration}
 
 Remote inference uses the Cerebras \ac{API} with model identifier \texttt{zai-glm-4.7} (GLM~4.7), configured through \texttt{CEREBRAS\_MODEL} in the environment. The client module \texttt{cerebras\_client.py} submits chat completions with tool definitions generated from the registry and prompt autogen files under \texttt{prompts/tool\_calling/}. GLM~4.7 supports \emph{native parallel} \texttt{tool\_calls} in a single completion when the model can plan an entire implement batch at once; the provider module \texttt{llm\_provider.py} records this capability and applies Cerebras free-tier rate limits (requests and tokens per minute).
 
-\enlargethispage{1\baselineskip}
 Temperature and top-$p$ are set conservatively (\texttt{LLM\_TEMPERATURE} default 0.5) to favour deterministic tool selection over creative variation. When Agentic mode is active and the server allows it, tool schemas are attached to the completion request; the host parses returned \texttt{tool\_calls}, validates arguments, applies phase guards, and either executes local tools immediately or enqueues browser tools for the extension. Streaming responses (\texttt{streaming.py}) support incremental user-interface updates in Ask and Code modes; Agentic batches may still stream textual narration while tools are queued.
 
+\pagebreak[4]
 The integration is intentionally single-provider for the FYP artefact: \texttt{LLM\_PROVIDER} normalises to \texttt{cerebras}, keeping evaluation comparable and configuration reproducible. \ac{API} keys reside only in the host environment (\texttt{CEREBRAS\_API\_KEY}), never in the extension package.
 
 \section{Notebook JSON Persistence}

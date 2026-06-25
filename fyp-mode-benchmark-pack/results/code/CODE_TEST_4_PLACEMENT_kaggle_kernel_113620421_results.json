@@ -1,0 +1,76 @@
+{
+  "suite": "CODE_MODE_BENCHMARK_SUITE",
+  "live_llm": true,
+  "started_at": "2026-06-16T11:27:58.462865+00:00",
+  "finished_at": "2026-06-16T11:33:27.287459+00:00",
+  "runs": [
+    {
+      "id": "CODE_TEST_4_PLACEMENT",
+      "name": "CODE_TEST_4_PLACEMENT",
+      "kernel_id": 113620421,
+      "snapshot_file": "kaggle_kernel_113620421.json",
+      "session_id": "fyp-CODE_TEST_4_PLACEMENT_113620421-CODE_TEST_4_PLACEMENT-724d689f",
+      "prompt": "Where should I insert a new cell to print validation RMSE and MAE after model training?\n\nProvide placement guidance with evidence from the notebook flow.\n\nInclude a runnable python code block for the new cell.",
+      "mode": "code",
+      "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+      "notebook_key": "kaggle:kernel:113620421",
+      "live_llm": true,
+      "error": null,
+      "response_text": "### Plan\n- The current notebook context (Cells 1–5) shows data loading (`df`) and a copy (`df1`), but **no model training or prediction code** is visible yet.\n- To print validation RMSE and MAE, you must first have a trained model and predictions (e.g., `y_pred`) in memory.\n- I will provide the code to calculate these metrics using `sklearn`.\n\n### Placement\nSince the model training cell is not in the provided context (Cells 1–5), I cannot give a specific index like \"below Cell [6]\".\n- **Insert a new Code cell immediately after** the cell where you generate predictions (where `y_pred` is assigned).\n- Ensure the training cell and prediction cell have been **Run** so that `y_test` (or `y_val`) and `y_pred` exist in the kernel.\n\n### Code\n```python\nfrom sklearn.metrics import mean_squared_error, mean_absolute_error\nimport numpy as np\n\n# Ensure you have y_true (actual values) and y_pred (predicted values) from the previous cell\n# Example: y_true = y_test or y_val\n# Example: y_pred = model.predict(X_test) or model.predict(X_val)\n\nrmse = np.sqrt(mean_squared_error(y_true, y_pred))\nmae = mean_absolute_error(y_true, y_pred)\n\nprint(f\"Validation RMSE: {rmse}\")\nprint(f\"Validation MAE: {mae}\")\n```\n\n### Notes\n- **Variable Names:** Replace `y_true` with your actual target variable name (e.g., `y_test`, `y_val`) and `y_pred` with your prediction variable name.\n- **Dependencies:** This code requires `scikit-learn`. If you haven't imported it yet, the `from sklearn.metrics...` line in the block above handles it.",
+      "metrics": {
+        "total_llm_calls": 0,
+        "total_tool_calls": 0,
+        "notebook_reads": 0,
+        "notebook_writes": 0,
+        "repair_rounds": 0,
+        "runtime_errors": 0,
+        "completion_status": "success",
+        "execution_time": 67.8158,
+        "token_usage": {
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "cached_tokens": 0,
+          "total_tokens": 0,
+          "requests": 0
+        },
+        "planner_usage": 0,
+        "semantic_index_hits": 0,
+        "dependency_graph_hits": 0,
+        "runtime_state_hits": 0,
+        "code_evaluation": {
+          "coverage": 0.6,
+          "coverage_topics_covered": [
+            "placement",
+            "below",
+            "insert"
+          ],
+          "coverage_topics_missing": [
+            "X_valid",
+            "eval"
+          ],
+          "accuracy": null,
+          "contract_compliance": {
+            "no_browser_tool_dispatch": true,
+            "no_notebook_writes": true,
+            "has_placement_guidance": true,
+            "has_python_code_block": true,
+            "single_primary_code_block": true,
+            "acknowledges_empty_cell": true,
+            "defers_code_for_empty_cell": true,
+            "requires_code_block": true
+          },
+          "contract_passed": true,
+          "python_block_count": 1,
+          "max_python_block_lines": 12,
+          "test_passed": true,
+          "evaluation_rationale": "Code-mode contract satisfied with placement and runnable code.",
+          "response_word_count": 225,
+          "response_preview": "### Plan\n- The current notebook context (Cells 1–5) shows data loading (`df`) and a copy (`df1`), but **no model training or prediction code** is visible yet.\n- To print validation RMSE and MAE, you must first have a trained model and predictions (e.g., `y_pred`) in memory.\n- I will provide the code to calculate these metrics using `sklearn`.\n\n### Placement\nSince the model training cell is not in the provided context (Cells 1–5), I cannot give a specific index like \"below Cell [6]\".\n- **Insert a new Code cell immediately after** the cell where you generate predictions (where `y_pred` is assigned).\n- Ensure the training cell and prediction cell have been **Run** so that `y_test` (or `y_val`) and `y_pred` exist in the kernel.\n\n### Code\n```python\nfrom sklearn.metrics import mean_squared_error, mean_absolute_error\nimport numpy as np\n\n# Ensure you have y_true (actual values) and y_pred (predicted values) from the previous cell\n# Example: y_true = y_test or y_val\n# Example: y_pred = model.predict(X_test) or model.predict(X_val)\n\nrmse = np.sqrt(mean_squared_error(y_true, y_pred))\nmae = mean_absolute_error(y_true, y_pred)\n\nprint(f\"Validation RMSE: {rmse}\")\nprint(f\"Validation MAE: {mae}\")\n`"
+        },
+        "test_passed": true
+      },
+      "test_number": 4,
+      "test_name": "Placement Guidance"
+    }
+  ]
+}

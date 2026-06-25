@@ -1,0 +1,368 @@
+{
+  "agent": "Notebook Agent v1",
+  "experiment_id": "AGENT_TEST_1_ML_PIPELINE_113620421",
+  "test_id": "AGENT_TEST_1_ML_PIPELINE",
+  "test_number": 1,
+  "test_name": "Complete ML Pipeline",
+  "mode": "harness",
+  "live_llm": true,
+  "started_at": "2026-06-16T12:05:09.402012+00:00",
+  "finished_at": "2026-06-16T12:05:09.402012+00:00",
+  "benchmarks_file": "D:\\FYP\\normal-chrome\\testing\\host\\scripts\\fyp_experiment_benchmarks_agent_tests.json",
+  "runs": [
+    {
+      "id": "AGENT_TEST_1_ML_PIPELINE",
+      "name": "AGENT_TEST_1_ML_PIPELINE",
+      "kernel_id": 113620421,
+      "snapshot_file": "kaggle_kernel_113620421.json",
+      "session_id": "fyp-AGENT_TEST_1_ML_PIPELINE_113620421-AGENT_TEST_1_ML_PIPELINE-2d02e435",
+      "prompt": "Create a complete machine learning pipeline in this notebook.\n\nRequirements:\n1. Load the dataset already used in the notebook.\n2. Perform EDA.\n3. Handle missing values.\n4. Encode categorical variables.\n5. Train at least 3 models.\n6. Compare model performance.\n7. Generate visualizations.\n8. Create a final evaluation section.\n\nYou must:\n- Create all required notebook cells.\n- Insert code into the cells.\n- Run every created cell.\n- Verify execution after every run.\n- Repair failures automatically if any occur.\n- Stop only when all target cells execute successfully.\n\nReport:\n- Number of tool calls\n- Number of repair rounds\n- Total execution time\n- Final verification status",
+      "mode": "agentic",
+      "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+      "notebook_key": "kaggle:kernel:113620421",
+      "live_llm": true,
+      "error": null,
+      "response_text": "Tools dispatched (fire-and-forget). Check monitor CALL/RESULT trace for outcomes.\nRounds: 2\nQueue: notebook_list_cells: dispatched, insert_cell: dispatched, edit_cell_by_index: dispatched, insert_cell: dispatched, edit_cell_by_index: dispatched, insert_cell: dispatched, edit_cell_by_index: dispatched, insert_cell: dispatched, edit_cell_by_index: dispatched, insert_cell: dispatched, edit_cell_by_index: dispatched, insert_cell: dispatched, edit_cell_by_index: dispatched, insert_cell: dispatched, edit_cell_by_index: dispatched, insert_cell: dispatched, edit_cell_by_index: dispatched, insert_cell: dispatched, edit_cell_by_index: dispatched, insert_cell: dispatched, edit_cell_by_index: dispatched, insert_cell: dispatched, edit_cell_by_index: dispatched, insert_cell: dispatched, edit_cell_by_index: dispatched, run_cell: dispatched, run_cell: dispatched, run_cell: dispatched, run_cell: dispatched, run_cell: dispatched, run_cell: dispatched, run_cell: dispatched, run_cell: dispatched, run_cell: dispatched, run_cell: dispatched, run_cell: dispatched, run_cell: dispatched",
+      "metrics": {
+        "total_llm_calls": 2,
+        "total_tool_calls": 37,
+        "notebook_reads": 1,
+        "notebook_writes": 24,
+        "repair_rounds": 0,
+        "runtime_errors": 0,
+        "completion_status": "success",
+        "execution_time": 9.846,
+        "token_usage": {
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "cached_tokens": 0,
+          "total_tokens": 0,
+          "requests": 0
+        },
+        "planner_usage": 0,
+        "semantic_index_hits": 0,
+        "dependency_graph_hits": 0,
+        "runtime_state_hits": 0,
+        "agent_trace": {
+          "insert_calls": 24,
+          "edit_calls": 24,
+          "delete_calls": 0,
+          "run_calls": 24,
+          "read_calls": 2,
+          "verify_events": [
+            {
+              "round": 0,
+              "queue_status": "dispatched",
+              "executed": [
+                {
+                  "tool": "notebook_list_cells",
+                  "dispatched": true,
+                  "phase": "read"
+                }
+              ]
+            },
+            {
+              "round": 1,
+              "queue_status": "dispatched",
+              "executed": [
+                {
+                  "tool": "insert_cell",
+                  "dispatched": true
+                },
+                {
+                  "tool": "edit_cell_by_index",
+                  "dispatched": true
+                },
+                {
+                  "tool": "insert_cell",
+                  "dispatched": true
+                },
+                {
+                  "tool": "edit_cell_by_index",
+                  "dispatched": true
+                },
+                {
+                  "tool": "insert_cell",
+                  "dispatched": true
+                },
+                {
+                  "tool": "edit_cell_by_index",
+                  "dispatched": true
+                },
+                {
+                  "tool": "insert_cell",
+                  "dispatched": true
+                },
+                {
+                  "tool": "edit_cell_by_index",
+                  "dispatched": true
+                },
+                {
+                  "tool": "insert_cell",
+                  "dispatched": true
+                },
+                {
+                  "tool": "edit_cell_by_index",
+                  "dispatched": true
+                },
+                {
+                  "tool": "insert_cell",
+                  "dispatched": true
+                },
+                {
+                  "tool": "edit_cell_by_index",
+                  "dispatched": true
+                },
+                {
+                  "tool": "insert_cell",
+                  "dispatched": true
+                },
+                {
+                  "tool": "edit_cell_by_index",
+                  "dispatched": true
+                },
+                {
+                  "tool": "insert_cell",
+                  "dispatched": true
+                },
+                {
+                  "tool": "edit_cell_by_index",
+                  "dispatched": true
+                },
+                {
+                  "tool": "insert_cell",
+                  "dispatched": true
+                },
+                {
+                  "tool": "edit_cell_by_index",
+                  "dispatched": true
+                },
+                {
+                  "tool": "insert_cell",
+                  "dispatched": true
+                },
+                {
+                  "tool": "edit_cell_by_index",
+                  "dispatched": true
+                },
+                {
+                  "tool": "insert_cell",
+                  "dispatched": true
+                },
+                {
+                  "tool": "edit_cell_by_index",
+                  "dispatched": true
+                },
+                {
+                  "tool": "insert_cell",
+                  "dispatched": true
+                },
+                {
+                  "tool": "edit_cell_by_index",
+                  "dispatched": true
+                },
+                {
+                  "tool": "run_cell",
+                  "dispatched": true
+                },
+                {
+                  "tool": "run_cell",
+                  "dispatched": true
+                },
+                {
+                  "tool": "run_cell",
+                  "dispatched": true
+                },
+                {
+                  "tool": "run_cell",
+                  "dispatched": true
+                },
+                {
+                  "tool": "run_cell",
+                  "dispatched": true
+                },
+                {
+                  "tool": "run_cell",
+                  "dispatched": true
+                },
+                {
+                  "tool": "run_cell",
+                  "dispatched": true
+                },
+                {
+                  "tool": "run_cell",
+                  "dispatched": true
+                },
+                {
+                  "tool": "run_cell",
+                  "dispatched": true
+                },
+                {
+                  "tool": "run_cell",
+                  "dispatched": true
+                },
+                {
+                  "tool": "run_cell",
+                  "dispatched": true
+                },
+                {
+                  "tool": "run_cell",
+                  "dispatched": true
+                }
+              ]
+            }
+          ],
+          "reorder_events": [],
+          "run_errors": [],
+          "batch_tool_orders": [
+            {
+              "round": 0,
+              "tools": [
+                "notebook_list_cells"
+              ]
+            },
+            {
+              "round": 1,
+              "tools": [
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "run_cell",
+                "run_cell",
+                "run_cell",
+                "run_cell",
+                "run_cell",
+                "run_cell",
+                "run_cell",
+                "run_cell",
+                "run_cell",
+                "run_cell",
+                "run_cell",
+                "run_cell"
+              ]
+            }
+          ],
+          "dispatched_tool_list": [
+            "notebook_list_cells",
+            "notebook_list_cells",
+            "insert_cell",
+            "edit_cell_by_index",
+            "insert_cell",
+            "edit_cell_by_index",
+            "insert_cell",
+            "edit_cell_by_index",
+            "insert_cell",
+            "edit_cell_by_index",
+            "insert_cell",
+            "edit_cell_by_index",
+            "insert_cell",
+            "edit_cell_by_index",
+            "insert_cell",
+            "edit_cell_by_index",
+            "insert_cell",
+            "edit_cell_by_index",
+            "insert_cell",
+            "edit_cell_by_index",
+            "insert_cell",
+            "edit_cell_by_index",
+            "insert_cell",
+            "edit_cell_by_index",
+            "insert_cell",
+            "edit_cell_by_index",
+            "run_cell",
+            "run_cell",
+            "run_cell",
+            "run_cell",
+            "run_cell",
+            "run_cell",
+            "run_cell",
+            "run_cell",
+            "run_cell",
+            "run_cell",
+            "run_cell",
+            "run_cell",
+            "insert_cell",
+            "edit_cell_by_index",
+            "insert_cell",
+            "edit_cell_by_index",
+            "insert_cell",
+            "edit_cell_by_index",
+            "insert_cell",
+            "edit_cell_by_index",
+            "insert_cell",
+            "edit_cell_by_index",
+            "insert_cell",
+            "edit_cell_by_index",
+            "insert_cell",
+            "edit_cell_by_index",
+            "insert_cell",
+            "edit_cell_by_index",
+            "insert_cell",
+            "edit_cell_by_index",
+            "insert_cell",
+            "edit_cell_by_index",
+            "insert_cell",
+            "edit_cell_by_index",
+            "insert_cell",
+            "edit_cell_by_index",
+            "run_cell",
+            "run_cell",
+            "run_cell",
+            "run_cell",
+            "run_cell",
+            "run_cell",
+            "run_cell",
+            "run_cell",
+            "run_cell",
+            "run_cell",
+            "run_cell",
+            "run_cell"
+          ],
+          "target_cell_edited": false,
+          "target_cell_run": false,
+          "batch_writes_before_runs": true,
+          "evaluation_mode": "llm_dispatch_only"
+        },
+        "evaluation_mode": "llm_dispatch_only",
+        "test_passed": true,
+        "tool_dispatch_passed": true,
+        "evaluation_rationale": "LLM dispatched 37 tool(s): 24 insert, 24 edit, 24 run, 2 read."
+      },
+      "test_number": 1,
+      "test_name": "Complete ML Pipeline",
+      "tests_evaluated": [
+        "cell_creation",
+        "tool_batching",
+        "write_run_dispatch"
+      ],
+      "target_cell": null
+    }
+  ],
+  "aggregate": {
+    "run_count": 1,
+    "completion_status_counts": {
+      "success": 1
+    }
+  }
+}

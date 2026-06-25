@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.28 (MiKTeX 25.12) (preloaded format=pdflatex 2026.6.16)  17 JUN 2026 04:33
+This is pdfTeX, Version 3.141592653-2.6-1.40.28 (MiKTeX 25.12) (preloaded format=pdflatex 2026.6.16)  17 JUN 2026 19:31
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -1352,25 +1352,6 @@ t line 89.
 (pdftex.def)             Requested size: 395.98996pt x 524.08194pt.
  [26 <./figs/notebook_scrape_pipeline_diagram.png>] [27 <./figs/native_messagin
 g_bridge_flows.png>]
-Overfull \hbox (18.34958pt too wide) in paragraph at lines 101--102
-\T1/ptm/m/n/10.95 The host en-try point is \T1/lmtt/m/n/10.95 testing/host/host
-.py\T1/ptm/m/n/10.95 . On startup it loads con-fig-u-ra-tion from \T1/lmtt/m/n/
-10.95 config.py
- []
-
-
-Overfull \hbox (2.09975pt too wide) in paragraph at lines 101--102
-\T1/ptm/m/n/10.95 by type and routed to spe-cialised mod-ules: note-book in-ges
--tion (\T1/lmtt/m/n/10.95 notebook_data_handler.py\T1/ptm/m/n/10.95 ),
- []
-
-
-Overfull \hbox (77.02037pt too wide) in paragraph at lines 101--102
-\T1/ptm/m/n/10.95 stream-ing chat (\T1/lmtt/m/n/10.95 streaming.py\T1/ptm/m/n/1
-0.95 ), and tool ex-e-cu-tion (\T1/lmtt/m/n/10.95 tool_registry.py \T1/ptm/m/n/
-10.95 and \T1/lmtt/m/n/10.95 agentic_batch_executor.py\T1/ptm/m/n/10.95 ). 
- []
-
 <./figs/context_packing_notebook_intelligence.png, id=1214, 3182.89125pt x 4290
 .0275pt>
 File: ./figs/context_packing_notebook_intelligence.png Graphic file (type png)
@@ -1379,34 +1360,13 @@ Package pdftex.def Info: ./figs/context_packing_notebook_intelligence.png  used
  on input line 110.
 (pdftex.def)             Requested size: 395.98996pt x 533.69917pt.
 
-Overfull \hbox (15.61172pt too wide) in paragraph at lines 115--116
+Overfull \hbox (1.56226pt too wide) in paragraph at lines 115--116
 \T1/ptm/m/n/10.95 avail-able (\T1/lmtt/m/n/10.95 k a g g l e : k e r n e l : < 
-i d >\T1/ptm/m/n/10.95 ) or from a nor-malised URL fall-back (\T1/lmtt/m/n/10.9
-5 notebook_identity.py\T1/ptm/m/n/10.95 ).
+i d >\T1/ptm/m/n/10.95 ). A nor-malised URL fall-back uses \T1/lmtt/m/n/10.95 n
+otebook_identity.py\T1/ptm/m/n/10.95 .
  []
 
-
-Overfull \hbox (20.3116pt too wide) in paragraph at lines 122--123
-\T1/ptm/m/n/10.95 in-clude \T1/lmtt/m/n/10.95 notebook_list_cells\T1/ptm/m/n/10
-.95 , \T1/lmtt/m/n/10.95 notebook_get_cell\T1/ptm/m/n/10.95 , and \T1/lmtt/m/n/
-10.95 notebook_snapshot_status\T1/ptm/m/n/10.95 . 
- []
-
-[28] [29 <./figs/context_packing_notebook_intelligence.png>]
-Overfull \hbox (53.12239pt too wide) in paragraph at lines 133--134
-[]\T1/ptm/m/n/10.95 The batch ex-ecu-tor (\T1/lmtt/m/n/10.95 agentic_batch_exec
-utor.py\T1/ptm/m/n/10.95 ) in-te-grates with \T1/lmtt/m/n/10.95 strict_executio
-n_engine.py
- []
-
-
-Overfull \hbox (60.45886pt too wide) in paragraph at lines 135--136
-[]\T1/ptm/m/n/10.95 Scrape-based ob-servers in-clude \T1/lmtt/m/n/10.95 cell_ex
-ecution_observer.py \T1/ptm/m/n/10.95 and \T1/lmtt/m/n/10.95 cell_structure_obs
-erver.py\T1/ptm/m/n/10.95 .
- []
-
-[30]
+[28] [29 <./figs/context_packing_notebook_intelligence.png>] [30]
 <./figs/notebook_data_ingestion_persistence.png, id=1234, 2730.2pt x 3950.76pt>
 
 File: ./figs/notebook_data_ingestion_persistence.png Graphic file (type png)
@@ -1427,8 +1387,7 @@ File: ./figs/ask_mode_advisory_flow.png Graphic file (type png)
 Package pdftex.def Info: ./figs/ask_mode_advisory_flow.png  used on input line 
 217.
 (pdftex.def)             Requested size: 395.98996pt x 593.95953pt.
- [34]
-[35 <./figs/ask_mode_advisory_flow.png>]
+ [34] [35 <./figs/ask_mode_advisory_flow.png>]
 <./figs/code_mode_generation_flow.png, id=1281, 2730.2pt x 2874.74pt>
 File: ./figs/code_mode_generation_flow.png Graphic file (type png)
 <use ./figs/code_mode_generation_flow.png>
@@ -1462,19 +1421,6 @@ Package pdftex.def Info: ./figs/f_dataflow_agentic.png  used on input line 337.
  [40 <./figs/f_dataflow_agentic.png>] [41])
 (chapters/Chapter4-Results.tex [42]
 Chapter 4.
-
-Overfull \hbox (23.6707pt too wide) in paragraph at lines 9--10
-\T1/ptm/m/n/10.95 Each suite com-prised four sce-nario tests ex-e-cuted through
- ded-i-cated run-ners (\T1/lmtt/m/n/10.95 run_agent_tests.py\T1/ptm/m/n/10.95 ,
-
- []
-
-
-Overfull \hbox (0.1397pt too wide) in paragraph at lines 9--10
-\T1/ptm/m/n/10.95 (ker-nel 113620421) and testing-ol (ker-nel 112732919). Ask a
-nd Code modes pro-duced streamed
- []
-
 
 Overfull \hbox (0.92775pt too wide) in paragraph at lines 15--16
 \T1/ptm/m/n/10.95 queries. Round 1 dis-patched an im-ple-ment batch of \T1/ptm/
@@ -1511,12 +1457,6 @@ Chapter 5.
 [52
 
 ]
-Overfull \hbox (10.48071pt too wide) in paragraph at lines 27--28
-[]\T1/ptm/m/n/10.95 The empty-cell work-flow result---asking in-tent be-fore em
-it-ting Place-ment and Code sections---
- []
-
-
 Underfull \hbox (badness 4229) in paragraph at lines 43--43
 []|\T1/ptm/m/n/10 Understand note-book
  []
@@ -1554,12 +1494,6 @@ Chapter 6.
 ] [59]) (chapters/chapter7-Recommendations.tex [60]
 Chapter 7.
 
-Overfull \hbox (20.06242pt too wide) in paragraph at lines 17--18
-[]\T1/ptm/m/n/10.95 For empty cells, pre-fer Ask or Code mode clar-i-fy-ing que
-s-tions over im-me-di-ate code generation---
- []
-
-
 Overfull \hbox (3.24892pt too wide) in paragraph at lines 22--23
 []\T1/ptm/b/n/10.95 Implement ReAct-style feed-back. \T1/ptm/m/n/10.95 Add op-t
 ional re-plan-ning af-ter \T1/lmtt/m/n/10.95 run_cell \T1/ptm/m/n/10.95 us-ing 
@@ -1586,13 +1520,13 @@ Overfull \hbox (2.99384pt too wide) in paragraph at lines 154--154
  []
 
 
-Overfull \hbox (9.99957pt too wide) in paragraph at lines 179--179
-[]|\T1/ptm/b/n/9 Default|  
+Overfull \hbox (4.82242pt too wide) in paragraph at lines 182--182
+[]|\T1/lmtt/m/n/9 AGENTIC_MAX_TOOL_ROUNDS|  
  []
 
 
-Overfull \hbox (33.48079pt too wide) in paragraph at lines 184--184
-[]|\T1/lmtt/m/n/9 zai-glm-4.7|  
+Overfull \hbox (4.82242pt too wide) in paragraph at lines 183--183
+[]|\T1/lmtt/m/n/9 AGENTIC_FIRE_AND_FORGET|  
  []
 
 [68] [69]
@@ -1611,18 +1545,18 @@ Overfull \hbox (0.8077pt too wide) in paragraph at lines 256--256
  []
 
 
-Overfull \hbox (0.96008pt too wide) in paragraph at lines 299--299
-[]|\T1/lmtt/m/n/9 base_notebook_assistant.txt|  
+Overfull \hbox (2.83963pt too wide) in paragraph at lines 304--304
+[]|\T1/lmtt/m/n/9 tool_calling/react_agent.txt|  
  []
 
 
-Overfull \hbox (5.68507pt too wide) in paragraph at lines 304--304
-[]|\T1/lmtt/m/n/9 tool_calling/react_agent.txt|  
+Overfull \hbox (7.56462pt too wide) in paragraph at lines 305--305
+\T1/lmtt/m/n/9 tool_descriptions_autogen.txt|  
  []
 
 [70] [71] [72]) [73] [74
 
-] [75] [76] [77]
+] [75] [76]
 (D:\FYP\normal-chrome\latex format\Final-Year-Project-Format-main\build\_fyp-ch
 1-preview.aux)
  ***********
@@ -1636,13 +1570,13 @@ Package logreq Info: Writing requests to '_fyp-ch1-preview.run.xml'.
 
  ) 
 Here is how much of TeX's memory you used:
- 26370 strings out of 467870
- 477249 string characters out of 5418355
- 1397795 words of memory out of 5000000
+ 26369 strings out of 467870
+ 477242 string characters out of 5418355
+ 1396795 words of memory out of 5000000
  54481 multiletter control sequences out of 15000+600000
  715522 words of font info for 154 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 64i,12n,101p,2047b,5185s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 64i,12n,101p,1640b,5185s stack positions out of 10000i,1000n,20000p,200000b,200000s
 <C:/Users/Admin/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/
 cmsy10.pfb><C:/Users/Admin/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/
 lmtk10.pfb><C:/Users/Admin/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/
@@ -1653,9 +1587,9 @@ utmb8a.pfb><C:/Users/Admin/AppData/Local/Programs/MiKTeX/fonts/type1/urw/times/
 utmr8a.pfb><C:/Users/Admin/AppData/Local/Programs/MiKTeX/fonts/type1/urw/times/
 utmri8a.pfb>
 Output written on "D:\FYP\normal-chrome\latex format\Final-Year-Project-Format-
-main\build\_fyp-ch1-preview.pdf" (95 pages, 7024103 bytes).
+main\build\_fyp-ch1-preview.pdf" (94 pages, 7023175 bytes).
 PDF statistics:
- 1835 PDF objects out of 2073 (max. 8388607)
- 360 named destinations out of 1000 (max. 500000)
+ 1831 PDF objects out of 2073 (max. 8388607)
+ 359 named destinations out of 1000 (max. 500000)
  1085 words of extra memory for PDF output out of 10000 (max. 10000000)
 

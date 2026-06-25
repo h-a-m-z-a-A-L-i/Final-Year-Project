@@ -24,7 +24,7 @@ For educational use in \acf{BSDS} coursework, Ask mode is best positioned as a \
 
 Code mode passed all four reported scenarios while preserving the no-write contract. Correct XGBoost training code (100\% keyword alignment with notebook variables) shows that snapshot grounding suffices for variable reuse without live kernel introspection \parencite{lewis2020rag}. Cell replacement and feature-engineering tests further indicate that the model can emit self-contained cells matching notebook naming conventions \parencite{wang2021welldocumented}.
 
-The empty-cell workflow result---asking intent before emitting Placement and Code sections---implements the deferral pattern recommended for notebook copilots \parencite{mcnutt2023notebookassistants} and reduces the risk of unsolicited code dumps \parencite{mozannar2024reading}.
+The empty-cell workflow result asked for intent before emitting Placement and Code sections. This implements the deferral pattern recommended for notebook copilots \parencite{mcnutt2023notebookassistants} and reduces the risk of unsolicited code dumps \parencite{mozannar2024reading}.
 
 The principal weakness is placement accuracy under partial context: correct code may be paired with suboptimal insert indices. This mirrors IDE copilot findings that suggestion quality depends on visible context \parencite{ziegler2024copilot}, extended to positional notebook cells rather than flat files.
 

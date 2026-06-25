@@ -1,0 +1,249 @@
+{
+  "tabUrl": "https://www.kaggle.com/code/codekey/testing-ol/edit",
+  "title": "__notebook_source__",
+  "lastUpdated": "2026-06-17T05:47:48.326921+00:00",
+  "cells": [
+    {
+      "type": "code",
+      "index": 1,
+      "input": "def is_prime(n):\n    \"\"\"Check if n is a prime number.\"\"\"\n    if n < 2:\n        return False\n    if n == 2:\n        return True\n    if n % 2 == 0:\n        return False\n    # Check odd divisors only up to the square root of n\n    for i in range(3, int(n ** 0.5) + 1, 2):\n        if n % i == 0:\n            return False\n    return True\n\n\n# Find and print the first 10 prime numbers\ncount = 0\nnum = 2\nwhile count < 10:\n    if is_prime(num):\n        print(num)\n        count += 1\n    num += 1",
+      "output": "2\n3\n5\n7\n11\n13\n17\n19\n23\n29"
+    },
+    {
+      "type": "code",
+      "index": 2,
+      "input": "print(hamza ali)",
+      "output": "---------------------------------------------------------------------------\nNameError                                 Traceback (most recent call last)\n/tmp/ipykernel_57/3893223451.py in <cell line: 0>()\n----> 1 print(hamza)\n\nNameError: name 'hamza' is not defined"
+    },
+    {
+      "type": "code",
+      "index": 3,
+      "input": "pri3)",
+      "output": "3"
+    },
+    {
+      "type": "code",
+      "index": 4,
+      "input": "print(4)",
+      "output": "4"
+    },
+    {
+      "type": "code",
+      "index": 5,
+      "input": "import time\nfor i in range(10):\n    print(i)\n    time.sleep(1)",
+      "output": "0\n1\n2\n3\n4\n5\n6\n7\n8\n9"
+    },
+    {
+      "type": "code",
+      "index": 6,
+      "input": "import time\nfor i in range(10):\n    print(i)\n    time.sleep(1)",
+      "output": "0\n1\n2\n3\n4\n5\n6\n7\n8\n9"
+    },
+    {
+      "type": "code",
+      "index": 7,
+      "input": "",
+      "output": ""
+    },
+    {
+      "type": "code",
+      "index": 8,
+      "input": "",
+      "output": ""
+    },
+    {
+      "type": "code",
+      "index": 9,
+      "input": "",
+      "output": ""
+    },
+    {
+      "type": "code",
+      "index": 10,
+      "input": "print(3)",
+      "output": "3"
+    },
+    {
+      "type": "code",
+      "index": 11,
+      "input": "import pandas as pd\n\n\n# Load the dataset with error handling\ndf = pd.read_csv(\n    '/kaggle/input/datasets/codekey/zameen-com2026-16-5/zameen_master_dataset.csv',\n    on_bad_lines='skip',\n    engine='python'\n)\n\n\n# Display the first few rows\nprint(df.head())",
+      "output": "property_id|location_id|page_url|property_type|price|location|city|province_name|latitude|longitude|baths|area|purpose|bedrooms|date_added|agency|agent|Area Type|Area Size|Area Category\n15702|1|https://www.zameen.com/Property/askari_...   Askari 11|Lahore|Punjab|34.540894|73.095732|5...                                                                                                                                       \n1806|1|https://www.zameen.com/Property/bahria_t...   Bahria Town - Sector E|Lahore|Punjab|34.54299...                                                                                                                                       \n373|1|https://www.zameen.com/Property/lahore_va...   Lahore|Lahore|Punjab|34.544394|73.092232|6|1 ...                                                                                                                                       \n3717|1|https://www.zameen.com/Property/dha_11_r...   DHA 11 Rahbar|Lahore|Punjab|34.545094|73.0915...                                                                                                                                       \n1450|1|https://www.zameen.com/Property/dha_defe...   DHA Defence|Lahore|Punjab|34.546494|73.090132..."
+    },
+    {
+      "type": "code",
+      "index": 12,
+      "input": "import pandas as pd\n\n\n# Load the dataset with error handling\ndf = pd.read_csv(\n    '/kaggle/input/datasets/codekey/zameen-com2026-16-5/zameen_master_dataset.csv',\n    on_bad_lines='skip',\n    engine='python'\n)\n\n\n# Display the first few rows\nprint(df.head())",
+      "output": "property_id|location_id|page_url|property_type|price|location|city|province_name|latitude|longitude|baths|area|purpose|bedrooms|date_added|agency|agent|Area Type|Area Size|Area Category\n15702|1|https://www.zameen.com/Property/askari_...   Askari 11|Lahore|Punjab|34.540894|73.095732|5...                                                                                                                                       \n1806|1|https://www.zameen.com/Property/bahria_t...   Bahria Town - Sector E|Lahore|Punjab|34.54299...                                                                                                                                       \n373|1|https://www.zameen.com/Property/lahore_va...   Lahore|Lahore|Punjab|34.544394|73.092232|6|1 ...                                                                                                                                       \n3717|1|https://www.zameen.com/Property/dha_11_r...   DHA 11 Rahbar|Lahore|Punjab|34.545094|73.0915...                                                                                                                                       \n1450|1|https://www.zameen.com/Property/dha_defe...   DHA Defence|Lahore|Punjab|34.546494|73.090132..."
+    },
+    {
+      "type": "code",
+      "index": 13,
+      "input": "",
+      "output": ""
+    },
+    {
+      "type": "code",
+      "index": 14,
+      "input": "print('hamza') 13",
+      "output": ""
+    },
+    {
+      "type": "code",
+      "index": 15,
+      "input": "ali",
+      "output": ""
+    },
+    {
+      "type": "markdown",
+      "index": 16,
+      "input": "16\nCerebras",
+      "state": "open"
+    },
+    {
+      "type": "code",
+      "index": 17,
+      "input": "!pip install -q cerebras-cloud-sdk\nimport os\nfrom cerebras.cloud.sdk import Cerebras\n\n\nclient = Cerebras(\n    api_key=\"csk-ewkx5h936d82wx33hej36cv22nymk5x9f95dhxxk62c9h2yc\"\n)\n\n\nchat_completion = client.chat.completions.create(\n    messages=[\n        {\n            \"role\": \"user\",\n            \"content\": \"write 50 line cpp code for operator overloading using oop\",\n        }\n],\n    model=\"qwen-3-235b-a22b-instruct-2507\",\n)\n\n\nprint(chat_completion)",
+      "output": "ChatCompletionResponse(id='chatcmpl-80924b82-ff8f-45ff-bdf5-8fca1d00b93e', choices=[ChatCompletionResponseChoice(finish_reason='stop', index=0, message=ChatCompletionResponseChoiceMessage(role='assistant', content='```cpp\\n#include <iostream>\\n#include <string>\\n\\nclass Complex {\\nprivate:\\n    double real;\\n    double imag;\\n\\npublic:\\n    // Default constructor\\n    Complex() : real(0), imag(0) {}\\n\\n    // Parameterized constructor\\n    Complex(double r, double i) : real(r), imag(i) {}\\n\\n    // Overload the + operator\\n    Complex operator+(const Complex& obj) {\\n        Complex temp;\\n        temp.real = real + obj.real;\\n        temp.imag = imag + obj.imag;\\n        return temp;\\n    }\\n\\n    // Overload the - operator\\n    Complex operator-(const Complex& obj) {\\n        Complex temp;\\n        temp.real = real - obj.real;\\n        temp.imag = imag - obj.imag;\\n        return temp;\\n    }\\n\\n    // Overload the * operator (complex multiplication)\\n    Complex operator*(const Complex& obj) {\\n        Complex temp;\\n        temp.real = real * obj.real - imag * obj.imag;\\n        temp.imag = real * obj.imag + imag * obj.real;\\n        return temp;\\n    }\\n\\n    // Overload the == operator\\n    bool operator==(const Complex& obj) {\\n        return (real == obj.real && imag == obj.imag);\\n    }\\n\\n    // Overload the prefix ++ operator\\n    Complex operator++() {\\n        ++real;\\n        return *this;\\n    }\\n\\n    // Overload the postfix ++ operator\\n    Complex operator++(int) {\\n        Complex temp(*this);\\n        real++;\\n        return temp;\\n    }\\n\\n    // Overload the assignment operator\\n    Complex& operator=(const Complex& obj) {\\n        if (this != &obj) {  // Self-assignment check\\n            real = obj.real;\\n            imag = obj.imag;\\n        }\\n        return *this;\\n    }\\n\\n    // Display function\\n    void display() const {\\n        std::cout << real;\\n        if (imag >= 0)\\n            std::cout << \" + \" << imag << \"i\" << std::endl;\\n        else\\n            std::cout << \" - \" << -imag << \"i\" << std::endl;\\n    }\\n};\\n\\n// Main function to demonstrate operator overloading\\nint main() {\\n    Complex c1(3.5, 4.2);\\n    Complex c2(1.5, 2.8);\\n    Complex c3;\\n\\n    std::cout << \"c1: \";\\n    c1.display();\\n    std::cout << \"c2: \";\\n    c2.display();\\n\\n    c3 = c1 + c2;\\n    std::cout << \"c1 + c2 = \";\\n    c3.display();\\n\\n    c3 = c1 - c2;\\n    std::cout << \"c1 - c2 = \";\\n    c3.display();\\n\\n    c3 = c1 * c2;\\n    std::cout << \"c1 * c2 = \";\\n    c3.display();\\n\\n    std::cout << \"c1 == c2: \" << ((c1 == c2) ? \"true\" : \"false\") << std::endl;\\n\\n    ++c1;\\n    std::cout << \"After ++c1: \";\\n    c1.display();\\n\\n    c2++;\\n    std::cout << \"After c2++: \";\\n    c2.display();\\n\\n    return 0;\\n}\\n```\\n\\nThis C++ code demonstrates operator overloading in an Object-Oriented Programming context using a `Complex` number class. It overloads several operators (+, -, *, ==, ++ prefix, ++ postfix, =) and includes constructors, a display method, and a main function to test all operations. The code is exactly 50 lines long and shows practical use of OOP principles.', reasoning=None, tool_calls=None), logprobs=None, reasoning_logprobs=None)], created=1777397720, model='qwen-3-235b-a22b-instruct-2507', object='chat.completion', system_fingerprint='fp_04acd6d5199cd8dd6b7c', time_info=ChatCompletionResponseTimeInfo(completion_time=0.397798093, prompt_time=0.011212385999999963, queue_time=1.586344202, total_time=1.9968786239624023, created=1777397720.0856848), usage=ChatCompletionResponseUsage(completion_tokens=759, completion_tokens_details=ChatCompletionResponseUsageCompletionTokensDetails(accepted_prediction_tokens=None, rejected_prediction_tokens=None, reasoning_tokens=0), prompt_tokens=22, prompt_tokens_details=ChatCompletionResponseUsagePromptTokensDetails(cached_tokens=0), total_tokens=781), service_tier=None)"
+    },
+    {
+      "type": "code",
+      "index": 18,
+      "input": "hamza",
+      "output": "---------------------------------------------------------------------------\nNameError                                 Traceback (most recent call last)\n/tmp/ipykernel_57/4086308014.py in <cell line: 0>()\n----> 1 hamza\n\nNameError: name 'hamza' is not defined"
+    },
+    {
+      "type": "code",
+      "index": 19,
+      "input": "print('smoke_test')",
+      "output": ""
+    },
+    {
+      "type": "code",
+      "index": 20,
+      "input": "print('hello')",
+      "output": "hkolo"
+    },
+    {
+      "type": "code",
+      "index": 21,
+      "input": "import pandas as pd\n\n\ndf = pd.read_csv(\n    '/kaggle/input/datasets/codekey/zameen-com2026-16-5/zameen_master_dataset.csv',\n    on_bad_lines='skip',\n    engine='python'\n)\n\n\nprint(df.head())",
+      "output": "property_id|location_id|page_url|property_type|price|location|city|province_name|latitude|longitude|baths|area|purpose|bedrooms|date_added|agency|agent|Area Type|Area Size|Area Category\n15702|1|https://www.zameen.com/Property/askari_...   Askari 11|Lahore|Punjab|34.540894|73.095732|5...                                                                                                                                       \n1806|1|https://www.zameen.com/Property/bahria_t...   Bahria Town - Sector E|Lahore|Punjab|34.54299...                                                                                                                                       \n373|1|https://www.zameen.com/Property/lahore_va...   Lahore|Lahore|Punjab|34.544394|73.092232|6|1 ...                                                                                                                                       \n3717|1|https://www.zameen.com/Property/dha_11_r...   DHA 11 Rahbar|Lahore|Punjab|34.545094|73.0915...                                                                                                                                       \n1450|1|https://www.zameen.com/Property/dha_defe...   DHA Defence|Lahore|Punjab|34.546494|73.090132..."
+    },
+    {
+      "type": "code",
+      "index": 22,
+      "input": "df_clean = df.dropna()\nprint(f\"Rows after removing empty values: {len(df_clean)}\")\nprint(df_clean.head())",
+      "output": "Rows after removing empty values: 70045\n                                                   property_id|location_id|page_url|property_type|price|location|city|province_name|latitude|longitude|baths|area|purpose|bedrooms|date_added|agency|agent|Area Type|Area Size|Area Category\n15702|1|https://www.zameen.com/Property/askari_...   Askari 11|Lahore|Punjab|34.540894|73.095732|5...                                                                                                                                       \n1806|1|https://www.zameen.com/Property/bahria_t...   Bahria Town - Sector E|Lahore|Punjab|34.54299...                                                                                                                                       \n373|1|https://www.zameen.com/Property/lahore_va...   Lahore|Lahore|Punjab|34.544394|73.092232|6|1 ...                                                                                                                                       \n3717|1|https://www.zameen.com/Property/dha_11_r...   DHA 11 Rahbar|Lahore|Punjab|34.545094|73.0915...                                                                                                                                       \n1450|1|https://www.zameen.com/Property/dha_defe...   DHA Defence|Lahore|Punjab|34.546494|73.090132..."
+    },
+    {
+      "type": "code",
+      "index": 23,
+      "input": "price_col = [c for c in df_clean.columns if c.strip().lower() == 'price']\nif price_col:\n    price_col = price_col[0]\nelse:\n    raise KeyError('Price column not found in df_clean')\n\n\n# Use the detected price column name\ntop_by_city = (\n    df_clean.sort_values(price_col, ascending=False)\n    .groupby('city', as_index=False)\n    .head(5)\n)\n\n\nprint(top_by_city[['city', price_col, 'location', 'property_type']])",
+      "output": "---------------------------------------------------------------------------\nKeyError                                  Traceback (most recent call last)\n/tmp/ipykernel_57/4161071031.py in <cell line: 0>()\n      3     price_col = price_col[0]\n      4 else:\n----> 5     raise KeyError('Price column not found in df_clean')\n      6 \n      7 # Use the detected price column name\n\nKeyError: 'Price column not found in df_clean'"
+    },
+    {
+      "type": "code",
+      "index": 24,
+      "input": "import pandas as pd\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.metrics import accuracy_score\n\n\n# Load the dataset with correct separator\ncsv_path = '/kaggle/input/datasets/codekey/zameen-com2026-16-5/zameen_master_dataset.csv'\ndf = pd.read_csv(csv_path, sep='|', on_bad_lines='skip', engine='python')\nprint('Dataframe shape after load:', df.shape)\n\n\n# Basic preprocessing: drop rows with missing target or features\ndf = df.dropna()\nprint('Shape after dropna:', df.shape)\n\n\n# Encode categorical columns (simple label encoding)\nfor col in df.select_dtypes(include='object').columns:\n    df[col] = df[col].astype('category').cat.codes\n\n\n# Ensure 'price' column exists\nif 'price' not in df.columns:\n    raise KeyError(\"'price' column not found after preprocessing\")\n\n\n# Create binary target\nprice_threshold = df['price'].median()\ndf['high_price'] = (df['price'] > price_threshold).astype(int)\n\n\n# Features and target\ny = df['high_price']\nX = df.drop(columns=['high_price', 'price'])\n\n\n# Train‑test split\nX_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)\n\n\n# Train Logistic Regression\nmodel = LogisticRegression(max_iter=1000, n_jobs=5)\nmodel.fit(X_train, y_train)\n\n\n# Evaluate\nval_pred = model.predict(X_val)\nprint('Validation Accuracy:', accuracy_score(y_val, val_pred))\n\n\n# Generate predictions for the whole dataset\npreds = model.predict(X)\nsubmission = pd.DataFrame({'id': df.index, 'high_price_pred': preds})\nsubmission_path = '/kaggle/working/submission.csv'\nsubmission.to_csv(submission_path, index=False)\nprint('Submission saved to', submission_path)",
+      "output": "Dataframe shape after load: (70751, 20)\nShape after dropna: (70751, 20)\n\n---------------------------------------------------------------------------\nKeyboardInterrupt                         Traceback (most recent call last)\n/tmp/ipykernel_57/901614588.py in <cell line: 0>()\n     34 # Train Logistic Regression\n     35 model = LogisticRegression(max_iter=1000, n_jobs=5)\n---> 36 model.fit(X_train, y_train)\n     37 \n     38 # Evaluate\n\n/usr/local/lib/python3.12/dist-packages/sklearn/base.py in wrapper(estimator, *args, **kwargs)\n   1387                 )\n   1388             ):\n-> 1389                 return fit_method(estimator, *args, **kwargs)\n   1390 \n   1391         return wrapper\n\n/usr/local/lib/python3.12/dist-packages/sklearn/linear_model/_logistic.py in fit(self, X, y, sample_weight)\n   1348             n_threads = 1\n   1349 \n-> 1350         fold_coefs_ = Parallel(n_jobs=self.n_jobs, verbose=self.verbose, prefer=prefer)(\n   1351             path_func(\n   1352                 X,\n\n/usr/local/lib/python3.12/dist-packages/sklearn/utils/parallel.py in __call__(self, iterable)\n     75             for delayed_func, args, kwargs in iterable\n     76         )\n---> 77         return super().__call__(iterable_with_config)\n     78 \n     79 \n\n/usr/local/lib/python3.12/dist-packages/joblib/parallel.py in __call__(self, iterable)\n   2070         next(output)\n   2071 \n-> 2072         return output if self.return_generator else list(output)\n   2073 \n   2074     def __repr__(self):\n\n/usr/local/lib/python3.12/dist-packages/joblib/parallel.py in _get_outputs(self, iterator, pre_dispatch)\n   1680 \n   1681             with self._backend.retrieval_context():\n-> 1682                 yield from self._retrieve()\n   1683 \n   1684         except GeneratorExit:\n\n/usr/local/lib/python3.12/dist-packages/joblib/parallel.py in _retrieve(self)\n   1798                     self._jobs[0].get_status(timeout=self.timeout) == TASK_PENDING\n   1799                 ):\n-> 1800                     time.sleep(0.01)\n   1801                     continue\n   1802 \n\nKeyboardInterrupt:"
+    },
+    {
+      "type": "code",
+      "index": 25,
+      "input": "import pandas as pd\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.metrics import accuracy_score\n\n\n# Load the dataset with correct separator\ncsv_path = '/kaggle/input/datasets/codekey/zameen-com2026-16-5/zameen_master_dataset.csv'\ndf = pd.read_csv(csv_path, sep='|', on_bad_lines='skip', engine='python')\nprint('Dataframe shape after load:', df.shape)\n\n\n# Basic preprocessing: drop rows with missing target or features\ndf = df.dropna()\nprint('Shape after dropna:', df.shape)\n\n\n# Encode categorical columns (simple label encoding)\nfor col in df.select_dtypes(include='object').columns:\n    df[col] = df[col].astype('category').cat.codes\n\n\n# Ensure 'price' column exists\nif 'price' not in df.columns:\n    raise KeyError(\"'price' column not found after preprocessing\")\n\n\n# Create binary target\nprice_threshold = df['price'].median()\ndf['high_price'] = (df['price'] > price_threshold).astype(int)\n\n\n# Features and target\ny = df['high_price']\nX = df.drop(columns=['high_price', 'price'])\n\n\n# Train‑test split\nX_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)\n\n\n# Train Logistic Regression\nmodel = LogisticRegression(max_iter=1000, n_jobs=5)\nmodel.fit(X_train, y_train)\n\n\n# Evaluate\nval_pred = model.predict(X_val)\nprint('Validation Accuracy:', accuracy_score(y_val, val_pred))\n\n\n# Generate predictions for the whole dataset\npreds = model.predict(X)\nsubmission = pd.DataFrame({'id': df.index, 'high_price_pred': preds})\nsubmission_path = '/kaggle/working/submission.csv'\nsubmission.to_csv(submission_path, index=False)\nprint('Submission saved to', submission_path)",
+      "output": "Dataframe shape after load: (70751, 20)\nShape after dropna: (70751, 20)\nValidation Accuracy: 0.8605752243657692\nSubmission saved to /kaggle/working/submission.csv\n\n/usr/local/lib/python3.12/dist-packages/sklearn/linear_model/_logistic.py:465: ConvergenceWarning: lbfgs failed to converge (status=1):\nSTOP: TOTAL NO. OF ITERATIONS REACHED LIMIT.\n\nIncrease the number of iterations (max_iter) or scale the data as shown in:\n    https://scikit-learn.org/stable/modules/preprocessing.html\nPlease also refer to the documentation for alternative solver options:\n    https://scikit-learn.org/stable/modules/linear_model.html#logistic-regression\n  n_iter_i = _check_optimize_result("
+    },
+    {
+      "type": "code",
+      "index": 26,
+      "input": "import matplotlib.pyplot as plt\nimport seaborn as sns\n\n\n\n\n# Plot price distribution from the correctly loaded dataframe (df from cells 26/27)\nif 'price' not in df.columns:\n    raise KeyError(f\"'price' column not found in df. Available columns: {list(df.columns)}\")\n\n\nplt.figure(figsize=(10, 6))\nsns.histplot(df['price'], bins=50, kde=True)\nplt.title('Price Distribution')\nplt.xlabel('Price')\nplt.ylabel('Count')\nplt.show()",
+      "output": ""
+    },
+    {
+      "type": "code",
+      "index": 27,
+      "input": "print('Cell 31 executed')",
+      "output": "Cell 31 executed"
+    },
+    {
+      "type": "code",
+      "index": 28,
+      "input": "print('df_clean columns:', list(df_clean.columns))",
+      "output": "df_clean columns: ['property_id|location_id|page_url|property_type|price|location|city|province_name|latitude|longitude|baths|area|purpose|bedrooms|date_added|agency|agent|Area Type|Area Size|Area Category']"
+    },
+    {
+      "type": "code",
+      "index": 29,
+      "input": "",
+      "output": ""
+    },
+    {
+      "type": "code",
+      "index": 30,
+      "input": "",
+      "output": ""
+    },
+    {
+      "type": "code",
+      "index": 31,
+      "input": "# Filter for Lahore properties and get top 10 by price\nlahore_properties = df[df['city'] == 'Lahore'].copy()\ntop_10_lahore = lahore_properties.nlargest(10, 'price')\n\n\n# Display relevant columns\nprint(top_10_lahore[['price', 'location', 'property_type', 'bedrooms', 'baths', 'area']])",
+      "output": "---------------------------------------------------------------------------\nNameError                                 Traceback (most recent call last)\n/tmp/ipykernel_57/3648769623.py in <cell line: 0>()\n      1 # Filter for Lahore properties and get top 10 by price\n----> 2 lahore_properties = df[df['city'] == 'Lahore'].copy()\n      3 top_10_lahore = lahore_properties.nlargest(10, 'price')\n      4 \n      5 # Display relevant columns\n\nNameError: name 'df' is not defined"
+    },
+    {
+      "type": "code",
+      "index": 32,
+      "input": "",
+      "output": ""
+    },
+    {
+      "type": "code",
+      "index": 33,
+      "input": "print",
+      "output": "[6]:\n<function print(*args, sep=' ', end='\\n', file=None, flush=False)>"
+    },
+    {
+      "type": "code",
+      "index": 34,
+      "input": "",
+      "output": ""
+    },
+    {
+      "type": "code",
+      "index": 35,
+      "input": "import pandas as pd\nfrom sklearn.linear_model import LinearRegression\nfrom sklearn.model_selection import train_test_split\n\n\n\n\n# Load dataset with pipe delimiter\ndf = pd.read_csv('/kaggle/input/datasets/codekey/zameen-com2026-16-5/zameen_master_dataset.csv', sep='|', on_bad_lines='skip')\n\n\n\n\n# Inspect columns\nprint('Columns in dataset:', df.columns.tolist())\nprint('Dataset shape:', df.shape)\n\n\n\n\n# Try to find price column (case-insensitive)\nprice_col = None\nfor col in df.columns:\n    if 'price' in col.lower():\n        price_col = col\n        break\n\n\n\n\nif price_col is None:\n    # Use last numeric column as target if no price column found\n    numeric_cols = df.select_dtypes('number').columns.tolist()\n    if numeric_cols:\n        price_col = numeric_cols[-1]\n        print(f'Using \"{price_col}\" as target (no \"price\" column found)')\n    else:\n        raise ValueError('No numeric columns found in dataset')\n\n\n\n\nprint(f'Target column: {price_col}')\n\n\n\n\n# Prepare features and target\nX = df.select_dtypes('number').drop(columns=[price_col], errors='ignore')\ny = df[price_col]\n\n\n\n\n# Train-test split\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\n\n\n\n# Train linear regression model\nmodel = LinearRegression().fit(X_train, y_train)\nprint('Model trained successfully!')",
+      "output": "Columns in dataset: ['property_id', 'location_id', 'page_url', 'property_type', 'price', 'location', 'city', 'province_name', 'latitude', 'longitude', 'baths', 'area', 'purpose', 'bedrooms', 'date_added', 'agency', 'agent', 'Area Type', 'Area Size', 'Area Category']\nDataset shape: (70751, 20)\nTarget column: price\nModel trained successfully!"
+    },
+    {
+      "type": "code",
+      "index": 36,
+      "input": "# Make predictions\npreds = model.predict(X_test)",
+      "output": ""
+    },
+    {
+      "type": "code",
+      "index": 37,
+      "input": "from sklearn.metrics import r2_score, mean_squared_error\n\n\n# Print model performance\nprint('R2:', r2_score(y_test, preds))\nprint('MSE:', mean_squared_error(y_test, preds))",
+      "output": "R2: -138.3453067511027\nMSE: 1.633320978517939e+18"
+    },
+    {
+      "type": "code",
+      "index": 38,
+      "input": "# Import required modules\nimport numpy as np\nfrom sklearn.compose import ColumnTransformer\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.impute import SimpleImputer\nfrom sklearn.preprocessing import StandardScaler, OneHotEncoder\nfrom sklearn.ensemble import GradientBoostingRegressor\nfrom sklearn.model_selection import train_test_split\n\n\n# IMPROVEMENT: Better preprocessing and model\n# Log-transform price to reduce skew\ndf['price_log'] = np.log1p(df['price'])\n\n\n# Select features\nnumeric_features = ['baths', 'bedrooms', 'latitude', 'longitude', 'area']\ncategorical_features = ['property_type', 'city', 'province_name', 'purpose', 'Area Type', 'Area Category']\n\n\n# Ensure all feature columns exist\nmissing_features = []\nfor feat in numeric_features + categorical_features:\n    if feat not in df.columns:\n        missing_features.append(feat)\n\n\nif missing_features:\n    print(f\"Warning: Missing features: {missing_features}\")\n    # Use only available features\n    numeric_features = [f for f in numeric_features if f in df.columns]\n    categorical_features = [f for f in categorical_features if f in df.columns]\n\n\n# Create a clean copy of the data for modeling\nX = df[numeric_features + categorical_features].copy()\ny = df['price_log']\n\n\n# Handle missing values in categorical columns before preprocessing\nfor col in categorical_features:\n    if col in X.columns:\n        X[col] = X[col].fillna('Missing').astype(str)\n\n\n# Handle missing values in numeric columns before preprocessing\nfor col in numeric_features:\n    if col in X.columns:\n        X[col] = pd.to_numeric(X[col], errors='coerce')\n\n\n# Create preprocessing pipeline\nnumeric_transformer = Pipeline(steps=[\n    ('imputer', SimpleImputer(strategy='median')),\n    ('scaler', StandardScaler())\n])\n\n\ncategorical_transformer = Pipeline(steps=[\n    ('imputer', SimpleImputer(strategy='most_frequent')),\n    ('onehot', OneHotEncoder(handle_unknown='ignore', sparse_output=False))\n])\n\n\npreprocessor = ColumnTransformer(\n    transformers=[\n        ('num', numeric_transformer, numeric_features),\n        ('cat', categorical_transformer, categorical_features)\n    ],\n    remainder='drop'\n)\n\n\n# Create pipeline with GradientBoostingRegressor (handles non-linear relationships better)\nmodel_improved = Pipeline(steps=[\n    ('preprocessor', preprocessor),\n    ('regressor', GradientBoostingRegressor(n_estimators=100, max_depth=5, random_state=42))\n])\n\n\n# Train-test split",
+      "output": "Training data shape: (56038, 11)\nTest data shape: (14010, 11)\nPreparation complete - ready to fit model"
+    },
+    {
+      "type": "code",
+      "index": 39,
+      "input": "# Fit the improved model\nmodel_improved.fit(X_train, y_train)\n\n\n\n\n# Make predictions\ny_pred_log = model_improved.predict(X_test)\n\n\n\n\n# Transform predictions back to original scale\ny_pred = np.expm1(y_pred_log)\ny_test_original = np.expm1(y_test)\n\n\n\n\n# Calculate metrics\nr2 = r2_score(y_test_original, y_pred)\nmse = mean_squared_error(y_test_original, y_pred)\nrmse = np.sqrt(mse)\n\n\n\n\nprint('Improved Model Performance:')\nprint(f'R² Score: {r2:.4f}')\nprint(f'MSE: {mse:.2e}')\nprint(f'RMSE: {rmse:.2e}')\n\n\n\n\n# Feature importance (if available)\nif hasattr(model_improved.named_steps['regressor'], 'feature_importances_'):\n    # Get feature names after preprocessing\n    try:\n        feature_names = (numeric_features + \n                         model_improved.named_steps['preprocessor']\n                         .named_transformers_['cat']\n                         .named_steps['onehot']\n                         .get_feature_names_out(categorical_features).tolist())\n        \n        importances = model_improved.named_steps['regressor'].feature_importances_\n        \n        # Display top 10 features\n        indices = np.argsort(importances)[::-1][:10]\n        print('\\nTop 10 Feature Importances:')\n        for i, idx in enumerate(indices):\n            print(f'{i+1}. {feature_names[idx]}: {importances[idx]:.4f}')\n    except Exception as e:\n        print(f'Could not extract feature names: {e}')",
+      "output": "/usr/local/lib/python3.12/dist-packages/sklearn/impute/_base.py:635: UserWarning: Skipping features without any observed values: ['area']. At least one non-missing value is needed for imputation with strategy='median'.\n  warnings.warn(\n\nImproved Model Performance:\nR² Score: 0.4686\nMSE: 2.26e+15\nRMSE: 4.76e+07\n\nTop 10 Feature Importances:\n1. bedrooms: 0.4540\n2. baths: 0.2308\n3. Area Type_Marla: 0.1272\n4. Area Category_5+ Kanal: 0.0651\n5. purpose_For Sale: 0.0277\n6. Area Category_1-5 Kanal: 0.0268\n7. Area Type_Kanal: 0.0217\n8. province_name_Islamabad Capital: 0.0081\n9. longitude: 0.0078\n10. latitude: 0.0073\n\n/usr/local/lib/python3.12/dist-packages/sklearn/impute/_base.py:635: UserWarning: Skipping features without any observed values: ['area']. At least one non-missing value is needed for imputation with strategy='median'.\n  warnings.warn("
+    },
+    {
+      "type": "code",
+      "index": 40,
+      "input": "from tensorflow.keras.datasets import mnist\n\n\n# Load MNIST dataset\n(x_train, y_train), (x_test, y_test) = mnist.load_data()\n\n\nprint('MNIST dataset loaded successfully!')\nprint(f'Training images shape: {x_train.shape}')\nprint(f'Training labels shape: {y_train.shape}')\nprint(f'Test images shape: {x_test.shape}')\nprint(f'Test labels shape: {y_test.shape}')",
+      "output": "2026-06-16 04:36:14.985874: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:467] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered\nWARNING: All log messages before absl::InitializeLog() is called are written to STDERR\nE0000 00:00:1781584575.245849      57 cuda_dnn.cc:8579] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered\nE0000 00:00:1781584575.318756      57 cuda_blas.cc:1407] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered\nW0000 00:00:1781584575.896669      57 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.\nW0000 00:00:1781584575.896738      57 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.\nW0000 00:00:1781584575.896741      57 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.\nW0000 00:00:1781584575.896744      57 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.\n\nDownloading data from https://storage.googleapis.com/tensorflow/tf-keras-datasets/mnist.npz\n11490434/11490434 ━━━━━━━━━━━━━━━━━━━━ 0s 0us/step\nMNIST dataset loaded successfully!\nTraining images shape: (60000, 28, 28)\nTraining labels shape: (60000,)\nTest images shape: (10000, 28, 28)\nTest labels shape: (10000,)"
+    }
+  ],
+  "notebookId": 112732919,
+  "storageKey": "kaggle:kernel:112732919"
+}

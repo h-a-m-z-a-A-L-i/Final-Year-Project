@@ -1,6 +1,6 @@
 // Content script to relay kernel state updates from background to page scripts
 (function initKernelStateListener() {
-  const LISTENER_VERSION = '2026-06-16-insert-cell-clear-retry';
+  const LISTENER_VERSION = '2026-06-24-execution-title-poll';
   if (window.__kernelStateListenerVersion === LISTENER_VERSION) {
     return;
   }
@@ -30,6 +30,15 @@
           scrollIntoView: msg.scrollIntoView,
           maxWaitMs,
         })
+          .then((result) => sendResponse({ ok: Boolean(result?.ok), result }))
+          .catch((error) => sendResponse({ ok: false, error: error?.message || String(error) }));
+        return true;
+      }
+
+      if (msg.type === 'GET_CELL_EXECUTION_TITLE') {
+        const domIdx = Number(msg.cellIndex);
+        const maxWaitMs = Number(msg.maxWaitMs) || 2000;
+        readCellExecutionTitleFromDomAsync(domIdx, { maxWaitMs })
           .then((result) => sendResponse({ ok: Boolean(result?.ok), result }))
           .catch((error) => sendResponse({ ok: false, error: error?.message || String(error) }));
         return true;
@@ -839,6 +848,93 @@
     }
 
     return null;
+  }
+
+  function normalizeExecutionTitle(raw) {
+    const text = String(raw || '').trim();
+    if (!text) return '';
+    const durationMatch = text.match(/^(Cell executed in [\d.]+s)/i);
+    if (durationMatch) return durationMatch[1];
+    return text.replace(/\s+at\s+[\d:]+\s*(am|pm)?\s*$/i, '').trim();
+  }
+
+  function readCellExecutionTitleFromDom(domIdx) {
+    const idx = Number(domIdx);
+    if (!Number.isInteger(idx) || idx < 0) {
+      return { ok: false, error: 'Invalid DOM cell index (must be >= 0).' };
+    }
+    if (!frameOwnsNotebookCells()) {
+      return { ok: false, frameSkip: true, error: 'No notebook cells in this frame.' };
+    }
+    const cell = findCellByDomIndex(document, idx);
+    if (!cell) {
+      return {
+        ok: false,
+        error: 'Cell not found in this frame tree.',
+        domIndex: idx,
+        visibleDomIndices: collectVisibleDomIndices(document),
+      };
+    }
+
+    const promptCol = cell.querySelector('.nc-prompt-index-col');
+    let rawTitle = promptCol
+      ? String(
+          promptCol.getAttribute('title') ||
+          promptCol.title ||
+          promptCol.getAttribute('aria-label') ||
+          ''
+        ).trim()
+      : '';
+
+    if (!rawTitle) {
+      const promptEl = cell.querySelector(
+        '.jp-InputPrompt.jp-InputArea-prompt, .jp-InputPrompt, .input_prompt'
+      );
+      rawTitle = promptEl
+        ? String(
+            promptEl.getAttribute('title') ||
+            promptEl.title ||
+            promptEl.getAttribute('aria-label') ||
+            ''
+          ).trim()
+        : '';
+    }
+
+    const execution_title = normalizeExecutionTitle(rawTitle);
+    return {
+      ok: Boolean(execution_title),
+      execution_title,
+      raw_title: rawTitle || null,
+      domIndex: idx,
+      appIndex: idx + 1,
+      selector: '.nc-prompt-index-col',
+    };
+  }
+
+  function readCellExecutionTitleFromDomAsync(domIdx, { maxWaitMs = 2000 } = {}) {
+    const deadline = Date.now() + Math.max(50, Number(maxWaitMs) || 2000);
+    let last = { ok: false, error: 'Execution title not available yet.' };
+
+    const poll = () => {
+      const snap = readCellExecutionTitleFromDom(domIdx);
+      if (snap?.frameSkip) {
+        return Promise.resolve(snap);
+      }
+      last = snap || last;
+      const title = String(snap?.execution_title || snap?.raw_title || '').trim();
+      if (title && /Cell executed in [\d.]+s/i.test(title)) {
+        return Promise.resolve(snap);
+      }
+      if (Date.now() >= deadline) {
+        if (snap?.execution_title) {
+          return Promise.resolve(snap);
+        }
+        return Promise.resolve(last);
+      }
+      return new Promise((resolve) => setTimeout(resolve, 50)).then(poll);
+    };
+
+    return poll();
   }
 
   function scrollTowardDomIndex(targetDomIdx) {

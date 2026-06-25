@@ -1,0 +1,1322 @@
+{
+  "generated_at": "2026-06-16T12:14:29.511851+00:00",
+  "modes": {
+    "agentic": {
+      "mode": "Agentic",
+      "n": 4,
+      "success_rate_pct": 50.0,
+      "avg_response_time_s": 66.765,
+      "avg_tool_calls": 10.75,
+      "avg_llm_calls": 2.0,
+      "avg_repair_rounds": 0.0,
+      "avg_execution_time_s": 66.765,
+      "hallucinated_success_rate_pct": null,
+      "avg_hallucination_rate_pct": null,
+      "verification_accuracy_pct": null,
+      "context_retrieval_accuracy_pct": 100.0,
+      "placement_accuracy_pct": null,
+      "code_generation_accuracy_pct": null,
+      "avg_coverage_pct": null,
+      "avg_accuracy_pct": 41.7,
+      "runs": [
+        {
+          "id": "AGENT_TEST_1_ML_PIPELINE",
+          "name": "AGENT_TEST_1_ML_PIPELINE",
+          "kernel_id": 113620421,
+          "snapshot_file": "kaggle_kernel_113620421.json",
+          "session_id": "fyp-AGENT_TEST_1_ML_PIPELINE_113620421-AGENT_TEST_1_ML_PIPELINE-2d02e435",
+          "prompt": "Create a complete machine learning pipeline in this notebook.\n\nRequirements:\n1. Load the dataset already used in the notebook.\n2. Perform EDA.\n3. Handle missing values.\n4. Encode categorical variables.\n5. Train at least 3 models.\n6. Compare model performance.\n7. Generate visualizations.\n8. Create a final evaluation section.\n\nYou must:\n- Create all required notebook cells.\n- Insert code into the cells.\n- Run every created cell.\n- Verify execution after every run.\n- Repair failures automatically if any occur.\n- Stop only when all target cells execute successfully.\n\nReport:\n- Number of tool calls\n- Number of repair rounds\n- Total execution time\n- Final verification status",
+          "mode": "agentic",
+          "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+          "notebook_key": "kaggle:kernel:113620421",
+          "live_llm": true,
+          "error": null,
+          "response_text": "Tools dispatched (fire-and-forget). Check monitor CALL/RESULT trace for outcomes.\nRounds: 2\nQueue: notebook_list_cells: dispatched, insert_cell: dispatched, edit_cell_by_index: dispatched, insert_cell: dispatched, edit_cell_by_index: dispatched, insert_cell: dispatched, edit_cell_by_index: dispatched, insert_cell: dispatched, edit_cell_by_index: dispatched, insert_cell: dispatched, edit_cell_by_index: dispatched, insert_cell: dispatched, edit_cell_by_index: dispatched, insert_cell: dispatched, edit_cell_by_index: dispatched, insert_cell: dispatched, edit_cell_by_index: dispatched, insert_cell: dispatched, edit_cell_by_index: dispatched, insert_cell: dispatched, edit_cell_by_index: dispatched, insert_cell: dispatched, edit_cell_by_index: dispatched, insert_cell: dispatched, edit_cell_by_index: dispatched, run_cell: dispatched, run_cell: dispatched, run_cell: dispatched, run_cell: dispatched, run_cell: dispatched, run_cell: dispatched, run_cell: dispatched, run_cell: dispatched, run_cell: dispatched, run_cell: dispatched, run_cell: dispatched, run_cell: dispatched",
+          "metrics": {
+            "total_llm_calls": 2,
+            "total_tool_calls": 37,
+            "notebook_reads": 1,
+            "notebook_writes": 24,
+            "repair_rounds": 0,
+            "runtime_errors": 0,
+            "completion_status": "success",
+            "execution_time": 9.846,
+            "token_usage": {
+              "prompt_tokens": 0,
+              "completion_tokens": 0,
+              "cached_tokens": 0,
+              "total_tokens": 0,
+              "requests": 0
+            },
+            "planner_usage": 0,
+            "semantic_index_hits": 0,
+            "dependency_graph_hits": 0,
+            "runtime_state_hits": 0,
+            "agent_trace": {
+              "insert_calls": 24,
+              "edit_calls": 24,
+              "delete_calls": 0,
+              "run_calls": 24,
+              "read_calls": 2,
+              "verify_events": [
+                {
+                  "round": 0,
+                  "queue_status": "dispatched",
+                  "executed": [
+                    {
+                      "tool": "notebook_list_cells",
+                      "dispatched": true,
+                      "phase": "read"
+                    }
+                  ]
+                },
+                {
+                  "round": 1,
+                  "queue_status": "dispatched",
+                  "executed": [
+                    {
+                      "tool": "insert_cell",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "edit_cell_by_index",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "insert_cell",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "edit_cell_by_index",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "insert_cell",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "edit_cell_by_index",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "insert_cell",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "edit_cell_by_index",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "insert_cell",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "edit_cell_by_index",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "insert_cell",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "edit_cell_by_index",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "insert_cell",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "edit_cell_by_index",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "insert_cell",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "edit_cell_by_index",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "insert_cell",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "edit_cell_by_index",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "insert_cell",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "edit_cell_by_index",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "insert_cell",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "edit_cell_by_index",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "insert_cell",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "edit_cell_by_index",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "run_cell",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "run_cell",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "run_cell",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "run_cell",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "run_cell",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "run_cell",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "run_cell",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "run_cell",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "run_cell",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "run_cell",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "run_cell",
+                      "dispatched": true
+                    },
+                    {
+                      "tool": "run_cell",
+                      "dispatched": true
+                    }
+                  ]
+                }
+              ],
+              "reorder_events": [],
+              "run_errors": [],
+              "batch_tool_orders": [
+                {
+                  "round": 0,
+                  "tools": [
+                    "notebook_list_cells"
+                  ]
+                },
+                {
+                  "round": 1,
+                  "tools": [
+                    "insert_cell",
+                    "edit_cell_by_index",
+                    "insert_cell",
+                    "edit_cell_by_index",
+                    "insert_cell",
+                    "edit_cell_by_index",
+                    "insert_cell",
+                    "edit_cell_by_index",
+                    "insert_cell",
+                    "edit_cell_by_index",
+                    "insert_cell",
+                    "edit_cell_by_index",
+                    "insert_cell",
+                    "edit_cell_by_index",
+                    "insert_cell",
+                    "edit_cell_by_index",
+                    "insert_cell",
+                    "edit_cell_by_index",
+                    "insert_cell",
+                    "edit_cell_by_index",
+                    "insert_cell",
+                    "edit_cell_by_index",
+                    "insert_cell",
+                    "edit_cell_by_index",
+                    "run_cell",
+                    "run_cell",
+                    "run_cell",
+                    "run_cell",
+                    "run_cell",
+                    "run_cell",
+                    "run_cell",
+                    "run_cell",
+                    "run_cell",
+                    "run_cell",
+                    "run_cell",
+                    "run_cell"
+                  ]
+                }
+              ],
+              "dispatched_tool_list": [
+                "notebook_list_cells",
+                "notebook_list_cells",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "run_cell",
+                "run_cell",
+                "run_cell",
+                "run_cell",
+                "run_cell",
+                "run_cell",
+                "run_cell",
+                "run_cell",
+                "run_cell",
+                "run_cell",
+                "run_cell",
+                "run_cell",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "insert_cell",
+                "edit_cell_by_index",
+                "run_cell",
+                "run_cell",
+                "run_cell",
+                "run_cell",
+                "run_cell",
+                "run_cell",
+                "run_cell",
+                "run_cell",
+                "run_cell",
+                "run_cell",
+                "run_cell",
+                "run_cell"
+              ],
+              "target_cell_edited": false,
+              "target_cell_run": false,
+              "batch_writes_before_runs": true,
+              "evaluation_mode": "llm_dispatch_only"
+            },
+            "evaluation_mode": "llm_dispatch_only",
+            "test_passed": true,
+            "tool_dispatch_passed": true,
+            "evaluation_rationale": "LLM dispatched 37 tool(s): 24 insert, 24 edit, 24 run, 2 read."
+          },
+          "test_number": 1,
+          "test_name": "Complete ML Pipeline",
+          "tests_evaluated": [
+            "cell_creation",
+            "tool_batching",
+            "write_run_dispatch"
+          ],
+          "target_cell": null
+        },
+        {
+          "id": "AGENT_TEST_2_ERROR_REPAIR",
+          "name": "AGENT_TEST_2_ERROR_REPAIR",
+          "kernel_id": 112732919,
+          "snapshot_file": "kaggle_kernel_112732919.json",
+          "session_id": "fyp-AGENT_TEST_2_ERROR_REPAIR_112732919-AGENT_TEST_2_ERROR_REPAIR-5a671edb",
+          "prompt": "Locate every runtime error in the notebook.\n\nFor each error:\n1. Identify root cause.\n2. Edit the correct cell.\n3. Run the edited cell.\n4. Verify execution.\n5. Continue until all notebook errors are removed.\n\nDo not create workaround cells.\n\nA task is complete only if:\n- The target cell executes successfully.\n- Verification confirms success.\n\nGenerate a final execution report.",
+          "mode": "agentic",
+          "url": "https://www.kaggle.com/code/codekey/testing-ol/edit",
+          "notebook_key": "kaggle:kernel:112732919",
+          "live_llm": true,
+          "error": null,
+          "response_text": "Tools dispatched (fire-and-forget). Check monitor CALL/RESULT trace for outcomes.\nRounds: 2\nQueue: notebook_list_cells: dispatched, edit_cell_by_index: dispatched",
+          "metrics": {
+            "total_llm_calls": 2,
+            "total_tool_calls": 2,
+            "notebook_reads": 1,
+            "notebook_writes": 1,
+            "repair_rounds": 0,
+            "runtime_errors": 0,
+            "completion_status": "partial",
+            "execution_time": 125.7735,
+            "token_usage": {
+              "prompt_tokens": 0,
+              "completion_tokens": 0,
+              "cached_tokens": 0,
+              "total_tokens": 0,
+              "requests": 0
+            },
+            "planner_usage": 0,
+            "semantic_index_hits": 0,
+            "dependency_graph_hits": 0,
+            "runtime_state_hits": 0,
+            "agent_trace": {
+              "insert_calls": 0,
+              "edit_calls": 1,
+              "delete_calls": 0,
+              "run_calls": 0,
+              "read_calls": 3,
+              "verify_events": [
+                {
+                  "round": 0,
+                  "queue_status": "dispatched",
+                  "executed": [
+                    {
+                      "tool": "notebook_list_cells",
+                      "dispatched": true,
+                      "phase": "read"
+                    }
+                  ]
+                },
+                {
+                  "round": 1,
+                  "queue_status": "dispatched",
+                  "executed": [
+                    {
+                      "tool": "edit_cell_by_index",
+                      "dispatched": true
+                    }
+                  ]
+                }
+              ],
+              "reorder_events": [],
+              "run_errors": [],
+              "batch_tool_orders": [
+                {
+                  "round": 0,
+                  "tools": [
+                    "notebook_snapshot_status",
+                    "notebook_list_cells"
+                  ]
+                },
+                {
+                  "round": 1,
+                  "tools": []
+                }
+              ],
+              "dispatched_tool_list": [
+                "notebook_snapshot_status",
+                "notebook_list_cells",
+                "notebook_list_cells",
+                "edit_cell_by_index"
+              ],
+              "target_cell_edited": false,
+              "target_cell_run": false,
+              "batch_writes_before_runs": null,
+              "evaluation_mode": "llm_dispatch_only"
+            },
+            "evaluation_mode": "llm_dispatch_only",
+            "test_passed": true,
+            "tool_dispatch_passed": true,
+            "evaluation_rationale": "LLM dispatched in-place edit (1) and run (0) with 3 read(s)."
+          },
+          "test_number": 2,
+          "test_name": "Error Repair Benchmark",
+          "tests_evaluated": [
+            "error_detection",
+            "in_place_edit_dispatch",
+            "run_dispatch"
+          ],
+          "target_cell": null
+        },
+        {
+          "id": "AGENT_TEST_3_MASSIVE_BATCH",
+          "name": "AGENT_TEST_3_MASSIVE_BATCH",
+          "kernel_id": 119598996,
+          "snapshot_file": "kaggle_kernel_119598996.json",
+          "session_id": "fyp-AGENT_TEST_3_MASSIVE_BATCH_119598996-AGENT_TEST_3_MASSIVE_BATCH-7b042f1e",
+          "prompt": "Create 10 new cells.\n\nCells 1–5:\n- Data cleaning utilities\n\nCells 6–8:\n- Feature engineering utilities\n\nCells 9–10:\n- Visualization utilities\n\nRequirements:\n- Create all cells in a single planning step.\n- Insert code into all cells.\n- Queue all write operations first.\n- Queue all run operations last.\n- Execute the full batch.\n- Verify every cell execution.\n- Repair failures automatically.\n\nProvide a final execution summary.",
+          "mode": "agentic",
+          "url": "https://www.kaggle.com/code/codekey/housing-final-updated-4/edit",
+          "notebook_key": "kaggle:kernel:119598996",
+          "live_llm": true,
+          "error": null,
+          "response_text": "Tools dispatched (fire-and-forget). Check monitor CALL/RESULT trace for outcomes.\nRounds: 2\nQueue: notebook_list_cells: dispatched, edit_cell_by_index: dispatched",
+          "metrics": {
+            "total_llm_calls": 2,
+            "total_tool_calls": 2,
+            "notebook_reads": 1,
+            "notebook_writes": 1,
+            "repair_rounds": 0,
+            "runtime_errors": 0,
+            "completion_status": "failed",
+            "execution_time": 67.0787,
+            "token_usage": {
+              "prompt_tokens": 0,
+              "completion_tokens": 0,
+              "cached_tokens": 0,
+              "total_tokens": 0,
+              "requests": 0
+            },
+            "planner_usage": 0,
+            "semantic_index_hits": 0,
+            "dependency_graph_hits": 0,
+            "runtime_state_hits": 0,
+            "agent_trace": {
+              "insert_calls": 0,
+              "edit_calls": 1,
+              "delete_calls": 0,
+              "run_calls": 0,
+              "read_calls": 2,
+              "verify_events": [
+                {
+                  "round": 0,
+                  "queue_status": "dispatched",
+                  "executed": [
+                    {
+                      "tool": "notebook_list_cells",
+                      "dispatched": true,
+                      "phase": "read"
+                    }
+                  ]
+                },
+                {
+                  "round": 1,
+                  "queue_status": "dispatched",
+                  "executed": [
+                    {
+                      "tool": "edit_cell_by_index",
+                      "dispatched": true
+                    }
+                  ]
+                }
+              ],
+              "reorder_events": [],
+              "run_errors": [],
+              "batch_tool_orders": [
+                {
+                  "round": 0,
+                  "tools": [
+                    "notebook_list_cells"
+                  ]
+                },
+                {
+                  "round": 1,
+                  "tools": []
+                }
+              ],
+              "dispatched_tool_list": [
+                "notebook_list_cells",
+                "notebook_list_cells",
+                "edit_cell_by_index"
+              ],
+              "target_cell_edited": false,
+              "target_cell_run": false,
+              "batch_writes_before_runs": null,
+              "evaluation_mode": "llm_dispatch_only"
+            },
+            "evaluation_mode": "llm_dispatch_only",
+            "test_passed": false,
+            "tool_dispatch_passed": false,
+            "evaluation_rationale": "Only 0 insert_cell dispatch(es); expected 10."
+          },
+          "test_number": 3,
+          "test_name": "Massive Multi-Tool Batch",
+          "tests_evaluated": [
+            "batching",
+            "insert_dispatch",
+            "queue_ordering"
+          ],
+          "target_cell": null
+        },
+        {
+          "id": "AGENT_TEST_4_VERIFICATION_ATTACK",
+          "name": "AGENT_TEST_4_VERIFICATION_ATTACK",
+          "kernel_id": 112732919,
+          "snapshot_file": "kaggle_kernel_112732919.json",
+          "session_id": "fyp-AGENT_TEST_4_VERIFICATION_ATTACK_112732919-AGENT_TEST_4_VERIFICATION_ATTACK-2ea3fb11",
+          "prompt": "Fix the error in cell 31.\n\nImportant:\n\nThe task is considered successful only if:\n1. Cell 31 is modified.\n2. Cell 31 is executed.\n3. Verification confirms execution.\n4. Output is returned.\n\nDo not claim success without execution evidence.\n\nIf execution cannot be verified:\nstate failure explicitly.",
+          "mode": "agentic",
+          "url": "https://www.kaggle.com/code/codekey/testing-ol/edit",
+          "notebook_key": "kaggle:kernel:112732919",
+          "live_llm": true,
+          "error": null,
+          "response_text": "Tools dispatched (fire-and-forget). Check monitor CALL/RESULT trace for outcomes.\nRounds: 2\nQueue: notebook_list_cells: dispatched, edit_cell_by_index: dispatched",
+          "metrics": {
+            "total_llm_calls": 2,
+            "total_tool_calls": 2,
+            "notebook_reads": 1,
+            "notebook_writes": 1,
+            "repair_rounds": 0,
+            "runtime_errors": 0,
+            "completion_status": "failed",
+            "execution_time": 64.3631,
+            "token_usage": {
+              "prompt_tokens": 0,
+              "completion_tokens": 0,
+              "cached_tokens": 0,
+              "total_tokens": 0,
+              "requests": 0
+            },
+            "planner_usage": 0,
+            "semantic_index_hits": 0,
+            "dependency_graph_hits": 0,
+            "runtime_state_hits": 0,
+            "agent_trace": {
+              "insert_calls": 0,
+              "edit_calls": 1,
+              "delete_calls": 0,
+              "run_calls": 0,
+              "read_calls": 2,
+              "verify_events": [
+                {
+                  "round": 0,
+                  "queue_status": "dispatched",
+                  "executed": [
+                    {
+                      "tool": "notebook_list_cells",
+                      "dispatched": true,
+                      "phase": "read"
+                    }
+                  ]
+                },
+                {
+                  "round": 1,
+                  "queue_status": "dispatched",
+                  "executed": [
+                    {
+                      "tool": "edit_cell_by_index",
+                      "dispatched": true
+                    }
+                  ]
+                }
+              ],
+              "reorder_events": [],
+              "run_errors": [],
+              "batch_tool_orders": [
+                {
+                  "round": 0,
+                  "tools": [
+                    "notebook_get_cell"
+                  ]
+                },
+                {
+                  "round": 1,
+                  "tools": []
+                }
+              ],
+              "dispatched_tool_list": [
+                "notebook_get_cell",
+                "notebook_list_cells",
+                "edit_cell_by_index"
+              ],
+              "target_cell_edited": false,
+              "target_cell_run": false,
+              "batch_writes_before_runs": null,
+              "evaluation_mode": "llm_dispatch_only"
+            },
+            "evaluation_mode": "llm_dispatch_only",
+            "test_passed": false,
+            "tool_dispatch_passed": false,
+            "evaluation_rationale": "No edit/run dispatch targeting cell 31."
+          },
+          "test_number": 4,
+          "test_name": "Target Cell Dispatch",
+          "tests_evaluated": [
+            "edit_dispatch",
+            "run_dispatch",
+            "target_cell_accuracy"
+          ],
+          "target_cell": 31
+        }
+      ]
+    },
+    "ask": {
+      "mode": "Ask",
+      "n": 4,
+      "success_rate_pct": 50.0,
+      "avg_response_time_s": 77.656,
+      "avg_tool_calls": 0.0,
+      "avg_llm_calls": 0.0,
+      "avg_repair_rounds": 0.0,
+      "avg_execution_time_s": 77.656,
+      "hallucinated_success_rate_pct": 25.0,
+      "avg_hallucination_rate_pct": 19.4,
+      "verification_accuracy_pct": null,
+      "context_retrieval_accuracy_pct": 100.0,
+      "placement_accuracy_pct": null,
+      "code_generation_accuracy_pct": null,
+      "avg_coverage_pct": 73.1,
+      "avg_accuracy_pct": 68.1,
+      "runs": [
+        {
+          "id": "ASK_TEST_1_EXPLAIN_NOTEBOOK",
+          "name": "ASK_TEST_1_EXPLAIN_NOTEBOOK",
+          "kernel_id": 113620421,
+          "snapshot_file": "kaggle_kernel_113620421.json",
+          "session_id": "fyp-ASK_TEST_1_EXPLAIN_NOTEBOOK_113620421-ASK_TEST_1_EXPLAIN_NOTEBOOK-2d58c812",
+          "prompt": "Explain the complete workflow of this notebook.\n\nInclude:\n- Data loading\n- Cleaning\n- Feature engineering\n- Model training\n- Evaluation\n\nDo not generate code.\n\nUse notebook evidence only.",
+          "mode": "ask",
+          "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+          "notebook_key": "kaggle:kernel:113620421",
+          "live_llm": true,
+          "error": null,
+          "response_text": "Based on the provided notebook evidence (Cells 1–5), here is the current workflow:\n\n**Data Loading**\n- **Cell [1]** imports `pandas` and reads the dataset `zameen-updated.csv` into a DataFrame named `df`.\n\n**Initial Inspection**\n- **Cell [2]** calls `df.head(10)` to display the first 10 rows, allowing a preview of the columns (e.g., `property_type`, `price`, `city`, `area`) and data structure.\n\n**Data Preparation (Initial)**\n- **Cell [5]** creates a copy of the original DataFrame and assigns it to `df1`. This is typically done to preserve the raw data before modifications.\n\n**Missing Steps**\nThe following stages are not present in the current evidence:\n- **Cleaning:** There is no code for handling missing values, removing duplicates, or correcting data types. (Cells [3] and [4] are currently empty).\n- **Feature Engineering:** No logic for creating new features or transforming existing ones is visible.\n- **Model Training:** No model libraries (e.g., `sklearn`), data splitting, or training code is visible.\n- **Evaluation:** No code for calculating metrics or analyzing predictions is visible.\n\n**INSUFFICIENT_CONTEXT**\nThe notebook coverage is partial. Are there additional cells beyond Cell [5] that contain the cleaning, modeling, or evaluation steps?",
+          "metrics": {
+            "total_llm_calls": 0,
+            "total_tool_calls": 0,
+            "notebook_reads": 0,
+            "notebook_writes": 0,
+            "repair_rounds": 0,
+            "runtime_errors": 0,
+            "completion_status": "failed",
+            "execution_time": 62.2918,
+            "token_usage": {
+              "prompt_tokens": 0,
+              "completion_tokens": 0,
+              "cached_tokens": 0,
+              "total_tokens": 0,
+              "requests": 0
+            },
+            "planner_usage": 0,
+            "semantic_index_hits": 0,
+            "dependency_graph_hits": 0,
+            "runtime_state_hits": 0,
+            "ask_evaluation": {
+              "coverage": 0.889,
+              "coverage_hits": 8,
+              "coverage_topics_covered": [
+                "data loading",
+                "load",
+                "clean",
+                "missing",
+                "feature",
+                "train",
+                "model",
+                "evaluat"
+              ],
+              "coverage_topics_missing": [
+                "visual"
+              ],
+              "accuracy": 0.375,
+              "hallucination_rate": 0.333,
+              "hallucination_details": {
+                "cited_cell_indices": [],
+                "invalid_cell_references": [],
+                "ground_truth_hits": 0,
+                "ground_truth_total": 0,
+                "fabrication_flags": [],
+                "hallucination_rate": 0.333
+              },
+              "contract_compliance": {
+                "no_tool_calls": true,
+                "no_notebook_writes": true,
+                "no_large_code_dump": true,
+                "acknowledges_empty_cell": true,
+                "asks_clarifying_questions": true
+              },
+              "contract_passed": true,
+              "code_fence_count": 0,
+              "max_code_fence_lines": 0,
+              "test_passed": false,
+              "evaluation_rationale": "Low accuracy vs notebook evidence (38%).",
+              "response_word_count": 184,
+              "response_preview": "Based on the provided notebook evidence (Cells 1–5), here is the current workflow:\n\n**Data Loading**\n- **Cell [1]** imports `pandas` and reads the dataset `zameen-updated.csv` into a DataFrame named `df`.\n\n**Initial Inspection**\n- **Cell [2]** calls `df.head(10)` to display the first 10 rows, allowing a preview of the columns (e.g., `property_type`, `price`, `city`, `area`) and data structure.\n\n**Data Preparation (Initial)**\n- **Cell [5]** creates a copy of the original DataFrame and assigns it to `df1`. This is typically done to preserve the raw data before modifications.\n\n**Missing Steps**\nThe following stages are not present in the current evidence:\n- **Cleaning:** There is no code for handling missing values, removing duplicates, or correcting data types. (Cells [3] and [4] are currently empty).\n- **Feature Engineering:** No logic for creating new features or transforming existing ones is visible.\n- **Model Training:** No model libraries (e.g., `sklearn`), data splitting, or training code is visible.\n- **Evaluation:** No code for calculating metrics or analyzing predictions is visible.\n\n**INSUFFICIENT_CONTEXT**\nThe notebook coverage is partial. Are there additional cells beyond"
+            },
+            "test_passed": false
+          },
+          "test_number": 1,
+          "test_name": "Explain Notebook",
+          "target_cell": null
+        },
+        {
+          "id": "ASK_TEST_2_EXPLAIN_CELL",
+          "name": "ASK_TEST_2_EXPLAIN_CELL",
+          "kernel_id": 113620421,
+          "snapshot_file": "kaggle_kernel_113620421.json",
+          "session_id": "fyp-ASK_TEST_2_EXPLAIN_CELL_113620421-ASK_TEST_2_EXPLAIN_CELL-da6ba2a9",
+          "prompt": "Explain cell 17.\n\nInclude:\n1. Inputs\n2. Outputs\n3. Dependencies\n4. Why the cell exists\n5. Potential issues\n\nDo not generate replacement code.",
+          "mode": "ask",
+          "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+          "notebook_key": "kaggle:kernel:113620421",
+          "live_llm": true,
+          "error": null,
+          "response_text": "**Cell [17] —** *Drops the original date column after feature extraction*\n\n**Inputs**\n- `df1`: The main working DataFrame (modified in-place).\n\n**Outputs**\n- `df1` is updated with the `date_added` column removed.\n- No explicit return value (side effect only).\n\n**Dependencies**\n- **Cell [5]**: Initializes `df1`.\n- **Cell [7]**: Filters `df1` for 'For Sale'.\n- **Cell [8]**: Filters `df1` for valid prices/rooms.\n- **Contextual flow**: Relies on **Cells [14]–[16]** having already extracted month, day, and weekday features from `date_added`.\n\n**Why the cell exists**\nThe notebook converts the raw `date_added` column into engineered features (Month, Day, Day_of_Week) in the preceding cells. Once those numerical features are created, the original `date_added` column is redundant for modeling and is dropped to reduce dimensionality and prevent data leakage or redundancy in the training set.\n\n**Potential issues**\n- **Execution order**: If this cell runs before Cells [14], [15], or [16], the date information is lost before features are extracted.\n- **In-place modification**: Using `inplace=True` alters the DataFrame state silently; if `date_added` were already dropped or missing, this would raise a `KeyError`.",
+          "metrics": {
+            "total_llm_calls": 0,
+            "total_tool_calls": 0,
+            "notebook_reads": 0,
+            "notebook_writes": 0,
+            "repair_rounds": 0,
+            "runtime_errors": 0,
+            "completion_status": "success",
+            "execution_time": 62.6336,
+            "token_usage": {
+              "prompt_tokens": 0,
+              "completion_tokens": 0,
+              "cached_tokens": 0,
+              "total_tokens": 0,
+              "requests": 0
+            },
+            "planner_usage": 0,
+            "semantic_index_hits": 0,
+            "dependency_graph_hits": 0,
+            "runtime_state_hits": 0,
+            "ask_evaluation": {
+              "coverage": 0.833,
+              "coverage_hits": 5,
+              "coverage_topics_covered": [
+                "input",
+                "output",
+                "depend",
+                "issue",
+                "why"
+              ],
+              "coverage_topics_missing": [
+                "purpose"
+              ],
+              "accuracy": 1.0,
+              "hallucination_rate": 0.0,
+              "hallucination_details": {
+                "cited_cell_indices": [],
+                "invalid_cell_references": [],
+                "ground_truth_hits": 2,
+                "ground_truth_total": 2,
+                "fabrication_flags": [],
+                "hallucination_rate": 0.0
+              },
+              "contract_compliance": {
+                "no_tool_calls": true,
+                "no_notebook_writes": true,
+                "no_large_code_dump": true,
+                "acknowledges_empty_cell": true,
+                "asks_clarifying_questions": false
+              },
+              "contract_passed": true,
+              "code_fence_count": 0,
+              "max_code_fence_lines": 0,
+              "test_passed": true,
+              "evaluation_rationale": "Ask-mode contract satisfied with acceptable coverage/accuracy.",
+              "response_word_count": 174,
+              "response_preview": "**Cell [17] —** *Drops the original date column after feature extraction*\n\n**Inputs**\n- `df1`: The main working DataFrame (modified in-place).\n\n**Outputs**\n- `df1` is updated with the `date_added` column removed.\n- No explicit return value (side effect only).\n\n**Dependencies**\n- **Cell [5]**: Initializes `df1`.\n- **Cell [7]**: Filters `df1` for 'For Sale'.\n- **Cell [8]**: Filters `df1` for valid prices/rooms.\n- **Contextual flow**: Relies on **Cells [14]–[16]** having already extracted month, day, and weekday features from `date_added`.\n\n**Why the cell exists**\nThe notebook converts the raw `date_added` column into engineered features (Month, Day, Day_of_Week) in the preceding cells. Once those numerical features are created, the original `date_added` column is redundant for modeling and is dropped to reduce dimensionality and prevent data leakage or redundancy in the training set.\n\n**Potential issues**\n- **Execution order**: If this cell runs before Cells [14], [15], or [16], the date information is lost before features are extracted.\n- **In-place modification**: Using `inplace=True` alters the DataFrame state silently; if `date_added` were already dropped or missing, this would r"
+            },
+            "test_passed": true
+          },
+          "test_number": 2,
+          "test_name": "Explain Cell",
+          "target_cell": 17
+        },
+        {
+          "id": "ASK_TEST_3_DEBUG_ERROR",
+          "name": "ASK_TEST_3_DEBUG_ERROR",
+          "kernel_id": 112732919,
+          "snapshot_file": "kaggle_kernel_112732919.json",
+          "session_id": "fyp-ASK_TEST_3_DEBUG_ERROR_112732919-ASK_TEST_3_DEBUG_ERROR-953434b5",
+          "prompt": "Explain the root cause of the error in cell 31.\n\nDo not provide a complete replacement script.\n\nProvide:\n- Root cause\n- A minimal fix suggestion\n- Expected impact",
+          "mode": "ask",
+          "url": "https://www.kaggle.com/code/codekey/testing-ol/edit",
+          "notebook_key": "kaggle:kernel:112732919",
+          "live_llm": true,
+          "error": null,
+          "response_text": "**Root cause**\nThe variable `df` is not defined in the kernel's memory. It is created in **Cell [25]** (`df = pd.read_csv(...)`), but that cell has not been executed prior to running Cell [31], or the kernel state was lost.\n\n**Minimal fix suggestion**\nRun **Cell [25]** to load the dataset into `df`, then re-run **Cell [31]**.\n\n**Expected impact**\nThe dataframe will be available in memory, allowing the filter for Lahore properties and the display of the top 10 rows to succeed without errors.",
+          "metrics": {
+            "total_llm_calls": 0,
+            "total_tool_calls": 0,
+            "notebook_reads": 0,
+            "notebook_writes": 0,
+            "repair_rounds": 0,
+            "runtime_errors": 0,
+            "completion_status": "success",
+            "execution_time": 61.9729,
+            "token_usage": {
+              "prompt_tokens": 0,
+              "completion_tokens": 0,
+              "cached_tokens": 0,
+              "total_tokens": 0,
+              "requests": 0
+            },
+            "planner_usage": 0,
+            "semantic_index_hits": 0,
+            "dependency_graph_hits": 0,
+            "runtime_state_hits": 0,
+            "ask_evaluation": {
+              "coverage": 1.0,
+              "coverage_hits": 4,
+              "coverage_topics_covered": [
+                "root cause",
+                "fix",
+                "impact",
+                "minimal"
+              ],
+              "coverage_topics_missing": [],
+              "accuracy": 0.667,
+              "hallucination_rate": 0.111,
+              "hallucination_details": {
+                "cited_cell_indices": [],
+                "invalid_cell_references": [],
+                "ground_truth_hits": 2,
+                "ground_truth_total": 3,
+                "fabrication_flags": [],
+                "hallucination_rate": 0.111
+              },
+              "contract_compliance": {
+                "no_tool_calls": true,
+                "no_notebook_writes": true,
+                "no_large_code_dump": true,
+                "acknowledges_empty_cell": true,
+                "asks_clarifying_questions": false
+              },
+              "contract_passed": true,
+              "code_fence_count": 0,
+              "max_code_fence_lines": 0,
+              "test_passed": true,
+              "evaluation_rationale": "Ask-mode contract satisfied with acceptable coverage/accuracy.",
+              "response_word_count": 82,
+              "response_preview": "**Root cause**\nThe variable `df` is not defined in the kernel's memory. It is created in **Cell [25]** (`df = pd.read_csv(...)`), but that cell has not been executed prior to running Cell [31], or the kernel state was lost.\n\n**Minimal fix suggestion**\nRun **Cell [25]** to load the dataset into `df`, then re-run **Cell [31]**.\n\n**Expected impact**\nThe dataframe will be available in memory, allowing the filter for Lahore properties and the display of the top 10 rows to succeed without errors."
+            },
+            "test_passed": true
+          },
+          "test_number": 3,
+          "test_name": "Debug Error",
+          "target_cell": 31
+        },
+        {
+          "id": "ASK_TEST_4_EMPTY_CELL",
+          "name": "ASK_TEST_4_EMPTY_CELL",
+          "kernel_id": 113620421,
+          "snapshot_file": "fyp_ask_empty_cell_113620421.json",
+          "session_id": "fyp-ASK_TEST_4_EMPTY_CELL_113620421-ASK_TEST_4_EMPTY_CELL-82e80410",
+          "prompt": "Explain what should go in cell 45.\n\nCell 45 is empty.\n\nEvaluate whether Ask mode:\n- acknowledges the cell is empty\n- asks clarifying questions\n- avoids generating a full code solution",
+          "mode": "ask",
+          "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+          "notebook_key": "kaggle:kernel:113620421",
+          "live_llm": true,
+          "error": null,
+          "response_text": "**Cell [45] —** *empty placeholder*\n\n**Status**\nCell [45] has no code yet.\n\n**What would you like here?**\nDo you want to train a single LightGBM model with early stopping, or implement a K-Fold cross-validation loop?\n\n**Suggested next steps**\n1. **Train LightGBM with Early Stopping** — fits the `LGBMRegressor` and `early_stopping` imports from Cell [42] using the `X_train`/`y_train` splits prepared in Cell [38].\n2. **K-Fold Cross-Validation** — utilizes the `KFold` import from Cell [42] to iterate over folds, training the model on different subsets to get a more robust performance estimate.",
+          "metrics": {
+            "total_llm_calls": 0,
+            "total_tool_calls": 0,
+            "notebook_reads": 0,
+            "notebook_writes": 0,
+            "repair_rounds": 0,
+            "runtime_errors": 0,
+            "completion_status": "failed",
+            "execution_time": 123.7266,
+            "token_usage": {
+              "prompt_tokens": 0,
+              "completion_tokens": 0,
+              "cached_tokens": 0,
+              "total_tokens": 0,
+              "requests": 0
+            },
+            "planner_usage": 0,
+            "semantic_index_hits": 0,
+            "dependency_graph_hits": 0,
+            "runtime_state_hits": 0,
+            "ask_evaluation": {
+              "coverage": 0.2,
+              "coverage_hits": 1,
+              "coverage_topics_covered": [
+                "empty"
+              ],
+              "coverage_topics_missing": [
+                "clarif",
+                "question",
+                "what should",
+                "purpose"
+              ],
+              "accuracy": null,
+              "hallucination_rate": 0.333,
+              "hallucination_details": {
+                "cited_cell_indices": [],
+                "invalid_cell_references": [],
+                "ground_truth_hits": 0,
+                "ground_truth_total": 0,
+                "fabrication_flags": [],
+                "hallucination_rate": 0.333
+              },
+              "contract_compliance": {
+                "no_tool_calls": true,
+                "no_notebook_writes": true,
+                "no_large_code_dump": true,
+                "acknowledges_empty_cell": true,
+                "asks_clarifying_questions": true
+              },
+              "contract_passed": true,
+              "code_fence_count": 0,
+              "max_code_fence_lines": 0,
+              "test_passed": false,
+              "evaluation_rationale": "Low topic coverage (20%); missing: clarif, question, what should, purpose.",
+              "response_word_count": 90,
+              "response_preview": "**Cell [45] —** *empty placeholder*\n\n**Status**\nCell [45] has no code yet.\n\n**What would you like here?**\nDo you want to train a single LightGBM model with early stopping, or implement a K-Fold cross-validation loop?\n\n**Suggested next steps**\n1. **Train LightGBM with Early Stopping** — fits the `LGBMRegressor` and `early_stopping` imports from Cell [42] using the `X_train`/`y_train` splits prepared in Cell [38].\n2. **K-Fold Cross-Validation** — utilizes the `KFold` import from Cell [42] to iterate over folds, training the model on different subsets to get a more robust performance estimate."
+            },
+            "test_passed": false
+          },
+          "test_number": 4,
+          "test_name": "Empty Cell Handling",
+          "target_cell": 45
+        }
+      ]
+    },
+    "code": {
+      "mode": "Code",
+      "n": 4,
+      "success_rate_pct": 75.0,
+      "avg_response_time_s": 65.544,
+      "avg_tool_calls": 0.0,
+      "avg_llm_calls": 0.0,
+      "avg_repair_rounds": 0.0,
+      "avg_execution_time_s": 65.544,
+      "hallucinated_success_rate_pct": 0.0,
+      "avg_hallucination_rate_pct": 0.0,
+      "verification_accuracy_pct": null,
+      "context_retrieval_accuracy_pct": null,
+      "placement_accuracy_pct": 50.0,
+      "code_generation_accuracy_pct": 87.8,
+      "avg_coverage_pct": null,
+      "avg_accuracy_pct": null,
+      "runs": [
+        {
+          "id": "CODE_TEST_1_PIPELINE_GENERATION",
+          "name": "CODE_TEST_1_PIPELINE_GENERATION",
+          "kernel_id": 113620421,
+          "snapshot_file": "kaggle_kernel_113620421.json",
+          "session_id": "fyp-CODE_TEST_1_PIPELINE_GENERATION_113620421-CODE_TEST_1_PIPELINE_GENERATION-5fddf659",
+          "prompt": "Generate code to train an XGBoost model using the dataset in this notebook.\n\nRequirements:\n- Use existing notebook variables.\n- Recommend placement.\n- Provide run order.\n- Generate one runnable cell.\n\nDo not modify the notebook directly.",
+          "mode": "code",
+          "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+          "notebook_key": "kaggle:kernel:113620421",
+          "live_llm": true,
+          "error": null,
+          "response_text": "**Plan**\n1.  **Select Features**: Use numeric columns available in the dataset (`baths`, `bedrooms`, `latitude`, `longitude`, `Area Size`) to predict `price`.\n2.  **Preprocess**: Convert `Area Size` to numeric (handling potential string values) and drop rows with missing values in the selected columns.\n3.  **Split**: Divide the data into training and testing sets using `train_test_split`.\n4.  **Train**: Initialize and fit an `XGBRegressor` (regression task for price prediction).\n5.  **Evaluate**: Calculate and print the Root Mean Squared Error (RMSE).\n\n**Placement**\nInsert a **new Code cell** below **Cell [5]** (where `df1` is defined).\n\n**Run steps**\n1.  Run **Cell [1]** (Load data).\n2.  Run **Cell [5]** (Create `df1`).\n3.  Run the **new cell** (Train and evaluate model).\n\n**Code**\n```python\nimport xgboost as xgb\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import mean_squared_error\n\n# Define features and target\n# Using numeric features visible in the dataframe head\nfeatures = ['baths', 'bedrooms', 'latitude', 'longitude', 'Area Size']\ntarget = 'price'\n\n# Prepare the data using df1 (the copy of the original dataframe)\nmodel_df = df1[features + [target]].copy()\n\n# Ensure 'Area Size' is numeric (coerce errors to NaN just in case)\nmodel_df['Area Size'] = pd.to_numeric(model_df['Area Size'], errors='coerce')\n\n# Drop rows with missing values in the selected columns\nmodel_df.dropna(inplace=True)\n\nX = model_df[features]\ny = model_df[target]\n\n# Split the data\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\n# Initialize and train XGBoost Regressor\nmodel = xgb.XGBRegressor(objective='reg:squarederror', random_state=42)\nmodel.fit(X_train, y_train)\n\n# Predict and evaluate\npredictions = model.predict(X_test)\nrmse = mean_squared_error(y_test, predictions, squared=False)\n\nprint(f\"Model trained successfully.\")\nprint(f\"Root Mean Squared Error (RMSE): {rmse:.2f}\")\n```",
+          "metrics": {
+            "total_llm_calls": 0,
+            "total_tool_calls": 0,
+            "notebook_reads": 0,
+            "notebook_writes": 0,
+            "repair_rounds": 0,
+            "runtime_errors": 0,
+            "completion_status": "failed",
+            "execution_time": 64.1209,
+            "token_usage": {
+              "prompt_tokens": 0,
+              "completion_tokens": 0,
+              "cached_tokens": 0,
+              "total_tokens": 0,
+              "requests": 0
+            },
+            "planner_usage": 0,
+            "semantic_index_hits": 0,
+            "dependency_graph_hits": 0,
+            "runtime_state_hits": 0,
+            "code_evaluation": {
+              "coverage": 0.8,
+              "coverage_topics_covered": [
+                "placement",
+                "run",
+                "below",
+                "insert"
+              ],
+              "coverage_topics_missing": [
+                "order"
+              ],
+              "placement_accuracy": 0.0,
+              "code_correctness": 1.0,
+              "downstream_compatibility": null,
+              "cited_cells": [
+                1,
+                5
+              ],
+              "contract_compliance": {
+                "no_browser_tool_dispatch": true,
+                "no_notebook_writes": true,
+                "has_placement_guidance": true,
+                "has_python_code_block": true,
+                "single_primary_code_block": true,
+                "has_run_order": true,
+                "acknowledges_empty_cell": true,
+                "defers_code_for_empty_cell": true,
+                "asks_clarifying_questions": false
+              },
+              "contract_passed": true,
+              "python_block_count": 1,
+              "max_python_block_lines": 34,
+              "test_passed": false,
+              "evaluation_rationale": "Low placement accuracy (0%).",
+              "response_word_count": 251,
+              "response_preview": "**Plan**\n1.  **Select Features**: Use numeric columns available in the dataset (`baths`, `bedrooms`, `latitude`, `longitude`, `Area Size`) to predict `price`.\n2.  **Preprocess**: Convert `Area Size` to numeric (handling potential string values) and drop rows with missing values in the selected columns.\n3.  **Split**: Divide the data into training and testing sets using `train_test_split`.\n4.  **Train**: Initialize and fit an `XGBRegressor` (regression task for price prediction).\n5.  **Evaluate**: Calculate and print the Root Mean Squared Error (RMSE).\n\n**Placement**\nInsert a **new Code cell** below **Cell [5]** (where `df1` is defined).\n\n**Run steps**\n1.  Run **Cell [1]** (Load data).\n2.  Run **Cell [5]** (Create `df1`).\n3.  Run the **new cell** (Train and evaluate model).\n\n**Code**\n```python\nimport xgboost as xgb\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import mean_squared_error\n\n# Define features and target\n# Using numeric features visible in the dataframe head\nfeatures = ['baths', 'bedrooms', 'latitude', 'longitude', 'Area Size']\ntarget = 'price'\n\n# Prepare the data using df1 (the copy of the original dataframe)\nmodel_df = df1[features + [target]"
+            },
+            "test_passed": false
+          },
+          "test_number": 1,
+          "test_name": "Pipeline Generation"
+        },
+        {
+          "id": "CODE_TEST_2_CELL_REPLACEMENT",
+          "name": "CODE_TEST_2_CELL_REPLACEMENT",
+          "kernel_id": 113620421,
+          "snapshot_file": "kaggle_kernel_113620421.json",
+          "session_id": "fyp-CODE_TEST_2_CELL_REPLACEMENT_113620421-CODE_TEST_2_CELL_REPLACEMENT-cae32a3a",
+          "prompt": "Replace the logic in cell 21 with a more robust preprocessing pipeline.\n\nRequirements:\n- Reuse notebook variables.\n- Preserve downstream compatibility.\n- Provide placement guidance.\n- Generate a complete replacement cell.",
+          "mode": "code",
+          "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+          "notebook_key": "kaggle:kernel:113620421",
+          "live_llm": true,
+          "error": null,
+          "response_text": "**Plan**\n- Parse `date_added` into datetime objects for consistency.\n- Convert `Area Size` to a strict numeric column (`area_size_num`) to handle potential string formats.\n- Apply **Winsorization (outlier capping)** to `price`, `baths`, `bedrooms`, and `area_size_num` at the 1st and 99th percentiles to stabilize model training.\n- Engineer a `price_per_area` feature.\n- Preserve the creation of `log_price` to maintain compatibility with downstream cells (e.g., Cell [27], [45]).\n- Impute any remaining missing values in the new columns with the median.\n\n**Placement**\n- **Fill Cell [21]** (replace the existing content).\n\n**Run steps**\n1. Run Cell [5] (Initialize `df1`).\n2. Run Cell [7] (Filter by purpose).\n3. Run Cell [8] (Filter positive values).\n4. Run Cell [21] (New preprocessing pipeline).\n\n**Code**\n```python\nimport numpy as np\nimport pandas as pd\n\n# 1. Date Parsing\n# Convert 'date_added' to datetime objects for potential time-based features\ndf1['date_added'] = pd.to_datetime(df1['date_added'], format='%m-%d-%Y', errors='coerce')\n\n# 2. Area Size Cleaning\n# Ensure 'Area Size' is numeric (handling potential string formats like \"4.0\")\ndf1['area_size_num'] = pd.to_numeric(df1['Area Size'], errors='coerce')\n\n# 3. Outlier Capping (Winsorization)\n# Cap extreme values at the 1st and 99th percentiles to improve model stability\ndef cap_outliers(series, lower=0.01, upper=0.99):\n    lower_val = series.quantile(lower)\n    upper_val = series.quantile(upper)\n    return series.clip(lower_val, upper_val)\n\n# Apply capping to key numerical features\ndf1['price'] = cap_outliers(df1['price'])\ndf1['baths'] = cap_outliers(df1['baths'])\ndf1['bedrooms'] = cap_outliers(df1['bedrooms'])\ndf1['area_size_num'] = cap_outliers(df1['area_size_num'])\n\n# 4. Feature Engineering\n# Create price per unit area (robust to division by zero)\ndf1['price_per_area'] = df1['price'] / (df1['area_size_num'] + 1e-6)\n\n# 5. Target Transformation (Original logic preserved)\ndf1['log_price'] = np.log1p(df1['price'])\n\n# 6. Missing Value Imputation\n# Fill any remaining NaNs in new numeric columns with median\nfor col in ['area_size_num', 'price_per_area']:\n    if df1[col].isnull().any():\n        df1[col] = df1[col].fillna(df1[col].median())\n\nprint(\"Preprocessing pipeline complete.\")\nprint(f\"Updated DataFrame shape: {df1.shape}\")\n```",
+          "metrics": {
+            "total_llm_calls": 0,
+            "total_tool_calls": 0,
+            "notebook_reads": 0,
+            "notebook_writes": 0,
+            "repair_rounds": 0,
+            "runtime_errors": 0,
+            "completion_status": "success",
+            "execution_time": 69.9973,
+            "token_usage": {
+              "prompt_tokens": 0,
+              "completion_tokens": 0,
+              "cached_tokens": 0,
+              "total_tokens": 0,
+              "requests": 0
+            },
+            "planner_usage": 0,
+            "semantic_index_hits": 0,
+            "dependency_graph_hits": 0,
+            "runtime_state_hits": 0,
+            "code_evaluation": {
+              "coverage": 0.8,
+              "coverage_topics_covered": [
+                "placement",
+                "fill",
+                "replace",
+                "downstream"
+              ],
+              "coverage_topics_missing": [
+                "cell 21"
+              ],
+              "placement_accuracy": 1.0,
+              "code_correctness": 0.8,
+              "downstream_compatibility": 1.0,
+              "cited_cells": [
+                5,
+                7,
+                8,
+                21,
+                27
+              ],
+              "contract_compliance": {
+                "no_browser_tool_dispatch": true,
+                "no_notebook_writes": true,
+                "has_placement_guidance": true,
+                "has_python_code_block": true,
+                "single_primary_code_block": true,
+                "has_run_order": true,
+                "acknowledges_empty_cell": true,
+                "defers_code_for_empty_cell": true,
+                "asks_clarifying_questions": false
+              },
+              "contract_passed": true,
+              "python_block_count": 1,
+              "max_python_block_lines": 39,
+              "test_passed": true,
+              "evaluation_rationale": "Code-mode contract satisfied; placement and code quality acceptable.",
+              "response_word_count": 285,
+              "response_preview": "**Plan**\n- Parse `date_added` into datetime objects for consistency.\n- Convert `Area Size` to a strict numeric column (`area_size_num`) to handle potential string formats.\n- Apply **Winsorization (outlier capping)** to `price`, `baths`, `bedrooms`, and `area_size_num` at the 1st and 99th percentiles to stabilize model training.\n- Engineer a `price_per_area` feature.\n- Preserve the creation of `log_price` to maintain compatibility with downstream cells (e.g., Cell [27], [45]).\n- Impute any remaining missing values in the new columns with the median.\n\n**Placement**\n- **Fill Cell [21]** (replace the existing content).\n\n**Run steps**\n1. Run Cell [5] (Initialize `df1`).\n2. Run Cell [7] (Filter by purpose).\n3. Run Cell [8] (Filter positive values).\n4. Run Cell [21] (New preprocessing pipeline).\n\n**Code**\n```python\nimport numpy as np\nimport pandas as pd\n\n# 1. Date Parsing\n# Convert 'date_added' to datetime objects for potential time-based features\ndf1['date_added'] = pd.to_datetime(df1['date_added'], format='%m-%d-%Y', errors='coerce')\n\n# 2. Area Size Cleaning\n# Ensure 'Area Size' is numeric (handling potential string formats like \"4.0\")\ndf1['area_size_num'] = pd.to_numeric(df1['Area Size"
+            },
+            "test_passed": true
+          },
+          "test_number": 2,
+          "test_name": "Cell Replacement"
+        },
+        {
+          "id": "CODE_TEST_3_FEATURE_MODULE",
+          "name": "CODE_TEST_3_FEATURE_MODULE",
+          "kernel_id": 113620421,
+          "snapshot_file": "kaggle_kernel_113620421.json",
+          "session_id": "fyp-CODE_TEST_3_FEATURE_MODULE_113620421-CODE_TEST_3_FEATURE_MODULE-fe950458",
+          "prompt": "Create feature engineering code that:\n- Generates interaction features\n- Creates polynomial features\n- Handles missing values\n\nProvide:\n1. Placement\n2. Run order\n3. One complete Python cell",
+          "mode": "code",
+          "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+          "notebook_key": "kaggle:kernel:113620421",
+          "live_llm": true,
+          "error": null,
+          "response_text": "**Plan**\n- Clean and convert relevant columns (like `Area Size`) to numeric types.\n- Impute missing values for numeric columns (median) and categorical columns ('Unknown').\n- Create interaction features (e.g., `bedrooms * baths`).\n- Generate polynomial features (degree 2) for key numeric columns using `sklearn`.\n\n**Placement**\nInsert **new Code cell** below Cell [5] (where `df1` is defined).\n\n**Run order**\n1. Run Cell [1] (load data).\n2. Run Cell [5] (create `df1`).\n3. Run the new cell (feature engineering).\n\n**Code**\n```python\nimport numpy as np\nimport pandas as pd\nfrom sklearn.preprocessing import PolynomialFeatures\n\n# 1. Handle Missing Values\n# Fill numeric missing values with median\nnumeric_cols = df1.select_dtypes(include=[np.number]).columns\nfor col in numeric_cols:\n    df1[col] = df1[col].fillna(df1[col].median())\n\n# Fill categorical missing values with 'Unknown'\ncategorical_cols = df1.select_dtypes(include=['object']).columns\nfor col in categorical_cols:\n    df1[col] = df1[col].fillna('Unknown')\n\n# 2. Ensure 'Area Size' is numeric for calculations\n# (It may be read as string depending on CSV formatting)\ndf1['Area_Size_Num'] = pd.to_numeric(df1['Area Size'], errors='coerce')\ndf1['Area_Size_Num'] = df1['Area_Size_Num'].fillna(df1['Area_Size_Num'].median())\n\n# 3. Generate Interaction Features\n# Interaction between bedrooms and baths\ndf1['bed_bath_interaction'] = df1['bedrooms'] * df1['baths']\n\n# Area per bedroom (handling division by zero)\ndf1['area_per_bedroom'] = df1['Area_Size_Num'] / (df1['bedrooms'] + 1)\n\n# 4. Create Polynomial Features\n# Select features for polynomial expansion\nfeatures_to_poly = df1[['bedrooms', 'baths', 'Area_Size_Num']]\n\npoly = PolynomialFeatures(degree=2, include_bias=False)\npoly_array = poly.fit_transform(features_to_poly)\n\n# Create a DataFrame for the new features\npoly_feature_names = poly.get_feature_names_out(['bedrooms', 'baths', 'Area_Size_Num'])\npoly_df = pd.DataFrame(poly_array, columns=[f\"poly_{name}\" for name in poly_feature_names])\n\n# Concatenate new features to the main dataframe\ndf1 = pd.concat([df1.reset_index(drop=True), poly_df.reset_index(drop=True)], axis=1)\n\ndf1.head()\n```",
+          "metrics": {
+            "total_llm_calls": 0,
+            "total_tool_calls": 0,
+            "notebook_reads": 0,
+            "notebook_writes": 0,
+            "repair_rounds": 0,
+            "runtime_errors": 0,
+            "completion_status": "success",
+            "execution_time": 65.2088,
+            "token_usage": {
+              "prompt_tokens": 0,
+              "completion_tokens": 0,
+              "cached_tokens": 0,
+              "total_tokens": 0,
+              "requests": 0
+            },
+            "planner_usage": 0,
+            "semantic_index_hits": 0,
+            "dependency_graph_hits": 0,
+            "runtime_state_hits": 0,
+            "code_evaluation": {
+              "coverage": 1.0,
+              "coverage_topics_covered": [
+                "placement",
+                "run",
+                "order",
+                "feature"
+              ],
+              "coverage_topics_missing": [],
+              "placement_accuracy": 0.5,
+              "code_correctness": 0.833,
+              "downstream_compatibility": null,
+              "cited_cells": [
+                1,
+                5
+              ],
+              "contract_compliance": {
+                "no_browser_tool_dispatch": true,
+                "no_notebook_writes": true,
+                "has_placement_guidance": true,
+                "has_python_code_block": true,
+                "single_primary_code_block": true,
+                "has_run_order": true,
+                "acknowledges_empty_cell": true,
+                "defers_code_for_empty_cell": true,
+                "asks_clarifying_questions": false
+              },
+              "contract_passed": true,
+              "python_block_count": 1,
+              "max_python_block_lines": 42,
+              "test_passed": true,
+              "evaluation_rationale": "Code-mode contract satisfied; placement and code quality acceptable.",
+              "response_word_count": 249,
+              "response_preview": "**Plan**\n- Clean and convert relevant columns (like `Area Size`) to numeric types.\n- Impute missing values for numeric columns (median) and categorical columns ('Unknown').\n- Create interaction features (e.g., `bedrooms * baths`).\n- Generate polynomial features (degree 2) for key numeric columns using `sklearn`.\n\n**Placement**\nInsert **new Code cell** below Cell [5] (where `df1` is defined).\n\n**Run order**\n1. Run Cell [1] (load data).\n2. Run Cell [5] (create `df1`).\n3. Run the new cell (feature engineering).\n\n**Code**\n```python\nimport numpy as np\nimport pandas as pd\nfrom sklearn.preprocessing import PolynomialFeatures\n\n# 1. Handle Missing Values\n# Fill numeric missing values with median\nnumeric_cols = df1.select_dtypes(include=[np.number]).columns\nfor col in numeric_cols:\n    df1[col] = df1[col].fillna(df1[col].median())\n\n# Fill categorical missing values with 'Unknown'\ncategorical_cols = df1.select_dtypes(include=['object']).columns\nfor col in categorical_cols:\n    df1[col] = df1[col].fillna('Unknown')\n\n# 2. Ensure 'Area Size' is numeric for calculations\n# (It may be read as string depending on CSV formatting)\ndf1['Area_Size_Num'] = pd.to_numeric(df1['Area Size'], errors='coerce')"
+            },
+            "test_passed": true
+          },
+          "test_number": 3,
+          "test_name": "New Feature Module"
+        },
+        {
+          "id": "CODE_TEST_4_EMPTY_CELL",
+          "name": "CODE_TEST_4_EMPTY_CELL",
+          "kernel_id": 113620421,
+          "snapshot_file": "fyp_code_empty_cell_50_113620421.json",
+          "session_id": "fyp-CODE_TEST_4_EMPTY_CELL_113620421-CODE_TEST_4_EMPTY_CELL-a880a6af",
+          "prompt": "Cell 50 is empty.\n\nGenerate the appropriate response.\n\nExpected behavior:\n- Ask what the user wants the cell to do.\n- Do not immediately generate code.",
+          "mode": "code",
+          "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+          "notebook_key": "kaggle:kernel:113620421",
+          "live_llm": true,
+          "error": null,
+          "response_text": "Cell [50] is currently empty (it contains only commented-out code).\n\nWhat would you like this cell to do?\n\nHere are a couple of options based on the notebook context:\n1. **Hyperparameter Tuning:** Uncomment and run the `RandomizedSearchCV` code to optimize a Random Forest model.\n2. **Alternative Model:** Train a different model (e.g., XGBoost or LightGBM) to compare performance against your baseline.\n\nPlease let me know which direction you'd like to take, and I will generate the code.",
+          "metrics": {
+            "total_llm_calls": 0,
+            "total_tool_calls": 0,
+            "notebook_reads": 0,
+            "notebook_writes": 0,
+            "repair_rounds": 0,
+            "runtime_errors": 0,
+            "completion_status": "success",
+            "execution_time": 62.8488,
+            "token_usage": {
+              "prompt_tokens": 0,
+              "completion_tokens": 0,
+              "cached_tokens": 0,
+              "total_tokens": 0,
+              "requests": 0
+            },
+            "planner_usage": 0,
+            "semantic_index_hits": 0,
+            "dependency_graph_hits": 0,
+            "runtime_state_hits": 0,
+            "code_evaluation": {
+              "coverage": 0.6,
+              "coverage_topics_covered": [
+                "empty",
+                "what",
+                "option"
+              ],
+              "coverage_topics_missing": [
+                "want",
+                "clarif"
+              ],
+              "placement_accuracy": null,
+              "code_correctness": null,
+              "downstream_compatibility": null,
+              "cited_cells": [
+                50
+              ],
+              "contract_compliance": {
+                "no_browser_tool_dispatch": true,
+                "no_notebook_writes": true,
+                "has_placement_guidance": false,
+                "has_python_code_block": false,
+                "single_primary_code_block": true,
+                "has_run_order": true,
+                "acknowledges_empty_cell": true,
+                "defers_code_for_empty_cell": true,
+                "asks_clarifying_questions": true
+              },
+              "contract_passed": true,
+              "python_block_count": 0,
+              "max_python_block_lines": 0,
+              "test_passed": true,
+              "evaluation_rationale": "Code-mode contract satisfied; placement and code quality acceptable.",
+              "response_word_count": 77,
+              "response_preview": "Cell [50] is currently empty (it contains only commented-out code).\n\nWhat would you like this cell to do?\n\nHere are a couple of options based on the notebook context:\n1. **Hyperparameter Tuning:** Uncomment and run the `RandomizedSearchCV` code to optimize a Random Forest model.\n2. **Alternative Model:** Train a different model (e.g., XGBoost or LightGBM) to compare performance against your baseline.\n\nPlease let me know which direction you'd like to take, and I will generate the code."
+            },
+            "test_passed": true
+          },
+          "test_number": 4,
+          "test_name": "Empty Cell Workflow"
+        }
+      ]
+    }
+  }
+}

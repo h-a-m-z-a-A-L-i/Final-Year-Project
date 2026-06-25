@@ -1,0 +1,308 @@
+{
+  "suite": "CODE_MODE_BENCHMARK_SUITE",
+  "live_llm": true,
+  "started_at": "2026-06-16T11:41:25.636074+00:00",
+  "finished_at": "2026-06-16T11:45:54.530600+00:00",
+  "runs": [
+    {
+      "id": "CODE_TEST_1_PIPELINE_GENERATION",
+      "name": "CODE_TEST_1_PIPELINE_GENERATION",
+      "kernel_id": 113620421,
+      "snapshot_file": "kaggle_kernel_113620421.json",
+      "session_id": "fyp-CODE_TEST_1_PIPELINE_GENERATION_113620421-CODE_TEST_1_PIPELINE_GENERATION-5fddf659",
+      "prompt": "Generate code to train an XGBoost model using the dataset in this notebook.\n\nRequirements:\n- Use existing notebook variables.\n- Recommend placement.\n- Provide run order.\n- Generate one runnable cell.\n\nDo not modify the notebook directly.",
+      "mode": "code",
+      "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+      "notebook_key": "kaggle:kernel:113620421",
+      "live_llm": true,
+      "error": null,
+      "response_text": "**Plan**\n1.  **Select Features**: Use numeric columns available in the dataset (`baths`, `bedrooms`, `latitude`, `longitude`, `Area Size`) to predict `price`.\n2.  **Preprocess**: Convert `Area Size` to numeric (handling potential string values) and drop rows with missing values in the selected columns.\n3.  **Split**: Divide the data into training and testing sets using `train_test_split`.\n4.  **Train**: Initialize and fit an `XGBRegressor` (regression task for price prediction).\n5.  **Evaluate**: Calculate and print the Root Mean Squared Error (RMSE).\n\n**Placement**\nInsert a **new Code cell** below **Cell [5]** (where `df1` is defined).\n\n**Run steps**\n1.  Run **Cell [1]** (Load data).\n2.  Run **Cell [5]** (Create `df1`).\n3.  Run the **new cell** (Train and evaluate model).\n\n**Code**\n```python\nimport xgboost as xgb\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import mean_squared_error\n\n# Define features and target\n# Using numeric features visible in the dataframe head\nfeatures = ['baths', 'bedrooms', 'latitude', 'longitude', 'Area Size']\ntarget = 'price'\n\n# Prepare the data using df1 (the copy of the original dataframe)\nmodel_df = df1[features + [target]].copy()\n\n# Ensure 'Area Size' is numeric (coerce errors to NaN just in case)\nmodel_df['Area Size'] = pd.to_numeric(model_df['Area Size'], errors='coerce')\n\n# Drop rows with missing values in the selected columns\nmodel_df.dropna(inplace=True)\n\nX = model_df[features]\ny = model_df[target]\n\n# Split the data\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\n# Initialize and train XGBoost Regressor\nmodel = xgb.XGBRegressor(objective='reg:squarederror', random_state=42)\nmodel.fit(X_train, y_train)\n\n# Predict and evaluate\npredictions = model.predict(X_test)\nrmse = mean_squared_error(y_test, predictions, squared=False)\n\nprint(f\"Model trained successfully.\")\nprint(f\"Root Mean Squared Error (RMSE): {rmse:.2f}\")\n```",
+      "metrics": {
+        "total_llm_calls": 0,
+        "total_tool_calls": 0,
+        "notebook_reads": 0,
+        "notebook_writes": 0,
+        "repair_rounds": 0,
+        "runtime_errors": 0,
+        "completion_status": "failed",
+        "execution_time": 64.1209,
+        "token_usage": {
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "cached_tokens": 0,
+          "total_tokens": 0,
+          "requests": 0
+        },
+        "planner_usage": 0,
+        "semantic_index_hits": 0,
+        "dependency_graph_hits": 0,
+        "runtime_state_hits": 0,
+        "code_evaluation": {
+          "coverage": 0.8,
+          "coverage_topics_covered": [
+            "placement",
+            "run",
+            "below",
+            "insert"
+          ],
+          "coverage_topics_missing": [
+            "order"
+          ],
+          "placement_accuracy": 0.0,
+          "code_correctness": 1.0,
+          "downstream_compatibility": null,
+          "cited_cells": [
+            1,
+            5
+          ],
+          "contract_compliance": {
+            "no_browser_tool_dispatch": true,
+            "no_notebook_writes": true,
+            "has_placement_guidance": true,
+            "has_python_code_block": true,
+            "single_primary_code_block": true,
+            "has_run_order": true,
+            "acknowledges_empty_cell": true,
+            "defers_code_for_empty_cell": true,
+            "asks_clarifying_questions": false
+          },
+          "contract_passed": true,
+          "python_block_count": 1,
+          "max_python_block_lines": 34,
+          "test_passed": false,
+          "evaluation_rationale": "Low placement accuracy (0%).",
+          "response_word_count": 251,
+          "response_preview": "**Plan**\n1.  **Select Features**: Use numeric columns available in the dataset (`baths`, `bedrooms`, `latitude`, `longitude`, `Area Size`) to predict `price`.\n2.  **Preprocess**: Convert `Area Size` to numeric (handling potential string values) and drop rows with missing values in the selected columns.\n3.  **Split**: Divide the data into training and testing sets using `train_test_split`.\n4.  **Train**: Initialize and fit an `XGBRegressor` (regression task for price prediction).\n5.  **Evaluate**: Calculate and print the Root Mean Squared Error (RMSE).\n\n**Placement**\nInsert a **new Code cell** below **Cell [5]** (where `df1` is defined).\n\n**Run steps**\n1.  Run **Cell [1]** (Load data).\n2.  Run **Cell [5]** (Create `df1`).\n3.  Run the **new cell** (Train and evaluate model).\n\n**Code**\n```python\nimport xgboost as xgb\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import mean_squared_error\n\n# Define features and target\n# Using numeric features visible in the dataframe head\nfeatures = ['baths', 'bedrooms', 'latitude', 'longitude', 'Area Size']\ntarget = 'price'\n\n# Prepare the data using df1 (the copy of the original dataframe)\nmodel_df = df1[features + [target]"
+        },
+        "test_passed": false
+      },
+      "test_number": 1,
+      "test_name": "Pipeline Generation"
+    },
+    {
+      "id": "CODE_TEST_2_CELL_REPLACEMENT",
+      "name": "CODE_TEST_2_CELL_REPLACEMENT",
+      "kernel_id": 113620421,
+      "snapshot_file": "kaggle_kernel_113620421.json",
+      "session_id": "fyp-CODE_TEST_2_CELL_REPLACEMENT_113620421-CODE_TEST_2_CELL_REPLACEMENT-cae32a3a",
+      "prompt": "Replace the logic in cell 21 with a more robust preprocessing pipeline.\n\nRequirements:\n- Reuse notebook variables.\n- Preserve downstream compatibility.\n- Provide placement guidance.\n- Generate a complete replacement cell.",
+      "mode": "code",
+      "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+      "notebook_key": "kaggle:kernel:113620421",
+      "live_llm": true,
+      "error": null,
+      "response_text": "**Plan**\n- Parse `date_added` into datetime objects for consistency.\n- Convert `Area Size` to a strict numeric column (`area_size_num`) to handle potential string formats.\n- Apply **Winsorization (outlier capping)** to `price`, `baths`, `bedrooms`, and `area_size_num` at the 1st and 99th percentiles to stabilize model training.\n- Engineer a `price_per_area` feature.\n- Preserve the creation of `log_price` to maintain compatibility with downstream cells (e.g., Cell [27], [45]).\n- Impute any remaining missing values in the new columns with the median.\n\n**Placement**\n- **Fill Cell [21]** (replace the existing content).\n\n**Run steps**\n1. Run Cell [5] (Initialize `df1`).\n2. Run Cell [7] (Filter by purpose).\n3. Run Cell [8] (Filter positive values).\n4. Run Cell [21] (New preprocessing pipeline).\n\n**Code**\n```python\nimport numpy as np\nimport pandas as pd\n\n# 1. Date Parsing\n# Convert 'date_added' to datetime objects for potential time-based features\ndf1['date_added'] = pd.to_datetime(df1['date_added'], format='%m-%d-%Y', errors='coerce')\n\n# 2. Area Size Cleaning\n# Ensure 'Area Size' is numeric (handling potential string formats like \"4.0\")\ndf1['area_size_num'] = pd.to_numeric(df1['Area Size'], errors='coerce')\n\n# 3. Outlier Capping (Winsorization)\n# Cap extreme values at the 1st and 99th percentiles to improve model stability\ndef cap_outliers(series, lower=0.01, upper=0.99):\n    lower_val = series.quantile(lower)\n    upper_val = series.quantile(upper)\n    return series.clip(lower_val, upper_val)\n\n# Apply capping to key numerical features\ndf1['price'] = cap_outliers(df1['price'])\ndf1['baths'] = cap_outliers(df1['baths'])\ndf1['bedrooms'] = cap_outliers(df1['bedrooms'])\ndf1['area_size_num'] = cap_outliers(df1['area_size_num'])\n\n# 4. Feature Engineering\n# Create price per unit area (robust to division by zero)\ndf1['price_per_area'] = df1['price'] / (df1['area_size_num'] + 1e-6)\n\n# 5. Target Transformation (Original logic preserved)\ndf1['log_price'] = np.log1p(df1['price'])\n\n# 6. Missing Value Imputation\n# Fill any remaining NaNs in new numeric columns with median\nfor col in ['area_size_num', 'price_per_area']:\n    if df1[col].isnull().any():\n        df1[col] = df1[col].fillna(df1[col].median())\n\nprint(\"Preprocessing pipeline complete.\")\nprint(f\"Updated DataFrame shape: {df1.shape}\")\n```",
+      "metrics": {
+        "total_llm_calls": 0,
+        "total_tool_calls": 0,
+        "notebook_reads": 0,
+        "notebook_writes": 0,
+        "repair_rounds": 0,
+        "runtime_errors": 0,
+        "completion_status": "success",
+        "execution_time": 69.9973,
+        "token_usage": {
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "cached_tokens": 0,
+          "total_tokens": 0,
+          "requests": 0
+        },
+        "planner_usage": 0,
+        "semantic_index_hits": 0,
+        "dependency_graph_hits": 0,
+        "runtime_state_hits": 0,
+        "code_evaluation": {
+          "coverage": 0.8,
+          "coverage_topics_covered": [
+            "placement",
+            "fill",
+            "replace",
+            "downstream"
+          ],
+          "coverage_topics_missing": [
+            "cell 21"
+          ],
+          "placement_accuracy": 1.0,
+          "code_correctness": 0.8,
+          "downstream_compatibility": 1.0,
+          "cited_cells": [
+            5,
+            7,
+            8,
+            21,
+            27
+          ],
+          "contract_compliance": {
+            "no_browser_tool_dispatch": true,
+            "no_notebook_writes": true,
+            "has_placement_guidance": true,
+            "has_python_code_block": true,
+            "single_primary_code_block": true,
+            "has_run_order": true,
+            "acknowledges_empty_cell": true,
+            "defers_code_for_empty_cell": true,
+            "asks_clarifying_questions": false
+          },
+          "contract_passed": true,
+          "python_block_count": 1,
+          "max_python_block_lines": 39,
+          "test_passed": true,
+          "evaluation_rationale": "Code-mode contract satisfied; placement and code quality acceptable.",
+          "response_word_count": 285,
+          "response_preview": "**Plan**\n- Parse `date_added` into datetime objects for consistency.\n- Convert `Area Size` to a strict numeric column (`area_size_num`) to handle potential string formats.\n- Apply **Winsorization (outlier capping)** to `price`, `baths`, `bedrooms`, and `area_size_num` at the 1st and 99th percentiles to stabilize model training.\n- Engineer a `price_per_area` feature.\n- Preserve the creation of `log_price` to maintain compatibility with downstream cells (e.g., Cell [27], [45]).\n- Impute any remaining missing values in the new columns with the median.\n\n**Placement**\n- **Fill Cell [21]** (replace the existing content).\n\n**Run steps**\n1. Run Cell [5] (Initialize `df1`).\n2. Run Cell [7] (Filter by purpose).\n3. Run Cell [8] (Filter positive values).\n4. Run Cell [21] (New preprocessing pipeline).\n\n**Code**\n```python\nimport numpy as np\nimport pandas as pd\n\n# 1. Date Parsing\n# Convert 'date_added' to datetime objects for potential time-based features\ndf1['date_added'] = pd.to_datetime(df1['date_added'], format='%m-%d-%Y', errors='coerce')\n\n# 2. Area Size Cleaning\n# Ensure 'Area Size' is numeric (handling potential string formats like \"4.0\")\ndf1['area_size_num'] = pd.to_numeric(df1['Area Size"
+        },
+        "test_passed": true
+      },
+      "test_number": 2,
+      "test_name": "Cell Replacement"
+    },
+    {
+      "id": "CODE_TEST_3_FEATURE_MODULE",
+      "name": "CODE_TEST_3_FEATURE_MODULE",
+      "kernel_id": 113620421,
+      "snapshot_file": "kaggle_kernel_113620421.json",
+      "session_id": "fyp-CODE_TEST_3_FEATURE_MODULE_113620421-CODE_TEST_3_FEATURE_MODULE-fe950458",
+      "prompt": "Create feature engineering code that:\n- Generates interaction features\n- Creates polynomial features\n- Handles missing values\n\nProvide:\n1. Placement\n2. Run order\n3. One complete Python cell",
+      "mode": "code",
+      "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+      "notebook_key": "kaggle:kernel:113620421",
+      "live_llm": true,
+      "error": null,
+      "response_text": "**Plan**\n- Clean and convert relevant columns (like `Area Size`) to numeric types.\n- Impute missing values for numeric columns (median) and categorical columns ('Unknown').\n- Create interaction features (e.g., `bedrooms * baths`).\n- Generate polynomial features (degree 2) for key numeric columns using `sklearn`.\n\n**Placement**\nInsert **new Code cell** below Cell [5] (where `df1` is defined).\n\n**Run order**\n1. Run Cell [1] (load data).\n2. Run Cell [5] (create `df1`).\n3. Run the new cell (feature engineering).\n\n**Code**\n```python\nimport numpy as np\nimport pandas as pd\nfrom sklearn.preprocessing import PolynomialFeatures\n\n# 1. Handle Missing Values\n# Fill numeric missing values with median\nnumeric_cols = df1.select_dtypes(include=[np.number]).columns\nfor col in numeric_cols:\n    df1[col] = df1[col].fillna(df1[col].median())\n\n# Fill categorical missing values with 'Unknown'\ncategorical_cols = df1.select_dtypes(include=['object']).columns\nfor col in categorical_cols:\n    df1[col] = df1[col].fillna('Unknown')\n\n# 2. Ensure 'Area Size' is numeric for calculations\n# (It may be read as string depending on CSV formatting)\ndf1['Area_Size_Num'] = pd.to_numeric(df1['Area Size'], errors='coerce')\ndf1['Area_Size_Num'] = df1['Area_Size_Num'].fillna(df1['Area_Size_Num'].median())\n\n# 3. Generate Interaction Features\n# Interaction between bedrooms and baths\ndf1['bed_bath_interaction'] = df1['bedrooms'] * df1['baths']\n\n# Area per bedroom (handling division by zero)\ndf1['area_per_bedroom'] = df1['Area_Size_Num'] / (df1['bedrooms'] + 1)\n\n# 4. Create Polynomial Features\n# Select features for polynomial expansion\nfeatures_to_poly = df1[['bedrooms', 'baths', 'Area_Size_Num']]\n\npoly = PolynomialFeatures(degree=2, include_bias=False)\npoly_array = poly.fit_transform(features_to_poly)\n\n# Create a DataFrame for the new features\npoly_feature_names = poly.get_feature_names_out(['bedrooms', 'baths', 'Area_Size_Num'])\npoly_df = pd.DataFrame(poly_array, columns=[f\"poly_{name}\" for name in poly_feature_names])\n\n# Concatenate new features to the main dataframe\ndf1 = pd.concat([df1.reset_index(drop=True), poly_df.reset_index(drop=True)], axis=1)\n\ndf1.head()\n```",
+      "metrics": {
+        "total_llm_calls": 0,
+        "total_tool_calls": 0,
+        "notebook_reads": 0,
+        "notebook_writes": 0,
+        "repair_rounds": 0,
+        "runtime_errors": 0,
+        "completion_status": "success",
+        "execution_time": 65.2088,
+        "token_usage": {
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "cached_tokens": 0,
+          "total_tokens": 0,
+          "requests": 0
+        },
+        "planner_usage": 0,
+        "semantic_index_hits": 0,
+        "dependency_graph_hits": 0,
+        "runtime_state_hits": 0,
+        "code_evaluation": {
+          "coverage": 1.0,
+          "coverage_topics_covered": [
+            "placement",
+            "run",
+            "order",
+            "feature"
+          ],
+          "coverage_topics_missing": [],
+          "placement_accuracy": 0.5,
+          "code_correctness": 0.833,
+          "downstream_compatibility": null,
+          "cited_cells": [
+            1,
+            5
+          ],
+          "contract_compliance": {
+            "no_browser_tool_dispatch": true,
+            "no_notebook_writes": true,
+            "has_placement_guidance": true,
+            "has_python_code_block": true,
+            "single_primary_code_block": true,
+            "has_run_order": true,
+            "acknowledges_empty_cell": true,
+            "defers_code_for_empty_cell": true,
+            "asks_clarifying_questions": false
+          },
+          "contract_passed": true,
+          "python_block_count": 1,
+          "max_python_block_lines": 42,
+          "test_passed": true,
+          "evaluation_rationale": "Code-mode contract satisfied; placement and code quality acceptable.",
+          "response_word_count": 249,
+          "response_preview": "**Plan**\n- Clean and convert relevant columns (like `Area Size`) to numeric types.\n- Impute missing values for numeric columns (median) and categorical columns ('Unknown').\n- Create interaction features (e.g., `bedrooms * baths`).\n- Generate polynomial features (degree 2) for key numeric columns using `sklearn`.\n\n**Placement**\nInsert **new Code cell** below Cell [5] (where `df1` is defined).\n\n**Run order**\n1. Run Cell [1] (load data).\n2. Run Cell [5] (create `df1`).\n3. Run the new cell (feature engineering).\n\n**Code**\n```python\nimport numpy as np\nimport pandas as pd\nfrom sklearn.preprocessing import PolynomialFeatures\n\n# 1. Handle Missing Values\n# Fill numeric missing values with median\nnumeric_cols = df1.select_dtypes(include=[np.number]).columns\nfor col in numeric_cols:\n    df1[col] = df1[col].fillna(df1[col].median())\n\n# Fill categorical missing values with 'Unknown'\ncategorical_cols = df1.select_dtypes(include=['object']).columns\nfor col in categorical_cols:\n    df1[col] = df1[col].fillna('Unknown')\n\n# 2. Ensure 'Area Size' is numeric for calculations\n# (It may be read as string depending on CSV formatting)\ndf1['Area_Size_Num'] = pd.to_numeric(df1['Area Size'], errors='coerce')"
+        },
+        "test_passed": true
+      },
+      "test_number": 3,
+      "test_name": "New Feature Module"
+    },
+    {
+      "id": "CODE_TEST_4_EMPTY_CELL",
+      "name": "CODE_TEST_4_EMPTY_CELL",
+      "kernel_id": 113620421,
+      "snapshot_file": "fyp_code_empty_cell_50_113620421.json",
+      "session_id": "fyp-CODE_TEST_4_EMPTY_CELL_113620421-CODE_TEST_4_EMPTY_CELL-a880a6af",
+      "prompt": "Cell 50 is empty.\n\nGenerate the appropriate response.\n\nExpected behavior:\n- Ask what the user wants the cell to do.\n- Do not immediately generate code.",
+      "mode": "code",
+      "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+      "notebook_key": "kaggle:kernel:113620421",
+      "live_llm": true,
+      "error": null,
+      "response_text": "Cell [50] is currently empty (it contains only commented-out code).\n\nWhat would you like this cell to do?\n\nHere are a couple of options based on the notebook context:\n1. **Hyperparameter Tuning:** Uncomment and run the `RandomizedSearchCV` code to optimize a Random Forest model.\n2. **Alternative Model:** Train a different model (e.g., XGBoost or LightGBM) to compare performance against your baseline.\n\nPlease let me know which direction you'd like to take, and I will generate the code.",
+      "metrics": {
+        "total_llm_calls": 0,
+        "total_tool_calls": 0,
+        "notebook_reads": 0,
+        "notebook_writes": 0,
+        "repair_rounds": 0,
+        "runtime_errors": 0,
+        "completion_status": "success",
+        "execution_time": 62.8488,
+        "token_usage": {
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "cached_tokens": 0,
+          "total_tokens": 0,
+          "requests": 0
+        },
+        "planner_usage": 0,
+        "semantic_index_hits": 0,
+        "dependency_graph_hits": 0,
+        "runtime_state_hits": 0,
+        "code_evaluation": {
+          "coverage": 0.6,
+          "coverage_topics_covered": [
+            "empty",
+            "what",
+            "option"
+          ],
+          "coverage_topics_missing": [
+            "want",
+            "clarif"
+          ],
+          "placement_accuracy": null,
+          "code_correctness": null,
+          "downstream_compatibility": null,
+          "cited_cells": [
+            50
+          ],
+          "contract_compliance": {
+            "no_browser_tool_dispatch": true,
+            "no_notebook_writes": true,
+            "has_placement_guidance": false,
+            "has_python_code_block": false,
+            "single_primary_code_block": true,
+            "has_run_order": true,
+            "acknowledges_empty_cell": true,
+            "defers_code_for_empty_cell": true,
+            "asks_clarifying_questions": true
+          },
+          "contract_passed": true,
+          "python_block_count": 0,
+          "max_python_block_lines": 0,
+          "test_passed": true,
+          "evaluation_rationale": "Code-mode contract satisfied; placement and code quality acceptable.",
+          "response_word_count": 77,
+          "response_preview": "Cell [50] is currently empty (it contains only commented-out code).\n\nWhat would you like this cell to do?\n\nHere are a couple of options based on the notebook context:\n1. **Hyperparameter Tuning:** Uncomment and run the `RandomizedSearchCV` code to optimize a Random Forest model.\n2. **Alternative Model:** Train a different model (e.g., XGBoost or LightGBM) to compare performance against your baseline.\n\nPlease let me know which direction you'd like to take, and I will generate the code."
+        },
+        "test_passed": true
+      },
+      "test_number": 4,
+      "test_name": "Empty Cell Workflow"
+    }
+  ]
+}

@@ -1,0 +1,317 @@
+{
+  "suite": "ASK_MODE_BENCHMARK_SUITE",
+  "agent": "Notebook Agent v1",
+  "description": "Ask-mode evaluation: explanation quality, no tools, no notebook modifications.",
+  "live_llm": true,
+  "started_at": "2026-06-16T11:20:10.146756+00:00",
+  "finished_at": "2026-06-16T11:25:24.941370+00:00",
+  "runs": [
+    {
+      "id": "ASK_TEST_1_EXPLAIN_NOTEBOOK",
+      "name": "ASK_TEST_1_EXPLAIN_NOTEBOOK",
+      "kernel_id": 113620421,
+      "snapshot_file": "kaggle_kernel_113620421.json",
+      "session_id": "fyp-ASK_TEST_1_EXPLAIN_NOTEBOOK_113620421-ASK_TEST_1_EXPLAIN_NOTEBOOK-2d58c812",
+      "prompt": "Explain the complete workflow of this notebook.\n\nInclude:\n- Data loading\n- Cleaning\n- Feature engineering\n- Model training\n- Evaluation\n\nDo not generate code.\n\nUse notebook evidence only.",
+      "mode": "ask",
+      "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+      "notebook_key": "kaggle:kernel:113620421",
+      "live_llm": true,
+      "error": null,
+      "response_text": "Based on the provided notebook evidence (Cells 1–5), here is the current workflow:\n\n**Data Loading**\n- **Cell [1]** imports `pandas` and reads the dataset `zameen-updated.csv` into a DataFrame named `df`.\n\n**Initial Inspection**\n- **Cell [2]** calls `df.head(10)` to display the first 10 rows, allowing a preview of the columns (e.g., `property_type`, `price`, `city`, `area`) and data structure.\n\n**Data Preparation (Initial)**\n- **Cell [5]** creates a copy of the original DataFrame and assigns it to `df1`. This is typically done to preserve the raw data before modifications.\n\n**Missing Steps**\nThe following stages are not present in the current evidence:\n- **Cleaning:** There is no code for handling missing values, removing duplicates, or correcting data types. (Cells [3] and [4] are currently empty).\n- **Feature Engineering:** No logic for creating new features or transforming existing ones is visible.\n- **Model Training:** No model libraries (e.g., `sklearn`), data splitting, or training code is visible.\n- **Evaluation:** No code for calculating metrics or analyzing predictions is visible.\n\n**INSUFFICIENT_CONTEXT**\nThe notebook coverage is partial. Are there additional cells beyond Cell [5] that contain the cleaning, modeling, or evaluation steps?",
+      "metrics": {
+        "total_llm_calls": 0,
+        "total_tool_calls": 0,
+        "notebook_reads": 0,
+        "notebook_writes": 0,
+        "repair_rounds": 0,
+        "runtime_errors": 0,
+        "completion_status": "failed",
+        "execution_time": 62.2918,
+        "token_usage": {
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "cached_tokens": 0,
+          "total_tokens": 0,
+          "requests": 0
+        },
+        "planner_usage": 0,
+        "semantic_index_hits": 0,
+        "dependency_graph_hits": 0,
+        "runtime_state_hits": 0,
+        "ask_evaluation": {
+          "coverage": 0.889,
+          "coverage_hits": 8,
+          "coverage_topics_covered": [
+            "data loading",
+            "load",
+            "clean",
+            "missing",
+            "feature",
+            "train",
+            "model",
+            "evaluat"
+          ],
+          "coverage_topics_missing": [
+            "visual"
+          ],
+          "accuracy": 0.375,
+          "hallucination_rate": 0.333,
+          "hallucination_details": {
+            "cited_cell_indices": [],
+            "invalid_cell_references": [],
+            "ground_truth_hits": 0,
+            "ground_truth_total": 0,
+            "fabrication_flags": [],
+            "hallucination_rate": 0.333
+          },
+          "contract_compliance": {
+            "no_tool_calls": true,
+            "no_notebook_writes": true,
+            "no_large_code_dump": true,
+            "acknowledges_empty_cell": true,
+            "asks_clarifying_questions": true
+          },
+          "contract_passed": true,
+          "code_fence_count": 0,
+          "max_code_fence_lines": 0,
+          "test_passed": false,
+          "evaluation_rationale": "Low accuracy vs notebook evidence (38%).",
+          "response_word_count": 184,
+          "response_preview": "Based on the provided notebook evidence (Cells 1–5), here is the current workflow:\n\n**Data Loading**\n- **Cell [1]** imports `pandas` and reads the dataset `zameen-updated.csv` into a DataFrame named `df`.\n\n**Initial Inspection**\n- **Cell [2]** calls `df.head(10)` to display the first 10 rows, allowing a preview of the columns (e.g., `property_type`, `price`, `city`, `area`) and data structure.\n\n**Data Preparation (Initial)**\n- **Cell [5]** creates a copy of the original DataFrame and assigns it to `df1`. This is typically done to preserve the raw data before modifications.\n\n**Missing Steps**\nThe following stages are not present in the current evidence:\n- **Cleaning:** There is no code for handling missing values, removing duplicates, or correcting data types. (Cells [3] and [4] are currently empty).\n- **Feature Engineering:** No logic for creating new features or transforming existing ones is visible.\n- **Model Training:** No model libraries (e.g., `sklearn`), data splitting, or training code is visible.\n- **Evaluation:** No code for calculating metrics or analyzing predictions is visible.\n\n**INSUFFICIENT_CONTEXT**\nThe notebook coverage is partial. Are there additional cells beyond"
+        },
+        "test_passed": false
+      },
+      "test_number": 1,
+      "test_name": "Explain Notebook",
+      "target_cell": null
+    },
+    {
+      "id": "ASK_TEST_2_EXPLAIN_CELL",
+      "name": "ASK_TEST_2_EXPLAIN_CELL",
+      "kernel_id": 113620421,
+      "snapshot_file": "kaggle_kernel_113620421.json",
+      "session_id": "fyp-ASK_TEST_2_EXPLAIN_CELL_113620421-ASK_TEST_2_EXPLAIN_CELL-da6ba2a9",
+      "prompt": "Explain cell 17.\n\nInclude:\n1. Inputs\n2. Outputs\n3. Dependencies\n4. Why the cell exists\n5. Potential issues\n\nDo not generate replacement code.",
+      "mode": "ask",
+      "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+      "notebook_key": "kaggle:kernel:113620421",
+      "live_llm": true,
+      "error": null,
+      "response_text": "**Cell [17] —** *Drops the original date column after feature extraction*\n\n**Inputs**\n- `df1`: The main working DataFrame (modified in-place).\n\n**Outputs**\n- `df1` is updated with the `date_added` column removed.\n- No explicit return value (side effect only).\n\n**Dependencies**\n- **Cell [5]**: Initializes `df1`.\n- **Cell [7]**: Filters `df1` for 'For Sale'.\n- **Cell [8]**: Filters `df1` for valid prices/rooms.\n- **Contextual flow**: Relies on **Cells [14]–[16]** having already extracted month, day, and weekday features from `date_added`.\n\n**Why the cell exists**\nThe notebook converts the raw `date_added` column into engineered features (Month, Day, Day_of_Week) in the preceding cells. Once those numerical features are created, the original `date_added` column is redundant for modeling and is dropped to reduce dimensionality and prevent data leakage or redundancy in the training set.\n\n**Potential issues**\n- **Execution order**: If this cell runs before Cells [14], [15], or [16], the date information is lost before features are extracted.\n- **In-place modification**: Using `inplace=True` alters the DataFrame state silently; if `date_added` were already dropped or missing, this would raise a `KeyError`.",
+      "metrics": {
+        "total_llm_calls": 0,
+        "total_tool_calls": 0,
+        "notebook_reads": 0,
+        "notebook_writes": 0,
+        "repair_rounds": 0,
+        "runtime_errors": 0,
+        "completion_status": "success",
+        "execution_time": 62.6336,
+        "token_usage": {
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "cached_tokens": 0,
+          "total_tokens": 0,
+          "requests": 0
+        },
+        "planner_usage": 0,
+        "semantic_index_hits": 0,
+        "dependency_graph_hits": 0,
+        "runtime_state_hits": 0,
+        "ask_evaluation": {
+          "coverage": 0.833,
+          "coverage_hits": 5,
+          "coverage_topics_covered": [
+            "input",
+            "output",
+            "depend",
+            "issue",
+            "why"
+          ],
+          "coverage_topics_missing": [
+            "purpose"
+          ],
+          "accuracy": 1.0,
+          "hallucination_rate": 0.0,
+          "hallucination_details": {
+            "cited_cell_indices": [],
+            "invalid_cell_references": [],
+            "ground_truth_hits": 2,
+            "ground_truth_total": 2,
+            "fabrication_flags": [],
+            "hallucination_rate": 0.0
+          },
+          "contract_compliance": {
+            "no_tool_calls": true,
+            "no_notebook_writes": true,
+            "no_large_code_dump": true,
+            "acknowledges_empty_cell": true,
+            "asks_clarifying_questions": false
+          },
+          "contract_passed": true,
+          "code_fence_count": 0,
+          "max_code_fence_lines": 0,
+          "test_passed": true,
+          "evaluation_rationale": "Ask-mode contract satisfied with acceptable coverage/accuracy.",
+          "response_word_count": 174,
+          "response_preview": "**Cell [17] —** *Drops the original date column after feature extraction*\n\n**Inputs**\n- `df1`: The main working DataFrame (modified in-place).\n\n**Outputs**\n- `df1` is updated with the `date_added` column removed.\n- No explicit return value (side effect only).\n\n**Dependencies**\n- **Cell [5]**: Initializes `df1`.\n- **Cell [7]**: Filters `df1` for 'For Sale'.\n- **Cell [8]**: Filters `df1` for valid prices/rooms.\n- **Contextual flow**: Relies on **Cells [14]–[16]** having already extracted month, day, and weekday features from `date_added`.\n\n**Why the cell exists**\nThe notebook converts the raw `date_added` column into engineered features (Month, Day, Day_of_Week) in the preceding cells. Once those numerical features are created, the original `date_added` column is redundant for modeling and is dropped to reduce dimensionality and prevent data leakage or redundancy in the training set.\n\n**Potential issues**\n- **Execution order**: If this cell runs before Cells [14], [15], or [16], the date information is lost before features are extracted.\n- **In-place modification**: Using `inplace=True` alters the DataFrame state silently; if `date_added` were already dropped or missing, this would r"
+        },
+        "test_passed": true
+      },
+      "test_number": 2,
+      "test_name": "Explain Cell",
+      "target_cell": 17
+    },
+    {
+      "id": "ASK_TEST_3_DEBUG_ERROR",
+      "name": "ASK_TEST_3_DEBUG_ERROR",
+      "kernel_id": 112732919,
+      "snapshot_file": "kaggle_kernel_112732919.json",
+      "session_id": "fyp-ASK_TEST_3_DEBUG_ERROR_112732919-ASK_TEST_3_DEBUG_ERROR-953434b5",
+      "prompt": "Explain the root cause of the error in cell 31.\n\nDo not provide a complete replacement script.\n\nProvide:\n- Root cause\n- A minimal fix suggestion\n- Expected impact",
+      "mode": "ask",
+      "url": "https://www.kaggle.com/code/codekey/testing-ol/edit",
+      "notebook_key": "kaggle:kernel:112732919",
+      "live_llm": true,
+      "error": null,
+      "response_text": "**Root cause**\nThe variable `df` is not defined in the kernel's memory. It is created in **Cell [25]** (`df = pd.read_csv(...)`), but that cell has not been executed prior to running Cell [31], or the kernel state was lost.\n\n**Minimal fix suggestion**\nRun **Cell [25]** to load the dataset into `df`, then re-run **Cell [31]**.\n\n**Expected impact**\nThe dataframe will be available in memory, allowing the filter for Lahore properties and the display of the top 10 rows to succeed without errors.",
+      "metrics": {
+        "total_llm_calls": 0,
+        "total_tool_calls": 0,
+        "notebook_reads": 0,
+        "notebook_writes": 0,
+        "repair_rounds": 0,
+        "runtime_errors": 0,
+        "completion_status": "success",
+        "execution_time": 61.9729,
+        "token_usage": {
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "cached_tokens": 0,
+          "total_tokens": 0,
+          "requests": 0
+        },
+        "planner_usage": 0,
+        "semantic_index_hits": 0,
+        "dependency_graph_hits": 0,
+        "runtime_state_hits": 0,
+        "ask_evaluation": {
+          "coverage": 1.0,
+          "coverage_hits": 4,
+          "coverage_topics_covered": [
+            "root cause",
+            "fix",
+            "impact",
+            "minimal"
+          ],
+          "coverage_topics_missing": [],
+          "accuracy": 0.667,
+          "hallucination_rate": 0.111,
+          "hallucination_details": {
+            "cited_cell_indices": [],
+            "invalid_cell_references": [],
+            "ground_truth_hits": 2,
+            "ground_truth_total": 3,
+            "fabrication_flags": [],
+            "hallucination_rate": 0.111
+          },
+          "contract_compliance": {
+            "no_tool_calls": true,
+            "no_notebook_writes": true,
+            "no_large_code_dump": true,
+            "acknowledges_empty_cell": true,
+            "asks_clarifying_questions": false
+          },
+          "contract_passed": true,
+          "code_fence_count": 0,
+          "max_code_fence_lines": 0,
+          "test_passed": true,
+          "evaluation_rationale": "Ask-mode contract satisfied with acceptable coverage/accuracy.",
+          "response_word_count": 82,
+          "response_preview": "**Root cause**\nThe variable `df` is not defined in the kernel's memory. It is created in **Cell [25]** (`df = pd.read_csv(...)`), but that cell has not been executed prior to running Cell [31], or the kernel state was lost.\n\n**Minimal fix suggestion**\nRun **Cell [25]** to load the dataset into `df`, then re-run **Cell [31]**.\n\n**Expected impact**\nThe dataframe will be available in memory, allowing the filter for Lahore properties and the display of the top 10 rows to succeed without errors."
+        },
+        "test_passed": true
+      },
+      "test_number": 3,
+      "test_name": "Debug Error",
+      "target_cell": 31
+    },
+    {
+      "id": "ASK_TEST_4_EMPTY_CELL",
+      "name": "ASK_TEST_4_EMPTY_CELL",
+      "kernel_id": 113620421,
+      "snapshot_file": "fyp_ask_empty_cell_113620421.json",
+      "session_id": "fyp-ASK_TEST_4_EMPTY_CELL_113620421-ASK_TEST_4_EMPTY_CELL-82e80410",
+      "prompt": "Explain what should go in cell 45.\n\nCell 45 is empty.\n\nEvaluate whether Ask mode:\n- acknowledges the cell is empty\n- asks clarifying questions\n- avoids generating a full code solution",
+      "mode": "ask",
+      "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+      "notebook_key": "kaggle:kernel:113620421",
+      "live_llm": true,
+      "error": null,
+      "response_text": "**Cell [45] —** *empty placeholder*\n\n**Status**\nCell [45] has no code yet.\n\n**What would you like here?**\nDo you want to train a single LightGBM model with early stopping, or implement a K-Fold cross-validation loop?\n\n**Suggested next steps**\n1. **Train LightGBM with Early Stopping** — fits the `LGBMRegressor` and `early_stopping` imports from Cell [42] using the `X_train`/`y_train` splits prepared in Cell [38].\n2. **K-Fold Cross-Validation** — utilizes the `KFold` import from Cell [42] to iterate over folds, training the model on different subsets to get a more robust performance estimate.",
+      "metrics": {
+        "total_llm_calls": 0,
+        "total_tool_calls": 0,
+        "notebook_reads": 0,
+        "notebook_writes": 0,
+        "repair_rounds": 0,
+        "runtime_errors": 0,
+        "completion_status": "failed",
+        "execution_time": 123.7266,
+        "token_usage": {
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "cached_tokens": 0,
+          "total_tokens": 0,
+          "requests": 0
+        },
+        "planner_usage": 0,
+        "semantic_index_hits": 0,
+        "dependency_graph_hits": 0,
+        "runtime_state_hits": 0,
+        "ask_evaluation": {
+          "coverage": 0.2,
+          "coverage_hits": 1,
+          "coverage_topics_covered": [
+            "empty"
+          ],
+          "coverage_topics_missing": [
+            "clarif",
+            "question",
+            "what should",
+            "purpose"
+          ],
+          "accuracy": null,
+          "hallucination_rate": 0.333,
+          "hallucination_details": {
+            "cited_cell_indices": [],
+            "invalid_cell_references": [],
+            "ground_truth_hits": 0,
+            "ground_truth_total": 0,
+            "fabrication_flags": [],
+            "hallucination_rate": 0.333
+          },
+          "contract_compliance": {
+            "no_tool_calls": true,
+            "no_notebook_writes": true,
+            "no_large_code_dump": true,
+            "acknowledges_empty_cell": true,
+            "asks_clarifying_questions": true
+          },
+          "contract_passed": true,
+          "code_fence_count": 0,
+          "max_code_fence_lines": 0,
+          "test_passed": false,
+          "evaluation_rationale": "Low topic coverage (20%); missing: clarif, question, what should, purpose.",
+          "response_word_count": 90,
+          "response_preview": "**Cell [45] —** *empty placeholder*\n\n**Status**\nCell [45] has no code yet.\n\n**What would you like here?**\nDo you want to train a single LightGBM model with early stopping, or implement a K-Fold cross-validation loop?\n\n**Suggested next steps**\n1. **Train LightGBM with Early Stopping** — fits the `LGBMRegressor` and `early_stopping` imports from Cell [42] using the `X_train`/`y_train` splits prepared in Cell [38].\n2. **K-Fold Cross-Validation** — utilizes the `KFold` import from Cell [42] to iterate over folds, training the model on different subsets to get a more robust performance estimate."
+        },
+        "test_passed": false
+      },
+      "test_number": 4,
+      "test_name": "Empty Cell Handling",
+      "target_cell": 45
+    }
+  ]
+}

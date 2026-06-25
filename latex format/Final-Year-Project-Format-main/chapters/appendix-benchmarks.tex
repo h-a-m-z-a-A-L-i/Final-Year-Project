@@ -174,7 +174,7 @@ Table~\ref{tab:app-config} lists environment variables governing Agentic behavio
 \footnotesize
 \setlength{\tabcolsep}{3pt}
 \renewcommand{\arraystretch}{1.02}
-\begin{tabular}[t]{|>{\raggedright\arraybackslash\ttfamily\footnotesize}p{3.85cm}|>{\raggedright\arraybackslash}p{0.65cm}|>{\raggedright\arraybackslash}p{6.3cm}|}
+\begin{tabular}[t]{|>{\raggedright\arraybackslash\ttfamily\footnotesize}p{3.65cm}|>{\raggedright\arraybackslash\ttfamily\footnotesize}p{1.85cm}|>{\raggedright\arraybackslash}p{6.05cm}|}
 \hline
 \textbf{Variable} & \textbf{Default} & \textbf{Effect} \\ \hline
 \texttt{LLM\_AGENTIC\_ENABLED} & on & Enables Agentic tool schemas \\ \hline
@@ -293,7 +293,7 @@ Mode behaviour is controlled by text files under \texttt{testing/host/prompts/}.
 \footnotesize
 \setlength{\tabcolsep}{3pt}
 \renewcommand{\arraystretch}{1.02}
-\begin{tabular}{|>{\raggedright\arraybackslash}p{4.45cm}|>{\raggedright\arraybackslash}p{7.25cm}|}
+\begin{tabular}[t]{|>{\raggedright\arraybackslash\ttfamily\footnotesize}p{4.55cm}|>{\raggedright\arraybackslash}p{7.15cm}|}
 \hline
 \textbf{File} & \textbf{Purpose} \\ \hline
 \texttt{base\_notebook\_assistant.txt} & Core system persona and safety rules \\ \hline
@@ -302,7 +302,7 @@ Mode behaviour is controlled by text files under \texttt{testing/host/prompts/}.
 \texttt{code.txt} & Code mode: Placement + python block format \\ \hline
 \texttt{agentic.txt} & Agentic mode: two-phase query--implement \\ \hline
 \texttt{tool\_calling/react\_agent.txt} & Tool-calling behaviour for Agentic rounds \\ \hline
-{\ttfamily\seqsplit{tool\_calling/tool\_descriptions\_autogen.txt}} & Auto-generated JSON schemas for tools \\ \hline
+\texttt{tool\_calling/}\newline\texttt{tool\_descriptions\_autogen.txt} & Auto-generated JSON schemas for tools \\ \hline
 \end{tabular}
 \end{table}
 

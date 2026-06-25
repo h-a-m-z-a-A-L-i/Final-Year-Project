@@ -1,0 +1,87 @@
+{
+  "suite": "ASK_MODE_BENCHMARK_SUITE",
+  "agent": "Notebook Agent v1",
+  "description": "Ask-mode evaluation: explanation quality, no tools, no notebook modifications.",
+  "live_llm": true,
+  "started_at": "2026-06-16T11:20:10.146756+00:00",
+  "finished_at": "2026-06-16T11:25:24.941370+00:00",
+  "runs": [
+    {
+      "id": "ASK_TEST_2_EXPLAIN_CELL",
+      "name": "ASK_TEST_2_EXPLAIN_CELL",
+      "kernel_id": 113620421,
+      "snapshot_file": "kaggle_kernel_113620421.json",
+      "session_id": "fyp-ASK_TEST_2_EXPLAIN_CELL_113620421-ASK_TEST_2_EXPLAIN_CELL-da6ba2a9",
+      "prompt": "Explain cell 17.\n\nInclude:\n1. Inputs\n2. Outputs\n3. Dependencies\n4. Why the cell exists\n5. Potential issues\n\nDo not generate replacement code.",
+      "mode": "ask",
+      "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+      "notebook_key": "kaggle:kernel:113620421",
+      "live_llm": true,
+      "error": null,
+      "response_text": "**Cell [17] —** *Drops the original date column after feature extraction*\n\n**Inputs**\n- `df1`: The main working DataFrame (modified in-place).\n\n**Outputs**\n- `df1` is updated with the `date_added` column removed.\n- No explicit return value (side effect only).\n\n**Dependencies**\n- **Cell [5]**: Initializes `df1`.\n- **Cell [7]**: Filters `df1` for 'For Sale'.\n- **Cell [8]**: Filters `df1` for valid prices/rooms.\n- **Contextual flow**: Relies on **Cells [14]–[16]** having already extracted month, day, and weekday features from `date_added`.\n\n**Why the cell exists**\nThe notebook converts the raw `date_added` column into engineered features (Month, Day, Day_of_Week) in the preceding cells. Once those numerical features are created, the original `date_added` column is redundant for modeling and is dropped to reduce dimensionality and prevent data leakage or redundancy in the training set.\n\n**Potential issues**\n- **Execution order**: If this cell runs before Cells [14], [15], or [16], the date information is lost before features are extracted.\n- **In-place modification**: Using `inplace=True` alters the DataFrame state silently; if `date_added` were already dropped or missing, this would raise a `KeyError`.",
+      "metrics": {
+        "total_llm_calls": 0,
+        "total_tool_calls": 0,
+        "notebook_reads": 0,
+        "notebook_writes": 0,
+        "repair_rounds": 0,
+        "runtime_errors": 0,
+        "completion_status": "success",
+        "execution_time": 62.6336,
+        "token_usage": {
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "cached_tokens": 0,
+          "total_tokens": 0,
+          "requests": 0
+        },
+        "planner_usage": 0,
+        "semantic_index_hits": 0,
+        "dependency_graph_hits": 0,
+        "runtime_state_hits": 0,
+        "ask_evaluation": {
+          "coverage": 0.833,
+          "coverage_hits": 5,
+          "coverage_topics_covered": [
+            "input",
+            "output",
+            "depend",
+            "issue",
+            "why"
+          ],
+          "coverage_topics_missing": [
+            "purpose"
+          ],
+          "accuracy": 1.0,
+          "hallucination_rate": 0.0,
+          "hallucination_details": {
+            "cited_cell_indices": [],
+            "invalid_cell_references": [],
+            "ground_truth_hits": 2,
+            "ground_truth_total": 2,
+            "fabrication_flags": [],
+            "hallucination_rate": 0.0
+          },
+          "contract_compliance": {
+            "no_tool_calls": true,
+            "no_notebook_writes": true,
+            "no_large_code_dump": true,
+            "acknowledges_empty_cell": true,
+            "asks_clarifying_questions": false
+          },
+          "contract_passed": true,
+          "code_fence_count": 0,
+          "max_code_fence_lines": 0,
+          "test_passed": true,
+          "evaluation_rationale": "Ask-mode contract satisfied with acceptable coverage/accuracy.",
+          "response_word_count": 174,
+          "response_preview": "**Cell [17] —** *Drops the original date column after feature extraction*\n\n**Inputs**\n- `df1`: The main working DataFrame (modified in-place).\n\n**Outputs**\n- `df1` is updated with the `date_added` column removed.\n- No explicit return value (side effect only).\n\n**Dependencies**\n- **Cell [5]**: Initializes `df1`.\n- **Cell [7]**: Filters `df1` for 'For Sale'.\n- **Cell [8]**: Filters `df1` for valid prices/rooms.\n- **Contextual flow**: Relies on **Cells [14]–[16]** having already extracted month, day, and weekday features from `date_added`.\n\n**Why the cell exists**\nThe notebook converts the raw `date_added` column into engineered features (Month, Day, Day_of_Week) in the preceding cells. Once those numerical features are created, the original `date_added` column is redundant for modeling and is dropped to reduce dimensionality and prevent data leakage or redundancy in the training set.\n\n**Potential issues**\n- **Execution order**: If this cell runs before Cells [14], [15], or [16], the date information is lost before features are extracted.\n- **In-place modification**: Using `inplace=True` alters the DataFrame state silently; if `date_added` were already dropped or missing, this would r"
+        },
+        "test_passed": true
+      },
+      "test_number": 2,
+      "test_name": "Explain Cell",
+      "target_cell": 17
+    }
+  ]
+}

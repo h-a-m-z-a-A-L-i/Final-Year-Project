@@ -1,0 +1,60 @@
+"""delete_by_index tool — delete a notebook cell by 1-based label."""
+
+from __future__ import annotations
+import sys
+from pathlib import Path
+_HOST = Path(__file__).resolve().parents[2]
+if str(_HOST) not in sys.path:
+    sys.path.insert(0, str(_HOST))
+
+
+import uuid
+
+try:
+    from .bot_tool_utils import BROWSER_DELETE_TIMEOUT_SEC, normalize_delete_cell_args
+    from .browser_tool_response import tool_failure, tool_success
+    from .cell_index import dom_to_app
+except Exception:
+    from bot_tool_utils import BROWSER_DELETE_TIMEOUT_SEC, normalize_delete_cell_args
+    from browser_tool_response import tool_failure, tool_success
+    from cell_index import dom_to_app
+
+TOOL = "delete_by_index"
+
+
+def run_delete_cell(args: dict) -> dict:
+    cmd, err = normalize_delete_cell_args(args)
+    if err:
+        return err
+
+    try:
+        from .bot_command import execute_bot_command
+    except Exception:
+        from bot_command import execute_bot_command
+
+    attempt_cmd = dict(cmd)
+    attempt_cmd["requestId"] = str(uuid.uuid4())
+    attempt_cmd["timeout"] = BROWSER_DELETE_TIMEOUT_SEC
+
+    event = execute_bot_command(attempt_cmd, timeout=BROWSER_DELETE_TIMEOUT_SEC)
+
+    if event.get("ok"):
+        inner = event.get("result") if isinstance(event.get("result"), dict) else {}
+        dom_index = inner.get("domIndex", cmd.get("dom_index"))
+        app_index = dom_to_app(int(dom_index)) if dom_index is not None else cmd.get("app_index")
+        return tool_success(
+            TOOL,
+            cell_index=app_index,
+            dom_index=dom_index,
+            app_index=app_index,
+            phase=inner.get("phase") or ("dispatched" if inner.get("dispatched") else "deleted"),
+            strategy=inner.get("strategy"),
+            dispatched=inner.get("dispatched"),
+        )
+
+    return tool_failure(
+        TOOL,
+        str(event.get("error") or (event.get("result") or {}).get("error") or f"{TOOL} failed"),
+        cmd=cmd,
+        event=event,
+    )

@@ -4,6 +4,8 @@
 
   const RE = /Cell execution(?: is)? queued|Cell started execution|Cell executed(?: in| at)?|Cell is being executed/i;
   const PROMPT_SELECTOR = '.jp-InputPrompt, .jp-InputPrompt.jp-InputArea-prompt, .input_prompt';
+  const NC_PROMPT_COL_SELECTOR = '.nc-prompt-index-col';
+  const PROMPT_TARGET_SELECTOR = `${PROMPT_SELECTOR}, ${NC_PROMPT_COL_SELECTOR}`;
   const RUN_BUTTON_SELECTOR =
     '.cell-execution-button, [title*="Cell executed"], [title*="Cell started execution"], ' +
     '[title*="Cell execution queued"], [aria-label*="Cell executed"], [aria-label*="Cell started execution"], ' +
@@ -71,7 +73,7 @@
   }
 
   function checkPromptTitle(promptEl){
-    const title = (promptEl.getAttribute('title') || '').trim();
+    const title = (promptEl.getAttribute('title') || promptEl.getAttribute('aria-label') || '').trim();
     const inner = (promptEl.innerText || promptEl.textContent || '').trim();
     const combined = title || inner;
     const titleChanged = lastPromptTitle.get(promptEl) !== title;
@@ -104,7 +106,7 @@
 
   function scanRoot(root){
     if (!root) return;
-    const prompts = root.querySelectorAll ? root.querySelectorAll(PROMPT_SELECTOR) : [];
+    const prompts = root.querySelectorAll ? root.querySelectorAll(PROMPT_TARGET_SELECTOR) : [];
     for (const prompt of prompts) checkPromptTitle(prompt);
     const buttons = root.querySelectorAll ? root.querySelectorAll(RUN_BUTTON_SELECTOR) : [];
     for (const btn of buttons) checkRunButton(btn);
@@ -129,7 +131,7 @@
       for (const mutation of mutations){
         if (mutation.type === 'attributes' && (mutation.attributeName === 'title' || mutation.attributeName === 'aria-label')){
           const target = mutation.target;
-          if (target && target.matches && target.matches(PROMPT_SELECTOR)) {
+          if (target && target.matches && target.matches(PROMPT_TARGET_SELECTOR)) {
             checkPromptTitle(target);
           } else if (target && target.matches && target.matches(RUN_BUTTON_SELECTOR)) {
             checkRunButton(target);
@@ -138,14 +140,14 @@
         if (mutation.type === 'characterData' || mutation.type === 'childList'){
           const node = mutation.target;
           if (node && node.nodeType === 3) {
-            const prompt = node.parentElement && node.parentElement.closest && node.parentElement.closest(PROMPT_SELECTOR);
+            const prompt = node.parentElement && node.parentElement.closest && node.parentElement.closest(PROMPT_TARGET_SELECTOR);
             if (prompt) checkPromptTitle(prompt);
           }
           if (mutation.type === 'childList'){
             for (const added of mutation.addedNodes){
               if (added && added.nodeType === 1){
                 if (added.shadowRoot) observeRoot(added.shadowRoot);
-                if (added.matches && added.matches(PROMPT_SELECTOR)) checkPromptTitle(added);
+                if (added.matches && added.matches(PROMPT_TARGET_SELECTOR)) checkPromptTitle(added);
                 if (added.matches && added.matches(RUN_BUTTON_SELECTOR)) checkRunButton(added);
                 scanRoot(added);
               }
@@ -181,7 +183,7 @@
   let retries = 0;
   const retryTimer = setInterval(() => {
     retries += 1;
-    if (document.querySelector(PROMPT_SELECTOR)) {
+    if (document.querySelector(PROMPT_TARGET_SELECTOR)) {
       start();
       if (retries >= 3) clearInterval(retryTimer);
     }

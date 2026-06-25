@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "agent": "Notebook Agent v1",
+  "suite": "CODE_MODE_BENCHMARK_SUITE",
+  "description": "Code-mode evaluation: code generation quality, placement guidance, no browser writes.",
+  "defaults": {
+    "mode": "code",
+    "tab_id": 424242
+  },
+  "prompts": [
+    {
+      "id": "CODE_TEST_1_PIPELINE_GENERATION",
+      "test_number": 1,
+      "test_name": "Pipeline Generation",
+      "kernel_id": 113620421,
+      "snapshot_file": "kaggle_kernel_113620421.json",
+      "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+      "notebook_key": "kaggle:kernel:113620421",
+      "mode": "code",
+      "expected_placement_cells": [39, 40, 41, 42, 43, 44, 45],
+      "code_terms": ["XGBoost", "XGBRegressor", "xgb", "X_train", "y_train", "fit"],
+      "coverage_topics": ["placement", "run", "order", "below", "insert"],
+      "prompt": "Generate code to train an XGBoost model using the dataset in this notebook.\n\nRequirements:\n- Use existing notebook variables.\n- Recommend placement.\n- Provide run order.\n- Generate one runnable cell.\n\nDo not modify the notebook directly."
+    },
+    {
+      "id": "CODE_TEST_2_CELL_REPLACEMENT",
+      "test_number": 2,
+      "test_name": "Cell Replacement",
+      "kernel_id": 113620421,
+      "snapshot_file": "kaggle_kernel_113620421.json",
+      "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+      "notebook_key": "kaggle:kernel:113620421",
+      "mode": "code",
+      "target_cell": 21,
+      "ground_truth_terms": ["log_price", "df1"],
+      "code_terms": ["log_price", "df1", "preprocess", "fillna", "replace"],
+      "coverage_topics": ["placement", "cell 21", "fill", "replace", "downstream"],
+      "prompt": "Replace the logic in cell 21 with a more robust preprocessing pipeline.\n\nRequirements:\n- Reuse notebook variables.\n- Preserve downstream compatibility.\n- Provide placement guidance.\n- Generate a complete replacement cell."
+    },
+    {
+      "id": "CODE_TEST_3_FEATURE_MODULE",
+      "test_number": 3,
+      "test_name": "New Feature Module",
+      "kernel_id": 113620421,
+      "snapshot_file": "kaggle_kernel_113620421.json",
+      "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+      "notebook_key": "kaggle:kernel:113620421",
+      "mode": "code",
+      "expected_placement_cells": [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+      "code_terms": ["interaction", "polynomial", "PolynomialFeatures", "missing", "fillna", "SimpleImputer"],
+      "coverage_topics": ["placement", "run", "order", "feature"],
+      "prompt": "Create feature engineering code that:\n- Generates interaction features\n- Creates polynomial features\n- Handles missing values\n\nProvide:\n1. Placement\n2. Run order\n3. One complete Python cell"
+    },
+    {
+      "id": "CODE_TEST_4_EMPTY_CELL",
+      "test_number": 4,
+      "test_name": "Empty Cell Workflow",
+      "kernel_id": 113620421,
+      "snapshot_file": "fyp_code_empty_cell_50_113620421.json",
+      "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+      "notebook_key": "kaggle:kernel:113620421",
+      "mode": "code",
+      "target_cell": 50,
+      "coverage_topics": ["empty", "what", "want", "clarif", "option"],
+      "prompt": "Cell 50 is empty.\n\nGenerate the appropriate response.\n\nExpected behavior:\n- Ask what the user wants the cell to do.\n- Do not immediately generate code."
+    }
+  ]
+}

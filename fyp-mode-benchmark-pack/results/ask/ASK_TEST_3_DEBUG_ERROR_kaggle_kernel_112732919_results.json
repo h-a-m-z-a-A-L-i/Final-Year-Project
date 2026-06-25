@@ -1,0 +1,84 @@
+{
+  "suite": "ASK_MODE_BENCHMARK_SUITE",
+  "agent": "Notebook Agent v1",
+  "description": "Ask-mode evaluation: explanation quality, no tools, no notebook modifications.",
+  "live_llm": true,
+  "started_at": "2026-06-16T11:20:10.146756+00:00",
+  "finished_at": "2026-06-16T11:25:24.941370+00:00",
+  "runs": [
+    {
+      "id": "ASK_TEST_3_DEBUG_ERROR",
+      "name": "ASK_TEST_3_DEBUG_ERROR",
+      "kernel_id": 112732919,
+      "snapshot_file": "kaggle_kernel_112732919.json",
+      "session_id": "fyp-ASK_TEST_3_DEBUG_ERROR_112732919-ASK_TEST_3_DEBUG_ERROR-953434b5",
+      "prompt": "Explain the root cause of the error in cell 31.\n\nDo not provide a complete replacement script.\n\nProvide:\n- Root cause\n- A minimal fix suggestion\n- Expected impact",
+      "mode": "ask",
+      "url": "https://www.kaggle.com/code/codekey/testing-ol/edit",
+      "notebook_key": "kaggle:kernel:112732919",
+      "live_llm": true,
+      "error": null,
+      "response_text": "**Root cause**\nThe variable `df` is not defined in the kernel's memory. It is created in **Cell [25]** (`df = pd.read_csv(...)`), but that cell has not been executed prior to running Cell [31], or the kernel state was lost.\n\n**Minimal fix suggestion**\nRun **Cell [25]** to load the dataset into `df`, then re-run **Cell [31]**.\n\n**Expected impact**\nThe dataframe will be available in memory, allowing the filter for Lahore properties and the display of the top 10 rows to succeed without errors.",
+      "metrics": {
+        "total_llm_calls": 0,
+        "total_tool_calls": 0,
+        "notebook_reads": 0,
+        "notebook_writes": 0,
+        "repair_rounds": 0,
+        "runtime_errors": 0,
+        "completion_status": "success",
+        "execution_time": 61.9729,
+        "token_usage": {
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "cached_tokens": 0,
+          "total_tokens": 0,
+          "requests": 0
+        },
+        "planner_usage": 0,
+        "semantic_index_hits": 0,
+        "dependency_graph_hits": 0,
+        "runtime_state_hits": 0,
+        "ask_evaluation": {
+          "coverage": 1.0,
+          "coverage_hits": 4,
+          "coverage_topics_covered": [
+            "root cause",
+            "fix",
+            "impact",
+            "minimal"
+          ],
+          "coverage_topics_missing": [],
+          "accuracy": 0.667,
+          "hallucination_rate": 0.111,
+          "hallucination_details": {
+            "cited_cell_indices": [],
+            "invalid_cell_references": [],
+            "ground_truth_hits": 2,
+            "ground_truth_total": 3,
+            "fabrication_flags": [],
+            "hallucination_rate": 0.111
+          },
+          "contract_compliance": {
+            "no_tool_calls": true,
+            "no_notebook_writes": true,
+            "no_large_code_dump": true,
+            "acknowledges_empty_cell": true,
+            "asks_clarifying_questions": false
+          },
+          "contract_passed": true,
+          "code_fence_count": 0,
+          "max_code_fence_lines": 0,
+          "test_passed": true,
+          "evaluation_rationale": "Ask-mode contract satisfied with acceptable coverage/accuracy.",
+          "response_word_count": 82,
+          "response_preview": "**Root cause**\nThe variable `df` is not defined in the kernel's memory. It is created in **Cell [25]** (`df = pd.read_csv(...)`), but that cell has not been executed prior to running Cell [31], or the kernel state was lost.\n\n**Minimal fix suggestion**\nRun **Cell [25]** to load the dataset into `df`, then re-run **Cell [31]**.\n\n**Expected impact**\nThe dataframe will be available in memory, allowing the filter for Lahore properties and the display of the top 10 rows to succeed without errors."
+        },
+        "test_passed": true
+      },
+      "test_number": 3,
+      "test_name": "Debug Error",
+      "target_cell": 31
+    }
+  ]
+}

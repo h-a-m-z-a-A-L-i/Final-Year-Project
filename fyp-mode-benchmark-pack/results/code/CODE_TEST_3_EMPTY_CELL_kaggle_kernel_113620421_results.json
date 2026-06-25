@@ -1,0 +1,74 @@
+{
+  "suite": "CODE_MODE_BENCHMARK_SUITE",
+  "live_llm": true,
+  "started_at": "2026-06-16T11:27:58.462865+00:00",
+  "finished_at": "2026-06-16T11:33:27.287459+00:00",
+  "runs": [
+    {
+      "id": "CODE_TEST_3_EMPTY_CELL",
+      "name": "CODE_TEST_3_EMPTY_CELL",
+      "kernel_id": 113620421,
+      "snapshot_file": "fyp_ask_empty_cell_113620421.json",
+      "session_id": "fyp-CODE_TEST_3_EMPTY_CELL_113620421-CODE_TEST_3_EMPTY_CELL-8468119b",
+      "prompt": "Write code for cell 45.\n\nCell 45 is empty.\n\nFollow Code mode contract:\n- Acknowledge the cell is empty\n- Ask what the cell should do\n- Do not output Placement + full Code until intent is clear",
+      "mode": "code",
+      "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+      "notebook_key": "kaggle:kernel:113620421",
+      "live_llm": true,
+      "error": null,
+      "response_text": "Cell [45] is currently empty.\n\nWhat would you like this cell to do?\n\nBased on the upstream imports in Cell [42] (`LGBMRegressor`, `KFold`) and the data splits prepared in Cell [38] (`X_train`, `y_train`, `X_valid`, `y_valid`), here are a couple of options:\n\n1.  **Train an LGBMRegressor** using the training data and evaluate it on the validation set (similar to the Linear Regression workflow in Cell [27]).\n2.  **Perform K-Fold Cross-Validation** using `KFold` to get a more robust estimate of model performance.\n\nPlease let me know which option you prefer, or provide a specific task.",
+      "metrics": {
+        "total_llm_calls": 0,
+        "total_tool_calls": 0,
+        "notebook_reads": 0,
+        "notebook_writes": 0,
+        "repair_rounds": 0,
+        "runtime_errors": 0,
+        "completion_status": "success",
+        "execution_time": 123.4758,
+        "token_usage": {
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "cached_tokens": 0,
+          "total_tokens": 0,
+          "requests": 0
+        },
+        "planner_usage": 0,
+        "semantic_index_hits": 0,
+        "dependency_graph_hits": 0,
+        "runtime_state_hits": 0,
+        "code_evaluation": {
+          "coverage": 0.5,
+          "coverage_topics_covered": [
+            "empty",
+            "option"
+          ],
+          "coverage_topics_missing": [
+            "clarif",
+            "what should"
+          ],
+          "accuracy": null,
+          "contract_compliance": {
+            "no_browser_tool_dispatch": true,
+            "no_notebook_writes": true,
+            "has_placement_guidance": true,
+            "has_python_code_block": false,
+            "single_primary_code_block": true,
+            "acknowledges_empty_cell": true,
+            "defers_code_for_empty_cell": true
+          },
+          "contract_passed": true,
+          "python_block_count": 0,
+          "max_python_block_lines": 0,
+          "test_passed": true,
+          "evaluation_rationale": "Code-mode contract satisfied with placement and runnable code.",
+          "response_word_count": 93,
+          "response_preview": "Cell [45] is currently empty.\n\nWhat would you like this cell to do?\n\nBased on the upstream imports in Cell [42] (`LGBMRegressor`, `KFold`) and the data splits prepared in Cell [38] (`X_train`, `y_train`, `X_valid`, `y_valid`), here are a couple of options:\n\n1.  **Train an LGBMRegressor** using the training data and evaluate it on the validation set (similar to the Linear Regression workflow in Cell [27]).\n2.  **Perform K-Fold Cross-Validation** using `KFold` to get a more robust estimate of model performance.\n\nPlease let me know which option you prefer, or provide a specific task."
+        },
+        "test_passed": true
+      },
+      "test_number": 3,
+      "test_name": "Empty Cell Handling"
+    }
+  ]
+}

@@ -266,6 +266,24 @@ def map_command_to_native(cmd: dict) -> dict | None:
                 mapped["maxWaitMs"] = 240
         return mapped
 
+    if action in {"get_cell_execution_title", "get_cell_execution_info"}:
+        mapped["type"] = "GET_CELL_EXECUTION_TITLE"
+        mapped["tunnel"] = "get_cell_execution_title"
+        dom_index = _dom_index_from_cmd(cmd, default_basis=cmd.get("index_basis") or "app")
+        if dom_index is None:
+            return None
+        mapped["cellIndex"] = dom_index
+        mapped["dom_index"] = dom_index
+        wait_ms = cmd.get("maxWaitMs") if cmd.get("maxWaitMs") is not None else cmd.get("max_wait_ms")
+        if wait_ms is None:
+            mapped["maxWaitMs"] = 2000
+        else:
+            try:
+                mapped["maxWaitMs"] = int(wait_ms)
+            except Exception:
+                mapped["maxWaitMs"] = 2000
+        return mapped
+
     if action in {"creating_markdown_by_index", "creating_markdown"}:
         mapped["type"] = "CREATING_MARKDOWN_BY_INDEX"
         mapped["tunnel"] = "creating_markdown_by_index"

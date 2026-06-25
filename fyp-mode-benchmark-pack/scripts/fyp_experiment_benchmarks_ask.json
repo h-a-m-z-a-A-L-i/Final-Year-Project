@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "agent": "Notebook Agent v1",
+  "suite": "ASK_MODE_BENCHMARK_SUITE",
+  "description": "Ask-mode evaluation: explanation quality, no tools, no notebook modifications.",
+  "defaults": {
+    "mode": "ask",
+    "tab_id": 424242
+  },
+  "prompts": [
+    {
+      "id": "ASK_TEST_1_EXPLAIN_NOTEBOOK",
+      "test_number": 1,
+      "test_name": "Explain Notebook",
+      "kernel_id": 113620421,
+      "snapshot_file": "kaggle_kernel_113620421.json",
+      "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+      "notebook_key": "kaggle:kernel:113620421",
+      "mode": "ask",
+      "coverage_topics": ["data loading", "load", "clean", "missing", "feature", "train", "model", "evaluat", "visual"],
+      "prompt": "Explain the complete workflow of this notebook.\n\nInclude:\n- Data loading\n- Cleaning\n- Feature engineering\n- Model training\n- Evaluation\n\nDo not generate code.\n\nUse notebook evidence only."
+    },
+    {
+      "id": "ASK_TEST_2_EXPLAIN_CELL",
+      "test_number": 2,
+      "test_name": "Explain Cell",
+      "kernel_id": 113620421,
+      "snapshot_file": "kaggle_kernel_113620421.json",
+      "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+      "notebook_key": "kaggle:kernel:113620421",
+      "mode": "ask",
+      "target_cell": 17,
+      "ground_truth_terms": ["date_added", "drop"],
+      "coverage_topics": ["input", "output", "depend", "issue", "purpose", "why"],
+      "prompt": "Explain cell 17.\n\nInclude:\n1. Inputs\n2. Outputs\n3. Dependencies\n4. Why the cell exists\n5. Potential issues\n\nDo not generate replacement code."
+    },
+    {
+      "id": "ASK_TEST_3_DEBUG_ERROR",
+      "test_number": 3,
+      "test_name": "Debug Error",
+      "kernel_id": 112732919,
+      "snapshot_file": "kaggle_kernel_112732919.json",
+      "url": "https://www.kaggle.com/code/codekey/testing-ol/edit",
+      "notebook_key": "kaggle:kernel:112732919",
+      "mode": "ask",
+      "target_cell": 31,
+      "ground_truth_terms": ["df", "not defined", "NameError"],
+      "coverage_topics": ["root cause", "fix", "impact", "minimal"],
+      "prompt": "Explain the root cause of the error in cell 31.\n\nDo not provide a complete replacement script.\n\nProvide:\n- Root cause\n- A minimal fix suggestion\n- Expected impact"
+    },
+    {
+      "id": "ASK_TEST_4_EMPTY_CELL",
+      "test_number": 4,
+      "test_name": "Empty Cell Handling",
+      "kernel_id": 113620421,
+      "snapshot_file": "fyp_ask_empty_cell_113620421.json",
+      "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+      "notebook_key": "kaggle:kernel:113620421",
+      "mode": "ask",
+      "target_cell": 45,
+      "coverage_topics": ["empty", "clarif", "question", "what should", "purpose"],
+      "prompt": "Explain what should go in cell 45.\n\nCell 45 is empty.\n\nEvaluate whether Ask mode:\n- acknowledges the cell is empty\n- asks clarifying questions\n- avoids generating a full code solution"
+    }
+  ]
+}

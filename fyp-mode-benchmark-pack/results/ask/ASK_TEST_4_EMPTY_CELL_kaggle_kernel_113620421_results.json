@@ -1,0 +1,86 @@
+{
+  "suite": "ASK_MODE_BENCHMARK_SUITE",
+  "agent": "Notebook Agent v1",
+  "description": "Ask-mode evaluation: explanation quality, no tools, no notebook modifications.",
+  "live_llm": true,
+  "started_at": "2026-06-16T11:20:10.146756+00:00",
+  "finished_at": "2026-06-16T11:25:24.941370+00:00",
+  "runs": [
+    {
+      "id": "ASK_TEST_4_EMPTY_CELL",
+      "name": "ASK_TEST_4_EMPTY_CELL",
+      "kernel_id": 113620421,
+      "snapshot_file": "fyp_ask_empty_cell_113620421.json",
+      "session_id": "fyp-ASK_TEST_4_EMPTY_CELL_113620421-ASK_TEST_4_EMPTY_CELL-82e80410",
+      "prompt": "Explain what should go in cell 45.\n\nCell 45 is empty.\n\nEvaluate whether Ask mode:\n- acknowledges the cell is empty\n- asks clarifying questions\n- avoids generating a full code solution",
+      "mode": "ask",
+      "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+      "notebook_key": "kaggle:kernel:113620421",
+      "live_llm": true,
+      "error": null,
+      "response_text": "**Cell [45] —** *empty placeholder*\n\n**Status**\nCell [45] has no code yet.\n\n**What would you like here?**\nDo you want to train a single LightGBM model with early stopping, or implement a K-Fold cross-validation loop?\n\n**Suggested next steps**\n1. **Train LightGBM with Early Stopping** — fits the `LGBMRegressor` and `early_stopping` imports from Cell [42] using the `X_train`/`y_train` splits prepared in Cell [38].\n2. **K-Fold Cross-Validation** — utilizes the `KFold` import from Cell [42] to iterate over folds, training the model on different subsets to get a more robust performance estimate.",
+      "metrics": {
+        "total_llm_calls": 0,
+        "total_tool_calls": 0,
+        "notebook_reads": 0,
+        "notebook_writes": 0,
+        "repair_rounds": 0,
+        "runtime_errors": 0,
+        "completion_status": "failed",
+        "execution_time": 123.7266,
+        "token_usage": {
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "cached_tokens": 0,
+          "total_tokens": 0,
+          "requests": 0
+        },
+        "planner_usage": 0,
+        "semantic_index_hits": 0,
+        "dependency_graph_hits": 0,
+        "runtime_state_hits": 0,
+        "ask_evaluation": {
+          "coverage": 0.2,
+          "coverage_hits": 1,
+          "coverage_topics_covered": [
+            "empty"
+          ],
+          "coverage_topics_missing": [
+            "clarif",
+            "question",
+            "what should",
+            "purpose"
+          ],
+          "accuracy": null,
+          "hallucination_rate": 0.333,
+          "hallucination_details": {
+            "cited_cell_indices": [],
+            "invalid_cell_references": [],
+            "ground_truth_hits": 0,
+            "ground_truth_total": 0,
+            "fabrication_flags": [],
+            "hallucination_rate": 0.333
+          },
+          "contract_compliance": {
+            "no_tool_calls": true,
+            "no_notebook_writes": true,
+            "no_large_code_dump": true,
+            "acknowledges_empty_cell": true,
+            "asks_clarifying_questions": true
+          },
+          "contract_passed": true,
+          "code_fence_count": 0,
+          "max_code_fence_lines": 0,
+          "test_passed": false,
+          "evaluation_rationale": "Low topic coverage (20%); missing: clarif, question, what should, purpose.",
+          "response_word_count": 90,
+          "response_preview": "**Cell [45] —** *empty placeholder*\n\n**Status**\nCell [45] has no code yet.\n\n**What would you like here?**\nDo you want to train a single LightGBM model with early stopping, or implement a K-Fold cross-validation loop?\n\n**Suggested next steps**\n1. **Train LightGBM with Early Stopping** — fits the `LGBMRegressor` and `early_stopping` imports from Cell [42] using the `X_train`/`y_train` splits prepared in Cell [38].\n2. **K-Fold Cross-Validation** — utilizes the `KFold` import from Cell [42] to iterate over folds, training the model on different subsets to get a more robust performance estimate."
+        },
+        "test_passed": false
+      },
+      "test_number": 4,
+      "test_name": "Empty Cell Handling",
+      "target_cell": 45
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "suite": "CODE_MODE_BENCHMARK_SUITE",
+  "live_llm": true,
+  "started_at": "2026-06-16T11:27:58.462865+00:00",
+  "finished_at": "2026-06-16T11:33:27.287459+00:00",
+  "runs": [
+    {
+      "id": "CODE_TEST_2_FIX_ERROR",
+      "name": "CODE_TEST_2_FIX_ERROR",
+      "kernel_id": 112732919,
+      "snapshot_file": "kaggle_kernel_112732919.json",
+      "session_id": "fyp-CODE_TEST_2_FIX_ERROR_112732919-CODE_TEST_2_FIX_ERROR-9e257fcf",
+      "prompt": "Fix the NameError in cell 31.\n\nProvide:\n- Placement guidance (fill cell 31 or insert elsewhere with evidence)\n- A single runnable python code block for the corrected cell\n\nDo not dispatch browser tools.",
+      "mode": "code",
+      "url": "https://www.kaggle.com/code/codekey/testing-ol/edit",
+      "notebook_key": "kaggle:kernel:112732919",
+      "live_llm": true,
+      "error": null,
+      "response_text": "### Placement\nFill **Cell [31]**. The code is syntactically correct; the `NameError` occurs because `df` is not defined in the kernel memory. You must run **Cell [25]** (which defines `df`) before running Cell [31].\n\n### Run steps\n1. Run **Cell [25]** to load the dataset into `df`.\n2. Run **Cell [31]** to execute the filtering and display logic.\n\n### Code\n```python\n# Filter for Lahore properties and get top 10 by price\nlahore_properties = df[df['city'] == 'Lahore'].copy()\ntop_10_lahore = lahore_properties.nlargest(10, 'price')\n\n# Display relevant columns\nprint(top_10_lahore[['price', 'location', 'property_type', 'bedrooms', 'baths', 'area']])\n```",
+      "metrics": {
+        "total_llm_calls": 0,
+        "total_tool_calls": 0,
+        "notebook_reads": 0,
+        "notebook_writes": 0,
+        "repair_rounds": 0,
+        "runtime_errors": 0,
+        "completion_status": "success",
+        "execution_time": 68.3396,
+        "token_usage": {
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "cached_tokens": 0,
+          "total_tokens": 0,
+          "requests": 0
+        },
+        "planner_usage": 0,
+        "semantic_index_hits": 0,
+        "dependency_graph_hits": 0,
+        "runtime_state_hits": 0,
+        "code_evaluation": {
+          "coverage": 0.6,
+          "coverage_topics_covered": [
+            "placement",
+            "fill",
+            "python"
+          ],
+          "coverage_topics_missing": [
+            "cell 31",
+            "fix"
+          ],
+          "accuracy": 0.667,
+          "contract_compliance": {
+            "no_browser_tool_dispatch": true,
+            "no_notebook_writes": true,
+            "has_placement_guidance": true,
+            "has_python_code_block": true,
+            "single_primary_code_block": true,
+            "acknowledges_empty_cell": true,
+            "defers_code_for_empty_cell": true,
+            "requires_code_block": true
+          },
+          "contract_passed": true,
+          "python_block_count": 1,
+          "max_python_block_lines": 6,
+          "test_passed": true,
+          "evaluation_rationale": "Code-mode contract satisfied with placement and runnable code.",
+          "response_word_count": 92,
+          "response_preview": "### Placement\nFill **Cell [31]**. The code is syntactically correct; the `NameError` occurs because `df` is not defined in the kernel memory. You must run **Cell [25]** (which defines `df`) before running Cell [31].\n\n### Run steps\n1. Run **Cell [25]** to load the dataset into `df`.\n2. Run **Cell [31]** to execute the filtering and display logic.\n\n### Code\n```python\n# Filter for Lahore properties and get top 10 by price\nlahore_properties = df[df['city'] == 'Lahore'].copy()\ntop_10_lahore = lahore_properties.nlargest(10, 'price')\n\n# Display relevant columns\nprint(top_10_lahore[['price', 'location', 'property_type', 'bedrooms', 'baths', 'area']])\n```"
+        },
+        "test_passed": true
+      },
+      "test_number": 2,
+      "test_name": "Fix Error Cell"
+    }
+  ]
+}

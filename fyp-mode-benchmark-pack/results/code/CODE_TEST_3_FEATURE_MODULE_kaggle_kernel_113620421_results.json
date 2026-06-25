@@ -1,0 +1,81 @@
+{
+  "suite": "CODE_MODE_BENCHMARK_SUITE",
+  "live_llm": true,
+  "started_at": "2026-06-16T11:41:25.636074+00:00",
+  "finished_at": "2026-06-16T11:45:54.530600+00:00",
+  "runs": [
+    {
+      "id": "CODE_TEST_3_FEATURE_MODULE",
+      "name": "CODE_TEST_3_FEATURE_MODULE",
+      "kernel_id": 113620421,
+      "snapshot_file": "kaggle_kernel_113620421.json",
+      "session_id": "fyp-CODE_TEST_3_FEATURE_MODULE_113620421-CODE_TEST_3_FEATURE_MODULE-fe950458",
+      "prompt": "Create feature engineering code that:\n- Generates interaction features\n- Creates polynomial features\n- Handles missing values\n\nProvide:\n1. Placement\n2. Run order\n3. One complete Python cell",
+      "mode": "code",
+      "url": "https://www.kaggle.com/code/codekey/pakistan-housing/edit",
+      "notebook_key": "kaggle:kernel:113620421",
+      "live_llm": true,
+      "error": null,
+      "response_text": "**Plan**\n- Clean and convert relevant columns (like `Area Size`) to numeric types.\n- Impute missing values for numeric columns (median) and categorical columns ('Unknown').\n- Create interaction features (e.g., `bedrooms * baths`).\n- Generate polynomial features (degree 2) for key numeric columns using `sklearn`.\n\n**Placement**\nInsert **new Code cell** below Cell [5] (where `df1` is defined).\n\n**Run order**\n1. Run Cell [1] (load data).\n2. Run Cell [5] (create `df1`).\n3. Run the new cell (feature engineering).\n\n**Code**\n```python\nimport numpy as np\nimport pandas as pd\nfrom sklearn.preprocessing import PolynomialFeatures\n\n# 1. Handle Missing Values\n# Fill numeric missing values with median\nnumeric_cols = df1.select_dtypes(include=[np.number]).columns\nfor col in numeric_cols:\n    df1[col] = df1[col].fillna(df1[col].median())\n\n# Fill categorical missing values with 'Unknown'\ncategorical_cols = df1.select_dtypes(include=['object']).columns\nfor col in categorical_cols:\n    df1[col] = df1[col].fillna('Unknown')\n\n# 2. Ensure 'Area Size' is numeric for calculations\n# (It may be read as string depending on CSV formatting)\ndf1['Area_Size_Num'] = pd.to_numeric(df1['Area Size'], errors='coerce')\ndf1['Area_Size_Num'] = df1['Area_Size_Num'].fillna(df1['Area_Size_Num'].median())\n\n# 3. Generate Interaction Features\n# Interaction between bedrooms and baths\ndf1['bed_bath_interaction'] = df1['bedrooms'] * df1['baths']\n\n# Area per bedroom (handling division by zero)\ndf1['area_per_bedroom'] = df1['Area_Size_Num'] / (df1['bedrooms'] + 1)\n\n# 4. Create Polynomial Features\n# Select features for polynomial expansion\nfeatures_to_poly = df1[['bedrooms', 'baths', 'Area_Size_Num']]\n\npoly = PolynomialFeatures(degree=2, include_bias=False)\npoly_array = poly.fit_transform(features_to_poly)\n\n# Create a DataFrame for the new features\npoly_feature_names = poly.get_feature_names_out(['bedrooms', 'baths', 'Area_Size_Num'])\npoly_df = pd.DataFrame(poly_array, columns=[f\"poly_{name}\" for name in poly_feature_names])\n\n# Concatenate new features to the main dataframe\ndf1 = pd.concat([df1.reset_index(drop=True), poly_df.reset_index(drop=True)], axis=1)\n\ndf1.head()\n```",
+      "metrics": {
+        "total_llm_calls": 0,
+        "total_tool_calls": 0,
+        "notebook_reads": 0,
+        "notebook_writes": 0,
+        "repair_rounds": 0,
+        "runtime_errors": 0,
+        "completion_status": "success",
+        "execution_time": 65.2088,
+        "token_usage": {
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "cached_tokens": 0,
+          "total_tokens": 0,
+          "requests": 0
+        },
+        "planner_usage": 0,
+        "semantic_index_hits": 0,
+        "dependency_graph_hits": 0,
+        "runtime_state_hits": 0,
+        "code_evaluation": {
+          "coverage": 1.0,
+          "coverage_topics_covered": [
+            "placement",
+            "run",
+            "order",
+            "feature"
+          ],
+          "coverage_topics_missing": [],
+          "placement_accuracy": 0.5,
+          "code_correctness": 0.833,
+          "downstream_compatibility": null,
+          "cited_cells": [
+            1,
+            5
+          ],
+          "contract_compliance": {
+            "no_browser_tool_dispatch": true,
+            "no_notebook_writes": true,
+            "has_placement_guidance": true,
+            "has_python_code_block": true,
+            "single_primary_code_block": true,
+            "has_run_order": true,
+            "acknowledges_empty_cell": true,
+            "defers_code_for_empty_cell": true,
+            "asks_clarifying_questions": false
+          },
+          "contract_passed": true,
+          "python_block_count": 1,
+          "max_python_block_lines": 42,
+          "test_passed": true,
+          "evaluation_rationale": "Code-mode contract satisfied; placement and code quality acceptable.",
+          "response_word_count": 249,
+          "response_preview": "**Plan**\n- Clean and convert relevant columns (like `Area Size`) to numeric types.\n- Impute missing values for numeric columns (median) and categorical columns ('Unknown').\n- Create interaction features (e.g., `bedrooms * baths`).\n- Generate polynomial features (degree 2) for key numeric columns using `sklearn`.\n\n**Placement**\nInsert **new Code cell** below Cell [5] (where `df1` is defined).\n\n**Run order**\n1. Run Cell [1] (load data).\n2. Run Cell [5] (create `df1`).\n3. Run the new cell (feature engineering).\n\n**Code**\n```python\nimport numpy as np\nimport pandas as pd\nfrom sklearn.preprocessing import PolynomialFeatures\n\n# 1. Handle Missing Values\n# Fill numeric missing values with median\nnumeric_cols = df1.select_dtypes(include=[np.number]).columns\nfor col in numeric_cols:\n    df1[col] = df1[col].fillna(df1[col].median())\n\n# Fill categorical missing values with 'Unknown'\ncategorical_cols = df1.select_dtypes(include=['object']).columns\nfor col in categorical_cols:\n    df1[col] = df1[col].fillna('Unknown')\n\n# 2. Ensure 'Area Size' is numeric for calculations\n# (It may be read as string depending on CSV formatting)\ndf1['Area_Size_Num'] = pd.to_numeric(df1['Area Size'], errors='coerce')"
+        },
+        "test_passed": true
+      },
+      "test_number": 3,
+      "test_name": "New Feature Module"
+    }
+  ]
+}
