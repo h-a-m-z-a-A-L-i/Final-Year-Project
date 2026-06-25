@@ -9,7 +9,6 @@ ROOT = Path(__file__).resolve().parent
 HOST = ROOT.parent
 
 BROWSER = {
-    "click_cell": ("click_cell_tool.py", "run_click_cell"),
     "select_cell_by_index": ("select_cell_tool.py", "run_select_cell"),
     "insert_cell": ("insert_cell_tool.py", "run_insert_cell"),
     "edit_cell_by_index": ("edit_cell_tool.py", "run_edit_cell"),
@@ -153,7 +152,6 @@ def write_local(name: str) -> None:
 
 
 BROWSER_EXTRA_ARGS = {
-    "click_cell": '    p.add_argument("--cell-index", type=int, required=True)\n    p.add_argument("--dom-index", type=int, default=None)',
     "select_cell_by_index": "    p.add_argument(\"--cell-index\", type=int, required=True)",
     "insert_cell": '    p.add_argument("--index", type=int, required=True)\n    p.add_argument("--direction", default="below", choices=["below", "above"])',
     "edit_cell_by_index": '    p.add_argument("--cell-index", type=int, required=True)\n    p.add_argument("--content", required=True)',
@@ -163,7 +161,6 @@ BROWSER_EXTRA_ARGS = {
 }
 
 PAYLOAD_EXTRA = {
-    "click_cell": "    payload[\"cell_index\"] = args.cell_index\n    if args.dom_index is not None:\n        payload[\"dom_index\"] = args.dom_index",
     "select_cell_by_index": '    payload["cell_index"] = args.cell_index',
     "insert_cell": '    payload["index"] = args.index\n    payload["direction"] = args.direction',
     "edit_cell_by_index": '    payload["cell_index"] = args.cell_index\n    payload["content"] = args.content',

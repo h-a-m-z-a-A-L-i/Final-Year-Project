@@ -38,7 +38,6 @@ _KEY_ALIASES = {
 _INDEX_TOOLS = frozenset({"insert_cell", "creating_markdown_by_index"})
 
 _BROWSER_TOOLS = frozenset({
-    "click_cell",
     "select_cell_by_index",
     "insert_cell",
     "edit_cell_by_index",
@@ -206,7 +205,6 @@ def _dispatch(tool: str, args: dict) -> dict:
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
         for attr in (
-            "run_click_cell",
             "run_select_cell",
             "run_insert_cell",
             "run_edit_cell",

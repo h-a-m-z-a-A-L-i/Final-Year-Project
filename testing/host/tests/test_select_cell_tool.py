@@ -1,3 +1,7 @@
+"""Tests for select_cell dispatch + verify."""
+
+from __future__ import annotations
+
 import os
 import sys
 from unittest.mock import patch
@@ -17,6 +21,8 @@ def test_select_fire_and_forget_does_not_wait_for_extension():
                 "action": "select_cell_by_index",
                 "url": "https://example.com/edit",
                 "cell_index": 2,
+                "fire_and_forget": True,
+                "wait_for_result": False,
             },
             timeout=0.1,
         )
@@ -26,19 +32,20 @@ def test_select_fire_and_forget_does_not_wait_for_extension():
 
 
 def test_run_select_cell_success():
-    with patch("testing.host.bot_command_client.execute_bot_command") as mock_exec:
-        mock_exec.return_value = {
-            "ok": True,
-            "result": {
-                "ok": True,
-                "dispatched": True,
-                "domIndex": 1,
-                "appIndex": 2,
-                "phase": "dispatched",
-            },
-        }
+    with patch("testing.host.select_cell_tool.dispatch_select_cell") as mock_dispatch:
+        mock_dispatch.return_value = {"ok": True, "result": {"ok": True, "dispatched": True}}
         out = run_select_cell({"url": "https://example.com/edit", "cell_index": 2})
     assert out["ok"] is True
     assert out["tool"] == "select_cell_by_index"
     assert out["cell_index"] == 2
     assert out["dom_index"] == 1
+    assert out["dispatched"] is True
+    assert out["phase"] == "dispatched"
+
+
+def test_run_select_cell_dispatch_failed():
+    with patch("testing.host.select_cell_tool.dispatch_select_cell") as mock_dispatch:
+        mock_dispatch.return_value = {"ok": False, "error": "dispatch failed"}
+        out = run_select_cell({"url": "https://example.com/edit", "cell_index": 2})
+    assert out["ok"] is False
+    assert out["phase"] == "select_dispatch_failed"

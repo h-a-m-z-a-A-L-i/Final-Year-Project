@@ -77,7 +77,6 @@ READ_TOOLS = frozenset({
 })
 
 WRITE_TOOLS = frozenset({
-    "click_cell",
     "select_cell_by_index",
     "insert_cell",
     "edit_cell_by_index",

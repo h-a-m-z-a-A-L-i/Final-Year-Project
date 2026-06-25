@@ -1,4 +1,4 @@
-"""run_cell tool — isolated copy; verification logic lives in run_cell_tool."""
+"""run_cell tool — isolated copy; fire-and-forget dispatch only."""
 
 from __future__ import annotations
 

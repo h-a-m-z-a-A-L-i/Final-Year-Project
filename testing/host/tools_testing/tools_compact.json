@@ -14,7 +14,6 @@
     "cells": [1, 2, 3]
   },
   "tools": {
-    "click_cell": { "need": ["url|tab"], "opt": ["cell"] },
     "select_cell_by_index": { "need": ["url|tab", "cell"] },
     "insert_cell": { "need": ["url|tab", "index"], "opt": ["direction"] },
     "edit_cell_by_index": { "need": ["url|tab", "cell", "content"] },

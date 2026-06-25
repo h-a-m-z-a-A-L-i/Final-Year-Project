@@ -13,10 +13,6 @@ def _registry():
     return _tr.registry()
 
 
-def click_cell(args: Dict[str, Any]) -> Dict[str, Any]:
-    return _registry().call("click_cell", args)
-
-
 def insert_cell(args: Dict[str, Any]) -> Dict[str, Any]:
     return _registry().call("insert_cell", args)
 

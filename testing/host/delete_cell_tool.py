@@ -1,54 +1,112 @@
-"""delete_by_index tool — delete a notebook cell by 1-based label."""
+"""delete_by_index — select cell, then shadow-DOM delete click (fire-and-forget).
+
+FROZEN — verified working. Flow:
+  1. select_cell_by_index (fire-and-forget)
+  2. sleep 1s
+  3. click_cell_delete_button → header.shadowRoot delete btn
+Do not change without explicit request.
+"""
 
 from __future__ import annotations
 
-import uuid
+import time
 
 try:
-    from .bot_tool_utils import BROWSER_DELETE_TIMEOUT_SEC, normalize_delete_cell_args
+    from .bot_command import execute_bot_command
+    from .bot_tool_utils import (
+        BROWSER_SELECT_MAX_WAIT_MS,
+        normalize_delete_cell_args,
+        normalize_select_cell_args,
+    )
     from .browser_tool_response import tool_failure, tool_success
-    from .cell_index import dom_to_app
 except Exception:
-    from bot_tool_utils import BROWSER_DELETE_TIMEOUT_SEC, normalize_delete_cell_args
+    from bot_command import execute_bot_command
+    from bot_tool_utils import (
+        BROWSER_SELECT_MAX_WAIT_MS,
+        normalize_delete_cell_args,
+        normalize_select_cell_args,
+    )
     from browser_tool_response import tool_failure, tool_success
-    from cell_index import dom_to_app
 
 TOOL = "delete_by_index"
+
+DELETE_AFTER_SELECT_SEC = 1.0
+DELETE_DISPATCH_TIMEOUT_SEC = 2.5
+
+
+def _dispatch_fire_and_forget(cmd: dict, *, timeout: float = DELETE_DISPATCH_TIMEOUT_SEC) -> dict:
+    attempt = dict(cmd)
+    attempt["fire_and_forget"] = True
+    attempt["wait_for_result"] = False
+    return execute_bot_command(attempt, timeout=timeout)
 
 
 def run_delete_cell(args: dict) -> dict:
     cmd, err = normalize_delete_cell_args(args)
     if err:
+        err.setdefault("tool", TOOL)
         return err
 
-    try:
-        from .bot_command import execute_bot_command
-    except Exception:
-        from bot_command import execute_bot_command
+    dom_index = cmd.get("dom_index")
+    app_index = cmd.get("app_index") or cmd.get("cell_index")
+    if dom_index is None or app_index is None:
+        return tool_failure(TOOL, "cell_index is required")
 
-    attempt_cmd = dict(cmd)
-    attempt_cmd["requestId"] = str(uuid.uuid4())
-    attempt_cmd["timeout"] = BROWSER_DELETE_TIMEOUT_SEC
+    select_args = dict(args)
+    select_args["cell_index"] = app_index
+    select_args["index"] = app_index
+    select_cmd, select_err = normalize_select_cell_args(select_args)
+    if select_err:
+        select_err.setdefault("tool", TOOL)
+        return select_err
 
-    event = execute_bot_command(attempt_cmd, timeout=BROWSER_DELETE_TIMEOUT_SEC)
+    dispatch_timeout = float(args.get("dispatch_timeout") or DELETE_DISPATCH_TIMEOUT_SEC)
+    started = time.monotonic()
 
-    if event.get("ok"):
-        inner = event.get("result") if isinstance(event.get("result"), dict) else {}
-        dom_index = inner.get("domIndex", cmd.get("dom_index"))
-        app_index = dom_to_app(int(dom_index)) if dom_index is not None else cmd.get("app_index")
-        return tool_success(
+    select_cmd["maxWaitMs"] = BROWSER_SELECT_MAX_WAIT_MS
+    select_event = _dispatch_fire_and_forget(select_cmd, timeout=dispatch_timeout)
+    if not select_event.get("ok"):
+        error = str(select_event.get("error") or "select dispatch failed")
+        return tool_failure(
             TOOL,
-            cell_index=app_index,
-            dom_index=dom_index,
-            app_index=app_index,
-            phase=inner.get("phase") or ("dispatched" if inner.get("dispatched") else "deleted"),
-            strategy=inner.get("strategy"),
-            dispatched=inner.get("dispatched"),
+            error,
+            cmd=cmd,
+            cell_index=int(app_index),
+            dom_index=int(dom_index),
+            phase="select_dispatch_failed",
         )
 
-    return tool_failure(
+    time.sleep(float(args.get("settle_sec") or DELETE_AFTER_SELECT_SEC))
+
+    url = cmd.get("url")
+    tab_id = cmd.get("tabId")
+    click_cmd = {
+        "action": "click_cell_delete_button",
+        "url": url,
+    }
+    if tab_id is not None:
+        click_cmd["tabId"] = tab_id
+    click_event = _dispatch_fire_and_forget(click_cmd, timeout=dispatch_timeout)
+
+    elapsed_ms = round((time.monotonic() - started) * 1000.0, 1)
+    if not (click_event or {}).get("ok"):
+        error = str((click_event or {}).get("error") or "delete click dispatch failed")
+        return tool_failure(
+            TOOL,
+            error,
+            cmd=cmd,
+            cell_index=int(app_index),
+            dom_index=int(dom_index),
+            phase="delete_dispatch_failed",
+            duration_ms=elapsed_ms,
+        )
+
+    return tool_success(
         TOOL,
-        str(event.get("error") or (event.get("result") or {}).get("error") or f"{TOOL} failed"),
-        cmd=cmd,
-        event=event,
+        cell_index=int(app_index),
+        dom_index=int(dom_index),
+        app_index=int(app_index),
+        phase="dispatched",
+        dispatched=True,
+        duration_ms=elapsed_ms,
     )

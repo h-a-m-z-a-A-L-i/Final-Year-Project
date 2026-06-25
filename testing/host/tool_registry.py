@@ -55,7 +55,6 @@ class ToolRegistry:
 _REGISTRY = ToolRegistry()
 
 BROWSER_TOOL_NAMES = frozenset({
-    "click_cell",
     "select_cell_by_index",
     "insert_cell",
     "edit_cell_by_index",
@@ -160,26 +159,6 @@ def _register_default_tools():
     url_schema = {"type": "string"}
     cell_schema = {"type": "integer"}
     candidates = [
-        (
-            "click_cell",
-            {
-                "type": "object",
-                "properties": {
-                    "cell_index": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "description": "1-based cell label (first cell is 1; matches notebook JSON index)",
-                    },
-                    "dom_index": {"type": "integer", "minimum": 0},
-                    "url": url_schema,
-                    "tab_id": {"type": "integer"},
-                    "index_basis": {"type": "string", "enum": ["dom", "app"]},
-                    "scroll_into_view": {"type": "boolean"},
-                },
-                "required": ["url"],
-            },
-            "Focus a notebook cell by 1-based cell label (first cell is 1; converted to DOM index internally)",
-        ),
         (
             "select_cell_by_index",
             {
@@ -289,7 +268,6 @@ def _register_default_tools():
     ]
 
     _TOOL_RUNNERS = {
-        "click_cell": ("click_cell_tool", "run_click_cell"),
         "select_cell_by_index": ("select_cell_tool", "run_select_cell"),
         "insert_cell": ("insert_cell_tool", "run_insert_cell"),
         "edit_cell_by_index": ("edit_cell_tool", "run_edit_cell"),
@@ -439,7 +417,6 @@ def generate_prompt_autogen():
                 "url": session_url,
                 "symbols": ["model_df"],
             },
-            "click_cell": {"url": session_url, "cell_index": 1},
             "select_cell_by_index": {"url": session_url, "cell_index": 1},
             "insert_cell": {"url": session_url, "index": 2, "direction": "below"},
             "edit_cell_by_index": {

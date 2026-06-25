@@ -28,18 +28,8 @@ def test_edit_cell_requires_content():
 
 
 def test_edit_cell_success():
-    with patch("testing.host.bot_command_client.execute_bot_command") as mock_exec:
-        mock_exec.return_value = {
-            "ok": True,
-            "result": {
-                "ok": True,
-                "phase": "content_set",
-                "domIndex": 0,
-                "appIndex": 1,
-                "chars": 8,
-                "strategy": "codemirror6-dispatch",
-            },
-        }
+    with patch("testing.host.edit_cell_tool.dispatch_edit_cell") as mock_dispatch:
+        mock_dispatch.return_value = {"ok": True, "result": {"ok": True, "dispatched": True}}
         out = run_edit_cell(
             {
                 "url": "https://example.com/edit",
@@ -51,9 +41,6 @@ def test_edit_cell_success():
     assert out["ok"] is True
     assert out["cell_index"] == 1
     assert out["dom_index"] == 0
-    assert out["strategy"] == "codemirror6-dispatch"
-    mock_exec.assert_called_once()
-    sent = mock_exec.call_args[0][0]
-    assert sent["action"] == "edit_cell_by_index"
-    assert sent["dom_index"] == 0
-    assert sent["content"] == "print(1)"
+    assert out["dispatched"] is True
+    assert out["phase"] == "dispatched"
+    mock_dispatch.assert_called_once()

@@ -2,7 +2,7 @@
 """Unified smoke runner for isolated browser tools.
 
 Usage:
-  python testing/host/scripts/smoke_browser_tool.py --tool click_cell --url URL --cell-index 1
+  python testing/host/scripts/smoke_browser_tool.py --tool select_cell_by_index --url URL --cell-index 1
   python testing/host/scripts/smoke_browser_tool.py --tool insert_cell --url URL --index 2
   python testing/host/scripts/smoke_browser_tool.py --tool delete_by_index --url URL --cell-index 3
 """
@@ -23,7 +23,6 @@ from testing.host.bot_command_client import is_native_host_process  # noqa: E402
 from testing.host.tool_registry import registry  # noqa: E402
 
 BROWSER_TOOLS = (
-    "click_cell",
     "select_cell_by_index",
     "insert_cell",
     "edit_cell_by_index",
@@ -55,7 +54,6 @@ def main() -> int:
 
     tool = args.tool
     if tool in {
-        "click_cell",
         "select_cell_by_index",
         "edit_cell_by_index",
         "run_cell",

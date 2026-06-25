@@ -1,78 +1,118 @@
-"""insert_cell tool — insert an empty code cell above/below anchor."""
+"""insert_cell tool — dispatch select + toolbar click (no host verification wait)."""
 
 from __future__ import annotations
 
-import uuid
+import time
 
 try:
+    from .bot_command import execute_bot_command
     from .bot_tool_utils import (
         BROWSER_INSERT_MAX_WAIT_MS,
-        BROWSER_INSERT_TIMEOUT_SEC,
         normalize_insert_cell_args,
+        normalize_select_cell_args,
     )
     from .browser_tool_response import tool_failure, tool_success
-    from .cell_index import dom_to_app
 except Exception:
+    from bot_command import execute_bot_command
     from bot_tool_utils import (
         BROWSER_INSERT_MAX_WAIT_MS,
-        BROWSER_INSERT_TIMEOUT_SEC,
         normalize_insert_cell_args,
+        normalize_select_cell_args,
     )
     from browser_tool_response import tool_failure, tool_success
-    from cell_index import dom_to_app
 
 TOOL = "insert_cell"
+
+INSERT_TOOLBAR_BUTTON_SELECTOR = (
+    "#site-content > div.sc-bZIVci.fycqcn > div > div.sc-dZtDeN.kuQWcu > "
+    "div > div.sc-jmrxpW.hbTSyO > span:nth-child(1) > button"
+)
+INSERT_AFTER_SELECT_SEC = 1.0
+INSERT_DISPATCH_TIMEOUT_SEC = 2.5
+
+
+def _dispatch_fire_and_forget(cmd: dict, *, timeout: float = INSERT_DISPATCH_TIMEOUT_SEC) -> dict:
+    attempt = dict(cmd)
+    attempt["fire_and_forget"] = True
+    attempt["wait_for_result"] = False
+    return execute_bot_command(attempt, timeout=timeout)
 
 
 def run_insert_cell(args: dict) -> dict:
     cmd, err = normalize_insert_cell_args(args)
     if err:
+        err.setdefault("tool", TOOL)
         return err
 
-    try:
-        from .bot_command import execute_bot_command
-    except Exception:
-        from bot_command import execute_bot_command
+    anchor_dom = cmd.get("dom_index")
+    anchor_app = cmd.get("app_index") or cmd.get("index") or cmd.get("cell_index")
+    if anchor_dom is None or anchor_app is None:
+        return tool_failure(TOOL, "index (anchor cell) is required")
 
-    attempt_cmd = dict(cmd)
-    attempt_cmd["requestId"] = str(uuid.uuid4())
-    attempt_cmd["timeout"] = BROWSER_INSERT_TIMEOUT_SEC
-    attempt_cmd["maxWaitMs"] = BROWSER_INSERT_MAX_WAIT_MS
+    direction = str(cmd.get("direction") or "below").strip().lower()
+    if direction != "below":
+        return tool_failure(TOOL, "insert_cell only supports direction=below for toolbar insert")
 
-    event = execute_bot_command(attempt_cmd, timeout=BROWSER_INSERT_TIMEOUT_SEC)
+    select_args = dict(args)
+    select_args["cell_index"] = anchor_app
+    select_args["index"] = anchor_app
+    select_cmd, select_err = normalize_select_cell_args(select_args)
+    if select_err:
+        select_err.setdefault("tool", TOOL)
+        return select_err
 
-    if event.get("ok"):
-        inner = event.get("result") if isinstance(event.get("result"), dict) else {}
-        anchor_dom = inner.get("insertedBelow", cmd.get("dom_index"))
-        raw_new_app = inner.get("new_cell_index")
-        if raw_new_app is not None:
-            try:
-                new_app = int(raw_new_app)
-            except (TypeError, ValueError):
-                new_app = None
-        else:
-            new_app = None
-        new_dom = inner.get("newDomIndex") or inner.get("domIndex")
-        if new_app is None and new_dom is not None:
-            new_app = dom_to_app(int(new_dom))
-        anchor_app = dom_to_app(int(anchor_dom)) if anchor_dom is not None else cmd.get("app_index")
-        return tool_success(
+    dispatch_timeout = float(args.get("dispatch_timeout") or INSERT_DISPATCH_TIMEOUT_SEC)
+    started = time.monotonic()
+
+    select_cmd["maxWaitMs"] = BROWSER_INSERT_MAX_WAIT_MS
+    select_event = _dispatch_fire_and_forget(select_cmd, timeout=dispatch_timeout)
+    if not select_event.get("ok"):
+        error = str(select_event.get("error") or "select dispatch failed")
+        return tool_failure(
             TOOL,
-            anchor_cell_index=anchor_app,
-            anchor_dom_index=anchor_dom,
-            new_cell_index=new_app,
-            new_dom_index=new_dom,
-            cell_index=new_app,
-            dom_index=new_dom,
-            direction=cmd.get("direction", "below"),
-            phase=inner.get("phase") or "insert_complete",
-            strategy=inner.get("strategy"),
+            error,
+            cmd=cmd,
+            anchor_cell_index=int(anchor_app),
+            anchor_dom_index=int(anchor_dom),
+            direction=direction,
+            phase="select_dispatch_failed",
         )
 
-    return tool_failure(
+    time.sleep(float(args.get("settle_sec") or INSERT_AFTER_SELECT_SEC))
+
+    url = cmd.get("url")
+    tab_id = cmd.get("tabId")
+    click_cmd = {
+        "action": "click_selector",
+        "selector": INSERT_TOOLBAR_BUTTON_SELECTOR,
+        "url": url,
+    }
+    if tab_id is not None:
+        click_cmd["tabId"] = tab_id
+    click_event = _dispatch_fire_and_forget(click_cmd, timeout=dispatch_timeout)
+
+    elapsed_ms = round((time.monotonic() - started) * 1000.0, 1)
+    if not (click_event or {}).get("ok"):
+        error = str((click_event or {}).get("error") or "toolbar click dispatch failed")
+        return tool_failure(
+            TOOL,
+            error,
+            cmd=cmd,
+            anchor_cell_index=int(anchor_app),
+            anchor_dom_index=int(anchor_dom),
+            direction=direction,
+            phase="toolbar_dispatch_failed",
+            duration_ms=elapsed_ms,
+        )
+
+    return tool_success(
         TOOL,
-        str(event.get("error") or (event.get("result") or {}).get("error") or f"{TOOL} failed"),
-        cmd=cmd,
-        event=event,
-        direction=cmd.get("direction"),
+        anchor_cell_index=int(anchor_app),
+        anchor_dom_index=int(anchor_dom),
+        new_cell_index=int(anchor_app) + 1,
+        new_dom_index=int(anchor_dom) + 1,
+        direction=direction,
+        phase="dispatched",
+        dispatched=True,
+        duration_ms=elapsed_ms,
     )
