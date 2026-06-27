@@ -41,9 +41,13 @@ def strip_cells(cells: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def code_save_slice(cell: dict[str, Any]) -> dict[str, Any]:
     """Persisted code cell without execution metadata."""
-    return {
+    out: dict[str, Any] = {
         "type": "code",
         "index": cell.get("index"),
         "input": cell.get("input", ""),
         "output": cell.get("output", ""),
     }
+    uuid = cell.get("uuid") or cell.get("data_uuid")
+    if uuid:
+        out["uuid"] = str(uuid)
+    return out

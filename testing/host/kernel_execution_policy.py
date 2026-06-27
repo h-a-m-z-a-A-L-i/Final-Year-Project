@@ -185,6 +185,9 @@ def resolve_cell_execution(
         "execution_title": saved_title,
         "execution_status": execution_status,
     }
+    cell_uuid = cell.get("uuid") or cell.get("data_uuid")
+    if cell_uuid:
+        save_slice["uuid"] = str(cell_uuid)
     return save_slice, revision_row, should_save
 
 

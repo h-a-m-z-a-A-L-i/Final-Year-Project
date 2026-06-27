@@ -1,6 +1,6 @@
 """Tools package for isolated bot clients.
 
-This package contains copies of interactive tools (click_cell, insert_cell)
+This package contains copies of interactive tools (insert_cell, etc.)
 that run from a contained `tools` folder to aid debugging.
 """
 
@@ -9,7 +9,6 @@ from importlib import import_module
 
 # Expose available tool modules for programmatic use by the tool registry.
 __all__ = [
-	"click_cell",
 	"insert_cell",
 	"edit_cell_by_index",
 	"delete_by_index",
@@ -34,7 +33,6 @@ for mod_name in list(__all__):
 # so callers can use testing.host.tools.click_cell(...) directly as a function.
 try:
 	from ..tool_adapters import (
-		click_cell as click_cell_func,
 		insert_cell as insert_cell_func,
 		edit_cell_by_index as edit_cell_by_index_func,
 		delete_by_index as delete_by_index_func,
@@ -42,7 +40,6 @@ try:
 		notebook_graph_query as notebook_graph_query_func,
 	)
 	# Add function names into module globals for convenience
-	globals()["click_cell"] = click_cell_func
 	globals()["insert_cell"] = insert_cell_func
 	globals()["edit_cell_by_index"] = edit_cell_by_index_func
 	globals()["delete_by_index"] = delete_by_index_func

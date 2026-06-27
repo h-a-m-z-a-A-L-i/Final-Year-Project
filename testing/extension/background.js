@@ -231,6 +231,17 @@ function scrapeNotebook() {
     return chunks.join("\n").trim();
   };
 
+  const readCellUuid = (cellEl) => {
+    if (!cellEl) return "";
+    const direct = cellEl.getAttribute && cellEl.getAttribute("data-uuid");
+    if (direct) return String(direct);
+    const nested = cellEl.querySelector && cellEl.querySelector("[data-uuid]");
+    if (nested && nested.getAttribute("data-uuid")) return String(nested.getAttribute("data-uuid"));
+    const closest = cellEl.closest && cellEl.closest("[data-uuid]");
+    if (closest && closest.getAttribute("data-uuid")) return String(closest.getAttribute("data-uuid"));
+    return "";
+  };
+
   for (const [i, cell] of cellElements.entries()) {
     const cellData = {};
     
@@ -240,6 +251,11 @@ function scrapeNotebook() {
       cellData.index = domToAppIndex(parseInt(cellIndex, 10));
     } else {
       cellData.index = i + 1;
+    }
+
+    const cellUuid = readCellUuid(cell);
+    if (cellUuid) {
+      cellData.uuid = cellUuid;
     }
     
     // Cell type detection: check for jp-MarkdownCell first, then code indicators

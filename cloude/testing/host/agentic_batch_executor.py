@@ -296,7 +296,6 @@ def user_requests_run(user_prompt: str, parsed_calls: list[ParsedToolCall] | Non
     return False
 
 BROWSER_WRITE_TOOLS = frozenset({
-    "click_cell",
     "select_cell_by_index",
     "insert_cell",
     "edit_cell_by_index",
@@ -546,7 +545,6 @@ TOOL_EXEC_ORDER: dict[str, int] = {
     "notebook_get_cells": 0,
     "notebook_cell_neighbors": 0,
     "select_cell_by_index": 10,
-    "click_cell": 10,
     "delete_by_index": 15,
     "insert_cell": 20,
     "creating_markdown_by_index": 25,

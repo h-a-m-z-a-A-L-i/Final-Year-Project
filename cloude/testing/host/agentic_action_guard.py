@@ -38,7 +38,6 @@ _WRITE_TOOLS = frozenset({
     "run_cell",
     "run_all_cells",
     "select_cell_by_index",
-    "click_cell",
 })
 
 _INSTRUCTION_MARKERS = (

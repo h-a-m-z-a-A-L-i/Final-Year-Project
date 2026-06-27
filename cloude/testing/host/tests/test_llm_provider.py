@@ -28,7 +28,7 @@ def test_cerebras_react_interval():
 
 
 def test_resolve_gemini_aliases():
-    assert resolve_gemini_model_id("gemini-3.1-flash-lite") == "gemini-2.5-flash-lite"
+    assert resolve_gemini_model_id("gemini-3.1-flash-lite") == "gemini-3.1-flash-lite"
     assert resolve_gemini_model_id("gemini-2.5-flash-lite") == "gemini-2.5-flash-lite"
 
 

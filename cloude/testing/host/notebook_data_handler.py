@@ -615,6 +615,14 @@ def handle_notebook_data(ctx: dict, msg: dict):
             bot_state["kernelScenario"] = kernel_scenario
             bot_state["kernelStatus"] = kernel_status
             bot_state["kernelState"] = kernel_state if isinstance(kernel_state, dict) else {}
+        try:
+            from .browser_target_context import record_browser_target
+        except Exception:
+            from browser_target_context import record_browser_target
+        try:
+            record_browser_target(tab_id, tab_url)
+        except Exception:
+            pass
     kernel_active = _kernel_is_active(kernel_status)
     kernel_scenario_norm = _normalize_kernel_scenario(kernel_scenario)
 

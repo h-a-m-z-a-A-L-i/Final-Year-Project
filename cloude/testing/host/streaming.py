@@ -400,14 +400,34 @@ def _chunk_text_from_event(event) -> str:
         return ""
 
 
-def _completion_extra_kwargs(*, session_id: str | None = None, mode: str | None = None) -> dict:
-    """Provider-specific API options (Cerebras reasoning + prompt cache)."""
+def _completion_extra_kwargs(
+    *,
+    session_id: str | None = None,
+    mode: str | None = None,
+    messages: list | None = None,
+) -> dict:
+    """Provider-specific API options (Gemini context cache / Cerebras reasoning + prompt cache)."""
     try:
         from .config import LLM_PROVIDER
     except Exception:
         from config import LLM_PROVIDER
 
-    if str(LLM_PROVIDER or "").lower() != "cerebras":
+    provider = str(LLM_PROVIDER or "").lower()
+    if provider == "google":
+        try:
+            from .llm_provider import gemini_completion_extras
+            from .config import LLM_MODEL
+        except Exception:
+            from llm_provider import gemini_completion_extras
+            from config import LLM_MODEL
+        return gemini_completion_extras(
+            messages=messages,
+            model=LLM_MODEL,
+            session_id=session_id,
+            mode=mode,
+        )
+
+    if provider != "cerebras":
         return {}
 
     try:
@@ -415,6 +435,32 @@ def _completion_extra_kwargs(*, session_id: str | None = None, mode: str | None 
     except Exception:
         from llm_provider import cerebras_completion_extras
     return cerebras_completion_extras(session_id=session_id, mode=mode)
+
+
+def _augment_llm_create_kwargs(kwargs: dict, messages: list | None = None) -> dict:
+    """Merge provider-specific create() kwargs (e.g. Gemini max_tokens + cached_content)."""
+    try:
+        from .config import LLM_PROVIDER
+    except Exception:
+        from config import LLM_PROVIDER
+    if str(LLM_PROVIDER or "").lower() != "google":
+        return kwargs
+    out = dict(kwargs)
+    try:
+        from .llm_provider import gemini_completion_extras
+        from .config import LLM_MODEL
+    except Exception:
+        from llm_provider import gemini_completion_extras
+        from config import LLM_MODEL
+    extra = gemini_completion_extras(messages=messages, model=LLM_MODEL)
+    if extra.get("max_tokens") is not None:
+        out["max_tokens"] = extra["max_tokens"]
+    eb = dict(out.get("extra_body") or {})
+    if isinstance(extra.get("extra_body"), dict):
+        eb.update(extra["extra_body"])
+    if eb:
+        out["extra_body"] = eb
+    return out
 
 
 def _llm_api_label() -> str:
@@ -694,7 +740,16 @@ def _interruptible_sleep(seconds: float, cancel_check) -> bool:
 def _format_llm_error(exc: Exception) -> str:
     err = str(exc)
     low = err.lower()
+    try:
+        from .config import LLM_PROVIDER, RPM_LIMIT
+    except Exception:
+        from config import LLM_PROVIDER, RPM_LIMIT
     if "429" in err or "resource_exhausted" in low or "quota" in low or "queue_exceeded" in low or "too_many_requests" in low:
+        if str(LLM_PROVIDER or "").lower() == "google":
+            return (
+                f"LLM API rate limit hit (Gemini free tier: {RPM_LIMIT} requests/minute). "
+                "Wait ~4s between calls; the host enforces this automatically in the ReAct loop."
+            )
         return (
             "LLM API rate limit hit (Cerebras free tier: 5 requests/minute). "
             "Wait ~12s between calls; the host enforces this automatically in the ReAct loop."
@@ -745,7 +800,7 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
             return bool(current and current.get("stopped"))
 
     if _LLM_CLIENT is None:
-        err = "Missing Cerebras API key (set CEREBRAS_API_KEY and/or CEREBRAS_SECONDARY_API_KEY in .env)."
+        err = "Missing Gemini API key (set GEMINI_API_KEY or GOOGLE_API_KEY in .env)."
         log(err)
         send_msg({"type": "CHAT_RESPONSE", "error": err, "tabId": tab_id, "url": snapshot_url, "notebookKey": history_key, "sessionId": session_id})
         send_msg({"type": "CHAT_STREAM_END", "error": err, "stopped": False, "tabId": tab_id, "url": snapshot_url, "notebookKey": history_key, "sessionId": session_id})
@@ -937,7 +992,11 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
             raise Exception(budget_err)
 
         cache_session_id = str(context_meta.get("cache_session_id") or session_id)
-        completion_extra = _completion_extra_kwargs(session_id=cache_session_id, mode=resolved_mode)
+        completion_extra = _completion_extra_kwargs(
+            session_id=cache_session_id,
+            mode=resolved_mode,
+            messages=messages,
+        )
 
         full_text = ""
         stream = None
@@ -978,12 +1037,17 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                     log(f"Calling {_llm_api_label()} API (streaming)...")
                     t_api = time.monotonic()
                     stream = _LLM_CLIENT.chat.completions.create(
-                        messages=messages,
-                        model=LLM_MODEL,
-                        stream=True,
-                        temperature=TEMPERATURE,
-                        top_p=TOP_P,
-                        **completion_extra,
+                        **_augment_llm_create_kwargs(
+                            {
+                                "messages": messages,
+                                "model": LLM_MODEL,
+                                "stream": True,
+                                "temperature": TEMPERATURE,
+                                "top_p": TOP_P,
+                                **completion_extra,
+                            },
+                            messages=messages,
+                        )
                     )
                     log(f"{_llm_api_label()} stream opened in {time.monotonic() - t_api:.2f}s")
                     break
@@ -1100,11 +1164,16 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
             if fallback_id:
                 try:
                     response = _LLM_CLIENT.chat.completions.create(
-                        messages=messages,
-                        model=LLM_MODEL,
-                        temperature=TEMPERATURE,
-                        top_p=TOP_P,
-                        **completion_extra,
+                        **_augment_llm_create_kwargs(
+                            {
+                                "messages": messages,
+                                "model": LLM_MODEL,
+                                "temperature": TEMPERATURE,
+                                "top_p": TOP_P,
+                                **completion_extra,
+                            },
+                            messages=messages,
+                        )
                     )
                     full_text = _final_text_from_response(response)
                     est_fb = len(str(prompt or "").split()) + len(str(full_text or "").split())
@@ -1185,7 +1254,14 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
             from .tool_registry import registry as _registry_factory, build_cerebras_tools
             from .agentic_mode import browser_tool_allowed
 
-            tools = build_cerebras_tools(include_browser=agentic_active) if not use_text_tools else []
+            tools = (
+                build_cerebras_tools(
+                    include_browser=agentic_active,
+                    strict=str(LLM_PROVIDER or "").lower() == "cerebras",
+                )
+                if not use_text_tools
+                else []
+            )
             if agentic_active and AGENTIC_FIRE_AND_FORGET:
                 max_tool_rounds = AGENTIC_MAX_TOOL_ROUNDS
             else:
@@ -1386,13 +1462,16 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                                 agent_state=agent_state,
                             )
                             react_llm_calls += 1
-                            create_kwargs: dict = {
-                                "messages": messages_for_api(tool_messages),
-                                "model": LLM_MODEL,
-                                "temperature": TEMPERATURE,
-                                "top_p": TOP_P,
-                                **completion_extra,
-                            }
+                            create_kwargs: dict = _augment_llm_create_kwargs(
+                                {
+                                    "messages": messages_for_api(tool_messages),
+                                    "model": LLM_MODEL,
+                                    "temperature": TEMPERATURE,
+                                    "top_p": TOP_P,
+                                    **completion_extra,
+                                },
+                                messages=tool_messages,
+                            )
                             if not use_text_tools:
                                 create_kwargs["tools"] = tools
                                 create_kwargs["parallel_tool_calls"] = parallel_tools
@@ -2983,11 +3062,16 @@ def _run_streaming_chat(url, prompt, tab_id, session_id, history, context, mode,
                                     original_user_prompt=prompt,
                                 )
                                 final_resp = _LLM_CLIENT.chat.completions.create(
-                                    messages=messages_for_api(tool_messages),
-                                    model=LLM_MODEL,
-                                    temperature=TEMPERATURE,
-                                    top_p=TOP_P,
-                                    **completion_extra,
+                                    **_augment_llm_create_kwargs(
+                                        {
+                                            "messages": messages_for_api(tool_messages),
+                                            "model": LLM_MODEL,
+                                            "temperature": TEMPERATURE,
+                                            "top_p": TOP_P,
+                                            **completion_extra,
+                                        },
+                                        messages=tool_messages,
+                                    )
                                 )
                                 followup = _final_text_from_response(final_resp).strip()
                                 final_est = len(json.dumps(tool_messages, ensure_ascii=False)) // 4

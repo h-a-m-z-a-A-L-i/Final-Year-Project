@@ -36,24 +36,22 @@ def test_normalize_delete_cell_args_propagates_fire_and_forget():
 
 
 def test_run_delete_cell_success():
-    with patch("testing.host.bot_command_client.execute_bot_command") as mock_exec:
-        mock_exec.return_value = {
-            "ok": True,
-            "result": {
-                "ok": True,
-                "dispatched": True,
-                "domIndex": 4,
-                "phase": "dispatched",
-            },
-        }
+    with patch("testing.host.delete_cell_tool.execute_bot_command") as mock_exec, patch(
+        "testing.host.delete_cell_tool.time.sleep"
+    ):
+        mock_exec.side_effect = [
+            {"ok": True, "result": {"ok": True, "dispatched": True}},
+            {"ok": True, "result": {"ok": True, "dispatched": True}},
+        ]
         out = run_delete_cell({"url": "https://example.com/edit", "cell_index": 5})
     assert out["ok"] is True
     assert out["tool"] == "delete_by_index"
     assert out["cell_index"] == 5
     assert out["phase"] == "dispatched"
-    mock_exec.assert_called_once()
-    sent = mock_exec.call_args[0][0]
-    assert sent["action"] == "delete_by_index"
+    assert out["dispatched"] is True
+    assert mock_exec.call_count == 2
+    assert mock_exec.call_args_list[0][0][0]["action"] == "select_cell_by_index"
+    assert mock_exec.call_args_list[1][0][0]["action"] == "click_cell_delete_button"
 
 
 def test_delete_by_index_dispatches_without_waiting():

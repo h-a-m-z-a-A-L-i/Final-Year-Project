@@ -22,6 +22,13 @@ def _cache_key(model: str, system_text: str) -> str:
     return f"{model}:{digest}"
 
 
+def _api_model_id(model: str) -> str:
+    m = str(model or "").strip()
+    if not m:
+        return "models/gemini-3.1-flash-lite"
+    return m if m.startswith("models/") else f"models/{m}"
+
+
 def get_cached_content_name(model: str, system_text: str, *, ttl_seconds: int = 600) -> str | None:
     """Return a cachedContents resource name for reuse, or None if caching unavailable."""
     if not str(system_text or "").strip():
@@ -47,7 +54,7 @@ def get_cached_content_name(model: str, system_text: str, *, ttl_seconds: int = 
     try:
         client = genai.Client(api_key=api_key)
         cache = client.caches.create(
-            model=model,
+            model=_api_model_id(model),
             config=types.CreateCachedContentConfig(
                 display_name=f"notebook-copilot-{key[:12]}",
                 system_instruction=system_text,

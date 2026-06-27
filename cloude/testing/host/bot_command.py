@@ -207,6 +207,16 @@ def map_command_to_native(cmd: dict) -> dict | None:
         mapped["selector"] = cmd.get("selector") or cmd.get("sel")
         return mapped
 
+    if action in {"click_cell_delete_button", "click-cell-delete-button"}:
+        mapped["type"] = "CLICK_CELL_DELETE_BUTTON"
+        mapped["tunnel"] = "click_cell_delete_button"
+        return mapped
+
+    if action in {"click_cell_markdown_button", "click-cell-markdown-button"}:
+        mapped["type"] = "CLICK_CELL_MARKDOWN_BUTTON"
+        mapped["tunnel"] = "click_cell_markdown_button"
+        return mapped
+
     if action in {"click", "click_cell", "click_cell_by_index", "clickcell"}:
         mapped["type"] = "CLICK_CELL_BY_INDEX"
         mapped["tunnel"] = "click_cell"
@@ -264,6 +274,55 @@ def map_command_to_native(cmd: dict) -> dict | None:
                 mapped["maxWaitMs"] = int(wait_ms)
             except Exception:
                 mapped["maxWaitMs"] = 240
+        return mapped
+
+    if action in {"get_cell_execution_title", "get_cell_execution_info"}:
+        mapped["type"] = "GET_CELL_EXECUTION_TITLE"
+        mapped["tunnel"] = "get_cell_execution_title"
+        dom_index = _dom_index_from_cmd(cmd, default_basis=cmd.get("index_basis") or "app")
+        if dom_index is None:
+            return None
+        mapped["cellIndex"] = dom_index
+        mapped["dom_index"] = dom_index
+        wait_ms = cmd.get("maxWaitMs") if cmd.get("maxWaitMs") is not None else cmd.get("max_wait_ms")
+        if wait_ms is None:
+            mapped["maxWaitMs"] = 2000
+        else:
+            try:
+                mapped["maxWaitMs"] = int(wait_ms)
+            except Exception:
+                mapped["maxWaitMs"] = 2000
+        return mapped
+
+    if action in {"get_active_cell_index", "get_active_cell"}:
+        mapped["type"] = "GET_ACTIVE_CELL_INDEX"
+        mapped["tunnel"] = "get_active_cell_index"
+        wait_ms = cmd.get("maxWaitMs") if cmd.get("maxWaitMs") is not None else cmd.get("max_wait_ms")
+        if wait_ms is None:
+            mapped["maxWaitMs"] = 400
+        else:
+            try:
+                mapped["maxWaitMs"] = int(wait_ms)
+            except Exception:
+                mapped["maxWaitMs"] = 400
+        return mapped
+
+    if action in {"get_cell_content", "read_cell_content"}:
+        mapped["type"] = "GET_CELL_CONTENT"
+        mapped["tunnel"] = "get_cell_content"
+        dom_index = _dom_index_from_cmd(cmd, default_basis=cmd.get("index_basis") or "app")
+        if dom_index is None:
+            return None
+        mapped["cellIndex"] = dom_index
+        mapped["dom_index"] = dom_index
+        wait_ms = cmd.get("maxWaitMs") if cmd.get("maxWaitMs") is not None else cmd.get("max_wait_ms")
+        if wait_ms is None:
+            mapped["maxWaitMs"] = 600
+        else:
+            try:
+                mapped["maxWaitMs"] = int(wait_ms)
+            except Exception:
+                mapped["maxWaitMs"] = 600
         return mapped
 
     if action in {"creating_markdown_by_index", "creating_markdown"}:

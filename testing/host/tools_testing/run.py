@@ -35,9 +35,32 @@ _KEY_ALIASES = {
     "tabUrl": "url",
 }
 
-_INDEX_TOOLS = frozenset({"insert_cell", "creating_markdown_by_index"})
+_INDEX_TOOLS = frozenset({
+    "insert_cell",
+    "creating_markdown_by_index",
+    "verify_insert_cell",
+    "verify_creating_markdown",
+})
 
 _BROWSER_TOOLS = frozenset({
+    "select_cell_by_index",
+    "insert_cell",
+    "edit_cell_by_index",
+    "run_cell",
+    "delete_by_index",
+    "creating_markdown_by_index",
+})
+
+_VERIFY_TOOLS = frozenset({
+    "verify_select_cell",
+    "verify_edit_cell",
+    "verify_run_cell",
+    "verify_insert_cell",
+    "verify_delete_cell",
+    "verify_creating_markdown",
+})
+
+_DISPATCH_VERIFY_TOOLS = frozenset({
     "select_cell_by_index",
     "insert_cell",
     "edit_cell_by_index",
@@ -63,7 +86,7 @@ def _normalize(tool: str, raw: dict) -> dict:
     if tool in _INDEX_TOOLS:
         if "cell_index" in out and "index" not in out:
             out["index"] = out.pop("cell_index")
-    if tool in _BROWSER_TOOLS:
+    if tool in _BROWSER_TOOLS or tool in _VERIFY_TOOLS:
         tid = out.get("tab_id")
         if isinstance(tid, int) and tid < _MIN_VALID_TAB_ID:
             out.pop("tab_id", None)
@@ -132,11 +155,15 @@ def _missing(tool: str, args: dict, spec: dict) -> list[str]:
             miss.append("query")
         elif key == "cells" and not args.get("cell_indices"):
             miss.append("cells")
+        elif key == "tool":
+            tname = str(args.get("tool") or "").strip()
+            if not tname or tname not in _DISPATCH_VERIFY_TOOLS:
+                miss.append("tool")
     return miss
 
 
 def _preflight_browser(tool: str, args: dict) -> dict | None:
-    if tool not in _BROWSER_TOOLS:
+    if tool not in _BROWSER_TOOLS and tool not in _VERIFY_TOOLS:
         return None
     try:
         from testing.host.config import BOT_COMMANDS_PATH
@@ -211,6 +238,13 @@ def _dispatch(tool: str, args: dict) -> dict:
             "run_run_cell",
             "run_delete_cell",
             "run_creating_markdown",
+            "run_verify_select_cell",
+            "run_verify_edit_cell",
+            "run_verify_run_cell",
+            "run_verify_insert_cell",
+            "run_verify_delete_cell",
+            "run_verify_creating_markdown",
+            "run_watch_notebook_json",
             "run_tool",
         ):
             fn = getattr(mod, attr, None)
@@ -249,7 +283,7 @@ def _cmd_tabs() -> int:
 
 
 def _auto_fill_browser(tool: str, args: dict) -> tuple[dict, dict | None]:
-    if tool not in _BROWSER_TOOLS:
+    if tool not in _BROWSER_TOOLS and tool not in _VERIFY_TOOLS:
         return args, None
     try:
         from testing.host.browser_target_context import auto_fill_browser_args, stale_tab_hint
@@ -261,7 +295,7 @@ def _auto_fill_browser(tool: str, args: dict) -> tuple[dict, dict | None]:
 
 
 def _enrich_browser_error(tool: str, args: dict, result: dict) -> dict:
-    if tool not in _BROWSER_TOOLS or result.get("ok"):
+    if (tool not in _BROWSER_TOOLS and tool not in _VERIFY_TOOLS) or result.get("ok"):
         return result
     err = str(result.get("error") or "")
     lowered = err.lower()
@@ -297,6 +331,7 @@ def _cmd_check() -> int:
                 "host_queue_exists": BOT_COMMANDS_PATH.is_file(),
                 "data_root": str(DATA_ROOT),
                 "browser_tools": sorted(_BROWSER_TOOLS),
+                "verify_tools": sorted(_VERIFY_TOOLS),
                 "hint": "Local tools: url= only. Browser: host.py + extension. Run tabs for live tab ids.",
             },
             indent=2,
@@ -319,6 +354,14 @@ def _cmd_list() -> int:
     print("\nBrowser (host.py + extension; url= required; tab= optional real Chrome id):")
     for name, row in sorted((spec.get("tools") or {}).items()):
         if name not in _BROWSER_TOOLS:
+            continue
+        need = ",".join(row.get("need") or [])
+        opt = row.get("opt") or []
+        opt_s = f" [{','.join(opt)}]" if opt else ""
+        print(f"  {name}: {need}{opt_s}")
+    print("\nVerify (poll snapshot/DOM after dispatch; url= required):")
+    for name, row in sorted((spec.get("tools") or {}).items()):
+        if name not in _VERIFY_TOOLS and name != "dispatch_verify":
             continue
         need = ",".join(row.get("need") or [])
         opt = row.get("opt") or []
@@ -395,7 +438,7 @@ def main(argv: list[str] | None = None) -> int:
     miss = _missing(tool, norm, spec)
     if miss:
         payload: dict = {"ok": False, "error": f"missing: {', '.join(miss)}", "tool": tool}
-        if tool in _BROWSER_TOOLS:
+        if tool in _BROWSER_TOOLS or tool in _VERIFY_TOOLS or tool == "dispatch_verify":
             payload["hint"] = "Run: python testing/host/tools_testing/run.py tabs"
         print(json.dumps(payload))
         return 1
@@ -408,6 +451,30 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(pre, ensure_ascii=False))
         return 1
 
+    if tool == "dispatch_verify":
+        try:
+            from testing.host.verification_suite import run_dispatch_and_verify
+        except Exception:
+            from verification_suite import run_dispatch_and_verify  # type: ignore
+        target = str(norm.get("tool") or "").strip()
+        if target not in _DISPATCH_VERIFY_TOOLS:
+            print(
+                json.dumps(
+                    {
+                        "ok": False,
+                        "error": f"dispatch_verify tool must be one of: {sorted(_DISPATCH_VERIFY_TOOLS)}",
+                    }
+                )
+            )
+            return 1
+        try:
+            result = run_dispatch_and_verify(target, norm)
+        except Exception as e:
+            print(json.dumps({"ok": False, "error": str(e), "tool": tool}))
+            return 1
+        print(json.dumps(result, ensure_ascii=False))
+        return 0 if result.get("ok") else 1
+
     try:
         result = _dispatch(tool, norm)
     except Exception as e:
@@ -415,7 +482,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     result = _enrich_browser_error(tool, norm, result)
-    print(json.dumps(result, ensure_ascii=False))
+    if tool != "watch_notebook_json":
+        print(json.dumps(result, ensure_ascii=False))
     return 0 if result.get("ok") else 1
 
 

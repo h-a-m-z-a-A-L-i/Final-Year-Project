@@ -485,3 +485,47 @@ def read_host_log_exec_lines(offset: int) -> tuple[list[tuple[int, int]], int]:
     return found, size
 
 
+def read_host_log_prompt_signals(
+    offset: int,
+    *,
+    cell_index: int | None = None,
+) -> tuple[list[tuple[int, str]], int]:
+    """Parse PROMPT_SIGNAL lines from host.log; return ([(app_cell_index, text)], new_offset)."""
+    import re
+
+    pattern = re.compile(
+        r"PROMPT_SIGNAL cell=(\d+)\s+(?:order=\S+\s+)?text=(.+?)(?:\s+ts=\S+)?$"
+    )
+    if not _HOST_LOG_PATH.is_file():
+        return [], offset
+    try:
+        size = _HOST_LOG_PATH.stat().st_size
+    except OSError:
+        return [], offset
+    if size < offset:
+        offset = 0
+    if size <= offset:
+        return [], offset
+    try:
+        with _HOST_LOG_PATH.open(encoding="utf-8", errors="replace") as fh:
+            fh.seek(offset)
+            chunk = fh.read()
+    except OSError:
+        return [], offset
+    found: list[tuple[int, str]] = []
+    for line in chunk.splitlines():
+        m = pattern.search(line)
+        if not m:
+            continue
+        try:
+            ci = int(m.group(1))
+        except (TypeError, ValueError):
+            continue
+        if cell_index is not None and ci != int(cell_index):
+            continue
+        text = str(m.group(2) or "").strip()
+        if text:
+            found.append((ci, text))
+    return found, size
+
+

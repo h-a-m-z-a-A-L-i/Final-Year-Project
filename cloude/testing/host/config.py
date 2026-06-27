@@ -23,21 +23,44 @@ def _load_dotenv(env_path: Path):
 # Load .env from workspace root
 _load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
-CEREBRAS_API_KEY = os.environ.get("CEREBRAS_API_KEY", "").strip()
-CEREBRAS_SECONDARY_API_KEY = os.environ.get("CEREBRAS_SECONDARY_API_KEY", "").strip()
-CEREBRAS_KEY_PROFILE = os.environ.get("CEREBRAS_KEY_PROFILE", "auto").strip().lower()
-CEREBRAS_MODEL = os.environ.get("CEREBRAS_MODEL", "zai-glm-4.7")
-LLM_MODEL = CEREBRAS_MODEL
+# Cerebras (disabled — using Google AI Studio Gemini)
+# CEREBRAS_API_KEY = os.environ.get("CEREBRAS_API_KEY", "").strip()
+# CEREBRAS_SECONDARY_API_KEY = os.environ.get("CEREBRAS_SECONDARY_API_KEY", "").strip()
+# CEREBRAS_KEY_PROFILE = os.environ.get("CEREBRAS_KEY_PROFILE", "auto").strip().lower()
+# CEREBRAS_MODEL = os.environ.get("CEREBRAS_MODEL", "zai-glm-4.7")
+CEREBRAS_API_KEY = ""
+CEREBRAS_SECONDARY_API_KEY = ""
+CEREBRAS_KEY_PROFILE = "auto"
+CEREBRAS_MODEL = "zai-glm-4.7"
 
-# LLM provider (Cerebras only)
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", os.environ.get("GOOGLE_API_KEY", "")).strip()
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
+
+# LLM provider (Google Gemini)
 try:
-    from .llm_provider import cerebras_rate_limits, normalize_provider
+    from .llm_provider import (
+        cerebras_rate_limits,
+        gemini_free_tier_limits,
+        gemini_max_output_tokens,
+        normalize_provider,
+        resolve_gemini_model_id,
+    )
 except Exception:
-    from llm_provider import cerebras_rate_limits, normalize_provider
+    from llm_provider import (
+        cerebras_rate_limits,
+        gemini_free_tier_limits,
+        gemini_max_output_tokens,
+        normalize_provider,
+        resolve_gemini_model_id,
+    )
 
-LLM_PROVIDER = normalize_provider(os.environ.get("LLM_PROVIDER", "cerebras").strip().lower())
-if LLM_PROVIDER != "cerebras":
-    LLM_PROVIDER = "cerebras"
+LLM_PROVIDER = normalize_provider(os.environ.get("LLM_PROVIDER", "google").strip().lower())
+# Cerebras disabled — Gemini only
+if LLM_PROVIDER != "google":
+    LLM_PROVIDER = "google"
+
+LLM_MODEL = resolve_gemini_model_id(GEMINI_MODEL)
+GEMINI_MAX_OUTPUT_TOKENS = gemini_max_output_tokens()
 
 # ReAct / agentic: server master switch (dashboard toggle + Agentic mode still required).
 _LLM_AGENTIC_RAW = os.environ.get(
@@ -112,7 +135,7 @@ else:
     MAX_FULL_NOTEBOOK_CONTEXT_CHARS = 0
 # Local TPM preflight (on by default when an LLM API key is set).
 TPM_PREFLIGHT_RATIO = float(os.environ.get("TPM_PREFLIGHT_RATIO", "0.85"))
-_ENABLE_PREFLIGHT_DEFAULT = "1" if (CEREBRAS_API_KEY or CEREBRAS_SECONDARY_API_KEY) else "0"
+_ENABLE_PREFLIGHT_DEFAULT = "1" if (GEMINI_API_KEY or CEREBRAS_API_KEY or CEREBRAS_SECONDARY_API_KEY) else "0"
 ENABLE_TPM_PREFLIGHT = os.environ.get(
     "ENABLE_TPM_PREFLIGHT",
     _ENABLE_PREFLIGHT_DEFAULT,
@@ -129,11 +152,12 @@ else:
     MAX_CELL_OUTPUT_CHARS = 2500
 ALLOWED_MODES = {"ask", "code", "agentic"}
 
-# Cerebras prefix caching: freeze session-start notebook in system; send live deltas on current turn only.
+# Prefix / context caching: freeze session-start notebook in system; send live deltas on current turn only.
 _cerebras_prompt_cache = os.environ.get("CEREBRAS_PROMPT_CACHE", "1").strip().lower() in ("1", "true", "yes")
-_static_cache_default = "1" if (_cerebras_prompt_cache and LLM_PROVIDER == "cerebras") else "0"
+_gemini_context_cache = os.environ.get("GEMINI_CONTEXT_CACHE", "1").strip().lower() in ("1", "true", "yes")
+_static_cache_default = "1" if _gemini_context_cache else "0"
 CEREBRAS_STATIC_NOTEBOOK_CACHE = os.environ.get(
-    "CEREBRAS_STATIC_NOTEBOOK_CACHE",
+    "GEMINI_STATIC_NOTEBOOK_CACHE",
     _static_cache_default,
 ).strip().lower() in ("1", "true", "yes")
 # When 1, SQLite history + baselines are scoped per mode (ask/code/agentic) under the same UI session id.
@@ -152,10 +176,12 @@ TOOL_CALL_TERMINAL_TRACE = os.environ.get("TOOL_CALL_TERMINAL_TRACE", "1").strip
 TOOL_QUEUE_DELAY_SEC = float(os.environ.get("TOOL_QUEUE_DELAY_SEC", "1.0"))
 
 # Agentic fire-and-forget: dispatch tools immediately per round (no snapshot wait / goal verify).
-# Hard cap: at most AGENTIC_MAX_TOOL_ROUNDS LLM API calls per user message (default 2 = query + implement).
-_AGENTIC_FIRE_AND_FORGET_RAW = os.environ.get("AGENTIC_FIRE_AND_FORGET", "1").strip().lower()
+# Gemini default: full ReAct loop (LLM_REACT_MAX_ROUNDS). Cerebras default was 2-call fire-and-forget.
+_ff_default = "0"
+_AGENTIC_FIRE_AND_FORGET_RAW = os.environ.get("AGENTIC_FIRE_AND_FORGET", _ff_default).strip().lower()
 AGENTIC_FIRE_AND_FORGET = _AGENTIC_FIRE_AND_FORGET_RAW not in ("0", "false", "no", "off")
-AGENTIC_MAX_TOOL_ROUNDS = max(1, int(os.environ.get("AGENTIC_MAX_TOOL_ROUNDS", "2")))
+_ff_max_rounds_default = str(LLM_REACT_MAX_ROUNDS)
+AGENTIC_MAX_TOOL_ROUNDS = max(1, int(os.environ.get("AGENTIC_MAX_TOOL_ROUNDS", _ff_max_rounds_default)))
 # Max read-only tool rounds (list_cells, snapshot_status, get_cell) per user message before writes are required.
 AGENTIC_MAX_QUERY_ROUNDS = max(0, int(os.environ.get("AGENTIC_MAX_QUERY_ROUNDS", "1")))
 # Mandatory two-phase: round 0 query-only, round 1 implement-only (default on).
@@ -179,14 +205,19 @@ if CEREBRAS_STATIC_NOTEBOOK_CACHE:
     if "MAX_INPUT_TOKENS" not in os.environ and "LLM_MAX_INPUT_TOKENS" not in os.environ:
         MAX_INPUT_TOKENS = min(int(MAX_INPUT_TOKENS), 5500)
 
-# Free-tier limits (Cerebras)
-_clim = cerebras_rate_limits(CEREBRAS_MODEL)
-TPM_LIMIT = _clim["tpm"]
-TPH_LIMIT = int(os.environ.get("CEREBRAS_TPH_LIMIT", "1000000"))
-TPD_LIMIT = int(os.environ.get("CEREBRAS_TPD_LIMIT", "1000000"))
-RPM_LIMIT = _clim["rpm"]  # hardcoded 5 req/min — see llm_provider.CEREBRAS_RPM_HARD_LIMIT
+# Free-tier limits (Google AI Studio Gemini 1.5 Flash)
+_clim = gemini_free_tier_limits(LLM_MODEL)
+TPM_LIMIT = _clim["tpm"]  # 250k TPM
+TPH_LIMIT = _clim["tph"]
+TPD_LIMIT = int(os.environ.get("GEMINI_TPD_LIMIT", str(_clim["tpm"] * 60 * 24)))
+RPM_LIMIT = int(os.environ.get("GEMINI_RPM_LIMIT", str(_clim["rpm"])))
 RPH_LIMIT = _clim["rph"]
 RPD_LIMIT = _clim["rpd"]
+
+# Cerebras limits (disabled)
+# _clim = cerebras_rate_limits(CEREBRAS_MODEL)
+# TPM_LIMIT = _clim["tpm"]
+# ...
 
 # Threading locks
 _HASHES_LOCK = threading.Lock()
@@ -197,25 +228,36 @@ _ACTIVE_STREAMS_LOCK = threading.Lock()
 _RATE_LOCK = threading.Lock()
 _BOT_STATE_LOCK = threading.Lock()
 
-try:
-    from .cerebras_client import build_cerebras_router
-except Exception:
-    from cerebras_client import build_cerebras_router
+# Cerebras client (disabled)
+# try:
+#     from .cerebras_client import build_cerebras_router
+# except Exception:
+#     from cerebras_client import build_cerebras_router
+# _LLM_CLIENT = build_cerebras_router()
 
-_LLM_CLIENT = build_cerebras_router()
-if _LLM_CLIENT is not None:
-    try:
-        _active = _LLM_CLIENT.active_profile
-        _keys = _LLM_CLIENT.available_profiles()
-        # defer log until log() exists
-        _cerebras_startup_msg = (
-            f"Cerebras LLM client ready (profiles={_keys}, active={_active}, "
-            f"pref={CEREBRAS_KEY_PROFILE})"
-        )
-    except Exception:
-        _cerebras_startup_msg = "Cerebras LLM client ready"
+try:
+    from .google_ai import create_google_client
+except Exception:
+    from google_ai import create_google_client
+
+_TOOL_TEST_MODE = os.environ.get("NOTEBOOK_COPILOT_TOOL_TEST", "").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+)
+
+if _TOOL_TEST_MODE:
+    _LLM_CLIENT = None
+    _llm_startup_msg = ""
 else:
-    _cerebras_startup_msg = ""
+    _LLM_CLIENT = create_google_client()
+    if _LLM_CLIENT is not None:
+        _llm_startup_msg = (
+            f"Gemini LLM client ready (model={LLM_MODEL}, rpm={RPM_LIMIT}, "
+            f"tpm={TPM_LIMIT}, max_output={GEMINI_MAX_OUTPUT_TOKENS})"
+        )
+    else:
+        _llm_startup_msg = ""
 
 # AIML client (disabled until project finalized)
 # try:
@@ -255,6 +297,6 @@ def log(msg: str):
             pass
 
 
-if _cerebras_startup_msg:
-    log(_cerebras_startup_msg)
+if _llm_startup_msg:
+    log(_llm_startup_msg)
 

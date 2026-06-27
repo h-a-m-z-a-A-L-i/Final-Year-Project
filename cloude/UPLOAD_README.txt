@@ -37,16 +37,18 @@ Key references:
   testing/host/prompts/          (ask.txt, code.txt, agentic, etc.)
   PROJECT_DESCRIPTION.txt        (full system overview)
 
-SUGGESTED READING ORDER FOR CLAUDE
-----------------------------------
+SUGGESTED READING ORDER (for end-to-end understanding)
+------------------------------------------------------
+  0. workflows/README.txt  → 5 end-to-end workflow docs (start here)
   1. PROJECT_DESCRIPTION.txt
   2. testing/host/docs/ASK_MODE.txt, CODE_MODE.txt (user-facing contracts)
   3. testing/host/host.py (message routing) + testing/host/streaming.py (chat)
   4. testing/host/prompt_engineering.py + testing/host/prompts/*
   5. testing/extension/ui_injector.js + background.js (UI → host bridge)
   6. testing/host/docs/AGENTIC_ENGINE_REFERENCE.txt (if working on agentic)
-  7. testing/host/tool_registry.py + *\_tool.py modules (tools)
-  8. testing/host/tests/ (pytest suite) and scripts/ (FYP benchmarks)
+  7. testing/host/tool_registry.py + *\_tool.py + verification_suite.py
+  8. testing/host/tools_testing/ (per-tool harnesses + verify_* tools)
+  9. testing/host/tests/ (pytest suite) and scripts/ (FYP benchmarks)
 
 MESSAGE TYPES CHEAT SHEET (extension ↔ host)
 --------------------------------------------

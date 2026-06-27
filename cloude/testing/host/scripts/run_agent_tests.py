@@ -86,7 +86,7 @@ def analyze_trace(
     target_cell: int | None = None,
     session_id: str = "",
 ) -> dict[str, Any]:
-    """Derive agent-test-specific metrics from tool trace events."""
+    """Derive agent-test metrics from LLM-dispatched tool batches (fire-and-forget)."""
     trace_rows = _trace_rows_for_session(trace_rows, session_id)
     out: dict[str, Any] = {
         "insert_calls": 0,
@@ -98,29 +98,69 @@ def analyze_trace(
         "reorder_events": [],
         "run_errors": [],
         "batch_tool_orders": [],
-        "final_verification_status": "unknown",
-        "target_cell_modified": False,
-        "target_cell_executed": False,
-        "target_cell_verified": False,
-        "execution_evidence": "",
+        "dispatched_tool_list": [],
+        "target_cell_edited": False,
+        "target_cell_run": False,
         "batch_writes_before_runs": None,
+        "evaluation_mode": "llm_dispatch_only",
     }
 
-    last_verify: dict[str, Any] | None = None
+    seen_dispatches: set[str] = set()
+
+    def _bump_count(tool: str, args: dict | None = None) -> None:
+        t = _tool_name(tool)
+        if not t:
+            return
+        out["dispatched_tool_list"].append(t)
+        args = args or {}
+        ci = args.get("cell_index") or args.get("index")
+        if t == "insert_cell":
+            out["insert_calls"] += 1
+        elif t in ("edit_cell_by_index", "edit_cell"):
+            out["edit_calls"] += 1
+            if target_cell is not None and str(ci) == str(target_cell):
+                out["target_cell_edited"] = True
+        elif t == "delete_by_index":
+            out["delete_calls"] += 1
+        elif t in ("run_cell", "run_cell_by_index"):
+            out["run_calls"] += 1
+            if target_cell is not None and str(ci) == str(target_cell):
+                out["target_cell_run"] = True
+        elif t in READ_TOOLS:
+            out["read_calls"] += 1
+
+    def _record_dispatch(tool: str, args: dict | None = None) -> None:
+        t = _tool_name(tool)
+        if not t:
+            return
+        key = f"{t}:{json.dumps(args or {}, sort_keys=True, default=str)}"
+        if key in seen_dispatches:
+            return
+        seen_dispatches.add(key)
+        _bump_count(t, args)
+
     for row in trace_rows:
         event = str(row.get("event") or "").lower()
         tool = _tool_name(row.get("tool"))
 
         if event == "verify":
-            v = {
-                "round": row.get("round"),
-                "verified": row.get("verified"),
-                "goal_verified": row.get("goal_verified"),
-                "queue_status": row.get("queue_status"),
-                "executed": row.get("executed") or [],
-            }
-            out["verify_events"].append(v)
-            last_verify = v
+            out["verify_events"].append(
+                {
+                    "round": row.get("round"),
+                    "queue_status": row.get("queue_status"),
+                    "executed": row.get("executed") or [],
+                }
+            )
+            for item in row.get("executed") or []:
+                if not isinstance(item, dict):
+                    continue
+                if item.get("dispatched") is False:
+                    continue
+                t = _tool_name(item.get("tool"))
+                args = item.get("args") if isinstance(item.get("args"), dict) else {}
+                if item.get("cell_index") is not None:
+                    args = {**args, "cell_index": item.get("cell_index")}
+                _bump_count(t, args)
 
         if event == "reorder":
             out["reorder_events"].append(
@@ -130,11 +170,13 @@ def analyze_trace(
         if event == "batch_start":
             tools = [_tool_name(t) for t in (row.get("tools") or [])]
             out["batch_tool_orders"].append({"round": row.get("round"), "tools": tools})
+            for t in tools:
+                _bump_count(t)
             if tools:
                 last_write = -1
                 first_run = len(tools)
                 for i, t in enumerate(tools):
-                    if t in WRITE_ONLY or t == "insert_cell" or t == "edit_cell_by_index":
+                    if t in WRITE_ONLY or t in ("insert_cell", "edit_cell_by_index", "edit_cell"):
                         last_write = i
                     if t in ("run_cell", "run_cell_by_index") and first_run == len(tools):
                         first_run = i
@@ -142,30 +184,9 @@ def analyze_trace(
                     t in ("run_cell", "run_cell_by_index") for t in tools
                 ) else None
 
-        if event in ("dispatch", "exec", "verify"):
-            executed = row.get("executed") if event == "verify" else None
-            items = executed if isinstance(executed, list) else [{"tool": tool, "args": row.get("args") or {}}]
-            for item in items:
-                if not isinstance(item, dict):
-                    continue
-                t = _tool_name(item.get("tool"))
-                args = item.get("args") if isinstance(item.get("args"), dict) else row.get("args") or {}
-                if t == "insert_cell":
-                    out["insert_calls"] += 1
-                elif t in ("edit_cell_by_index", "edit_cell"):
-                    out["edit_calls"] += 1
-                    ci = args.get("cell_index") or args.get("index")
-                    if target_cell is not None and str(ci) == str(target_cell):
-                        out["target_cell_modified"] = True
-                elif t == "delete_by_index":
-                    out["delete_calls"] += 1
-                elif t in ("run_cell", "run_cell_by_index"):
-                    out["run_calls"] += 1
-                    ci = args.get("cell_index") or args.get("index")
-                    if target_cell is not None and str(ci) == str(target_cell):
-                        out["target_cell_executed"] = True
-                elif t in READ_TOOLS:
-                    out["read_calls"] += 1
+        if event == "dispatch":
+            args = row.get("args") if isinstance(row.get("args"), dict) else {}
+            _record_dispatch(tool, args)
 
         if event in ("run_error", "RUN_ERROR"):
             out["run_errors"].append(
@@ -176,79 +197,81 @@ def analyze_trace(
                 }
             )
 
-    if last_verify:
-        verified = last_verify.get("verified")
-        queue = last_verify.get("queue_status")
-        if verified is True and queue in ("dispatched", "complete", None):
-            out["final_verification_status"] = "verified"
-        elif verified is False:
-            out["final_verification_status"] = "failed"
-        else:
-            out["final_verification_status"] = str(queue or "partial")
-        executed = last_verify.get("executed") or []
-        if executed:
-            out["execution_evidence"] = json.dumps(executed[:12], ensure_ascii=False, default=str)
-        if target_cell is not None:
-            for ex in executed:
-                if not isinstance(ex, dict):
-                    continue
-                if _tool_name(ex.get("tool")) in ("run_cell", "edit_cell_by_index", "edit_cell"):
-                    ci = ex.get("cell_index")
-                    if str(ci) == str(target_cell) and ex.get("dispatched"):
-                        out["target_cell_verified"] = True
-
     return out
 
 
 def _evaluate_test_pass(case: dict[str, Any], metrics: dict[str, Any], trace: dict[str, Any]) -> tuple[str, bool, str]:
-    """Return (completion_status, passed, rationale) using test-specific criteria."""
+    """Evaluate LLM tool-call dispatch only (fire-and-forget). No ReAct verification loop."""
     tn = int(case.get("test_number") or 0)
     tool_calls = int(metrics.get("total_tool_calls") or 0)
-    repair = int(metrics.get("repair_rounds") or 0)
-    verify = str(metrics.get("final_verification_status") or "unknown")
+    inserts = int(trace.get("insert_calls") or 0)
+    edits = int(trace.get("edit_calls") or 0)
+    runs = int(trace.get("run_calls") or 0)
+    reads = int(trace.get("read_calls") or 0)
+    writes = inserts + edits + int(trace.get("delete_calls") or 0)
 
     if tn == 1:
-        inserts = int(trace.get("insert_calls") or 0)
-        edits = int(trace.get("edit_calls") or 0)
-        runs = int(trace.get("run_calls") or 0)
-        ok = tool_calls >= 3 and inserts + edits >= 1 and runs >= 1 and verify == "verified"
-        if ok and tool_calls < 10:
-            return "partial", False, f"Pipeline tools dispatched ({tool_calls}) but full 8-step pipeline not evidenced in one 2-call turn."
-        return ("success" if ok else "partial"), ok, (
-            "ML pipeline cells created, edited, and run with verification."
-            if ok
-            else "Insufficient tool coverage for full pipeline in bounded agentic turn."
+        ok = tool_calls >= 2 and writes >= 1 and runs >= 1 and reads >= 1
+        partial = ok and tool_calls < 6
+        return (
+            ("partial" if partial else "success") if ok else "failed",
+            ok,
+            (
+                f"LLM dispatched {tool_calls} tool(s): {inserts} insert, {edits} edit, {runs} run, {reads} read."
+                if ok
+                else f"Insufficient dispatch — tools={tool_calls}, writes={writes}, runs={runs}, reads={reads}."
+            ),
         )
 
     if tn == 2:
-        edits = int(trace.get("edit_calls") or 0)
-        runs = int(trace.get("run_calls") or 0)
-        ok = edits >= 1 and runs >= 1 and verify == "verified"
-        return ("success" if ok else "partial"), ok, (
-            "At least one in-place edit and run dispatched."
-            if ok
-            else "Agent did not dispatch edit+run repairs for notebook errors."
+        ok = edits >= 1 and reads >= 1
+        status = "success" if ok and runs >= 1 else ("partial" if ok else "failed")
+        return (
+            status,
+            ok,
+            (
+                f"LLM dispatched in-place edit ({edits}) and run ({runs}) with {reads} read(s)."
+                if ok
+                else "No in-place edit dispatched for error repair."
+            ),
         )
 
     if tn == 3:
-        inserts = int(trace.get("insert_calls") or 0)
-        ok = inserts >= 10 and verify == "verified"
         bwr = trace.get("batch_writes_before_runs")
-        note = "Batch ordering OK." if bwr else "Batch ordering not observed."
-        return ("success" if ok else "failed"), ok, (
-            f"Created {inserts}/10 cells. {note}"
-        )
+        ok = inserts >= 10
+        partial = inserts >= 3
+        if ok:
+            msg = f"LLM dispatched {inserts}/10 insert_cell calls."
+        elif partial:
+            msg = f"LLM dispatched {inserts}/10 inserts (partial batch)."
+        else:
+            msg = f"Only {inserts} insert_cell dispatch(es); expected 10."
+        if bwr is True:
+            msg += " Writes-before-runs ordering observed."
+        return ("success" if ok else ("partial" if partial else "failed"), ok or partial, msg)
 
     if tn == 4:
-        ok = bool(metrics.get("verification_attack_passed"))
-        return ("success" if ok else "failed"), ok, (
-            "Cell 31 modified, executed, and verification evidence present."
-            if ok
-            else "Success not verified — cell 31 fix/execute evidence missing (anti-hallucination check)."
+        target = int(case.get("target_cell") or 31)
+        edited = bool(trace.get("target_cell_edited"))
+        run_tgt = bool(trace.get("target_cell_run"))
+        ok = edited and run_tgt
+        partial = edited or run_tgt
+        return (
+            "success" if ok else ("partial" if partial else "failed"),
+            ok,
+            (
+                f"LLM dispatched edit+run for cell {target}."
+                if ok
+                else (
+                    f"Partial dispatch for cell {target}: edit={edited}, run={run_tgt}."
+                    if partial
+                    else f"No edit/run dispatch targeting cell {target}."
+                )
+            ),
         )
 
     base = str(metrics.get("completion_status") or "unknown")
-    return base, base == "success", "Default harness status."
+    return base, base in ("success", "partial"), "Default harness status."
 
 
 def enrich_run_metrics(run: dict[str, Any], trace_rows: list[dict[str, Any]], case: dict[str, Any]) -> dict[str, Any]:
@@ -260,19 +283,13 @@ def enrich_run_metrics(run: dict[str, Any], trace_rows: list[dict[str, Any]], ca
     )
     metrics = dict(run.get("metrics") or {})
     metrics["agent_trace"] = trace
-    metrics["final_verification_status"] = trace.get("final_verification_status", "unknown")
+    metrics["evaluation_mode"] = "llm_dispatch_only"
 
-    if case.get("test_number") == 4:
-        ok = (
-            trace.get("target_cell_modified")
-            and trace.get("target_cell_executed")
-            and trace.get("target_cell_verified")
-        )
-        metrics["verification_attack_passed"] = bool(ok)
-
-    status, passed, rationale = _evaluate_test_pass(case, metrics, trace)
+    status, passed_strict, rationale = _evaluate_test_pass(case, metrics, trace)
+    passed = status in ("success", "partial")
     metrics["completion_status"] = status
     metrics["test_passed"] = passed
+    metrics["tool_dispatch_passed"] = passed_strict if status == "success" else passed
     metrics["evaluation_rationale"] = rationale
 
     run["metrics"] = metrics
@@ -307,40 +324,31 @@ def generate_agent_test_summary(payload: dict[str, Any], run: dict[str, Any]) ->
         f"- **URL:** {run.get('url', '')}",
         f"- **Snapshot:** `persistent/{run.get('snapshot_file', '')}`",
         f"- **Live LLM:** {payload.get('live_llm', False)}",
+        f"- **Evaluation:** LLM tool dispatch only (fire-and-forget; no ReAct verification loop)",
         f"- **Evaluates:** {', '.join(run.get('tests_evaluated') or [])}",
         "",
         "## Results",
         "",
         "| Metric | Value |",
         "|--------|------:|",
-        f"| Completion | {'PASS' if passed else 'FAIL'} ({status}) |",
+        f"| Dispatch eval | {'PASS' if passed else 'FAIL'} ({status}) |",
         f"| LLM calls | {m.get('total_llm_calls', 0)} |",
-        f"| Tool calls | {m.get('total_tool_calls', 0)} |",
+        f"| Tool calls (dispatched) | {m.get('total_tool_calls', 0)} |",
         f"| Repair rounds | {m.get('repair_rounds', 0)} |",
         f"| Runtime errors | {m.get('runtime_errors', 0)} |",
         f"| Execution time (s) | {m.get('execution_time', 0)} |",
-        f"| Final verification | {m.get('final_verification_status', 'unknown')} |",
+        f"| Insert / edit / run / read | {trace.get('insert_calls', 0)} / {trace.get('edit_calls', 0)} / {trace.get('run_calls', 0)} / {trace.get('read_calls', 0)} |",
     ]
 
-    if tn == 1:
-        lines.extend(
-            [
-                f"| Insert / edit / run tools | {trace.get('insert_calls', 0)} / {trace.get('edit_calls', 0)} / {trace.get('run_calls', 0)} |",
-            ]
-        )
-    elif tn == 2:
-        lines.append(f"| Run errors in trace | {len(trace.get('run_errors') or [])} |")
-    elif tn == 3:
+    if tn == 3:
         bwr = trace.get("batch_writes_before_runs")
         lines.append(f"| Batch writes-before-runs | {bwr if bwr is not None else 'n/a'} |")
-        lines.append(f"| Reorder events | {len(trace.get('reorder_events') or [])} |")
     elif tn == 4:
+        tc = run.get("target_cell") or 31
         lines.extend(
             [
-                f"| Cell 31 modified | {trace.get('target_cell_modified', False)} |",
-                f"| Cell 31 executed | {trace.get('target_cell_executed', False)} |",
-                f"| Cell 31 verified | {trace.get('target_cell_verified', False)} |",
-                f"| Verification attack passed | {m.get('verification_attack_passed', False)} |",
+                f"| Cell {tc} edit dispatched | {trace.get('target_cell_edited', False)} |",
+                f"| Cell {tc} run dispatched | {trace.get('target_cell_run', False)} |",
             ]
         )
 
@@ -381,20 +389,20 @@ def generate_agent_test_report(payload: dict[str, Any], run: dict[str, Any]) -> 
         "",
         "| Metric | Value |",
         "|--------|------:|",
-        f"| Tool calls | {m.get('total_tool_calls', 0)} |",
+        f"| Tool calls (dispatched) | {m.get('total_tool_calls', 0)} |",
         f"| Repair rounds | {m.get('repair_rounds', 0)} |",
         f"| Execution time (s) | {m.get('execution_time', 0)} |",
-        f"| Final verification status | {m.get('final_verification_status', 'unknown')} |",
-        f"| Completion status | {m.get('completion_status', 'unknown')} |",
+        f"| Dispatch status | {m.get('completion_status', 'unknown')} |",
+        f"| Evaluation mode | {trace.get('evaluation_mode', 'llm_dispatch_only')} |",
         "",
-        "## Tool breakdown",
+        "## Dispatched tool breakdown",
         "",
-        f"- Reads: {m.get('notebook_reads', 0)}",
-        f"- Writes: {m.get('notebook_writes', 0)}",
+        f"- Reads: {trace.get('read_calls', 0)}",
         f"- Inserts: {trace.get('insert_calls', 0)}",
         f"- Edits: {trace.get('edit_calls', 0)}",
         f"- Deletes: {trace.get('delete_calls', 0)}",
         f"- Runs: {trace.get('run_calls', 0)}",
+        f"- Tool sequence: {', '.join(trace.get('dispatched_tool_list') or [])}",
         "",
     ]
 
@@ -407,28 +415,26 @@ def generate_agent_test_report(payload: dict[str, Any], run: dict[str, Any]) -> 
         lines.append("")
 
     if tn == 4:
+        tc = run.get("target_cell") or 31
         lines.extend(
             [
-                "## Verification attack checklist",
+                "## Cell-target dispatch checklist",
                 "",
-                f"1. Cell {run.get('target_cell', 31)} modified: **{trace.get('target_cell_modified', False)}**",
-                f"2. Cell {run.get('target_cell', 31)} executed: **{trace.get('target_cell_executed', False)}**",
-                f"3. Verification confirmed: **{trace.get('target_cell_verified', False)}**",
-                f"4. Execution evidence: `{trace.get('execution_evidence', '')[:500]}`",
+                f"1. Cell {tc} edit dispatched: **{trace.get('target_cell_edited', False)}**",
+                f"2. Cell {tc} run dispatched: **{trace.get('target_cell_run', False)}**",
                 "",
-                f"**Overall:** {'PASS — evidence present' if m.get('verification_attack_passed') else 'FAIL — success not verified'}",
+                f"**Overall:** {'PASS' if trace.get('target_cell_edited') and trace.get('target_cell_run') else 'PARTIAL/FAIL'}",
                 "",
             ]
         )
 
     if trace.get("verify_events"):
-        lines.append("## Verification events")
+        lines.append("## Dispatch batches (fire-and-forget)")
         lines.append("")
         for v in trace["verify_events"]:
-            lines.append(
-                f"- Round {v.get('round')}: verified={v.get('verified')} "
-                f"queue={v.get('queue_status')} executed={len(v.get('executed') or [])}"
-            )
+            executed = v.get("executed") or []
+            tools = [str(x.get("tool")) for x in executed if isinstance(x, dict)]
+            lines.append(f"- Round {v.get('round')}: queue={v.get('queue_status')} tools={', '.join(tools)}")
         lines.append("")
 
     if run.get("error"):

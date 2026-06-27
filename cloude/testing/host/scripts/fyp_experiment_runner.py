@@ -77,7 +77,6 @@ READ_TOOLS = frozenset({
 })
 
 WRITE_TOOLS = frozenset({
-    "click_cell",
     "select_cell_by_index",
     "insert_cell",
     "edit_cell_by_index",
@@ -696,6 +695,13 @@ def run_harness_case(
                 error_text = str(msg.get("error"))
                 break
 
+    response_text = ""
+    for msg in captured_messages:
+        if isinstance(msg, dict) and msg.get("type") == "CHAT_STREAM_END":
+            response_text = str(msg.get("response") or response_text)
+    if not response_text.strip():
+        response_text = "".join(emitted)
+
     result = {
         "id": prompt_id,
         "name": case.get("name") or prompt_id,
@@ -708,6 +714,7 @@ def run_harness_case(
         "notebook_key": notebook_key,
         "live_llm": live_llm,
         "error": error_text or None,
+        "response_text": response_text[:16000] if response_text else "",
         "metrics": asdict(metrics),
     }
 

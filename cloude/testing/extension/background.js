@@ -137,12 +137,13 @@ function scrapeNotebook() {
     const promptEl = cell.querySelector(
       ".jp-InputPrompt.jp-InputArea-prompt, .jp-InputPrompt, .input_prompt"
     );
+    const promptCol = cell.querySelector(".nc-prompt-index-col");
     const executionLabel = promptEl
       ? String(promptEl.innerText || promptEl.textContent || "").trim()
       : "";
     const promptText = executionLabel;
-    const titleHost = promptEl || null;
-    const executionTitle = titleHost
+    const titleHost = promptCol || promptEl || null;
+    const executionTitleRaw = titleHost
       ? String(
           titleHost.getAttribute("title") ||
           titleHost.title ||
@@ -150,6 +151,11 @@ function scrapeNotebook() {
           ""
         ).trim()
       : "";
+    const executionTitle = executionTitleRaw.replace(/\s+at\s+[\d:]+\s*(am|pm)?\s*$/i, "").trim();
+    const durationTitleMatch = executionTitleRaw.match(/^(Cell executed in [\d.]+s)/i);
+    const executionTitleNormalized = durationTitleMatch
+      ? durationTitleMatch[1]
+      : executionTitle;
 
     let executionOrder = null;
     if (executionLabel) {
@@ -158,15 +164,15 @@ function scrapeNotebook() {
         executionOrder = Number(labelMatch[0]);
       }
     }
-    if (executionOrder == null && executionTitle) {
-      const titleMatch = executionTitle.match(/executed\s+in\s+[^@]*@\s*.*?(\d+)/i);
+    if (executionOrder == null && executionTitleRaw) {
+      const titleMatch = executionTitleRaw.match(/executed\s+in\s+[^@]*@\s*.*?(\d+)/i);
       if (titleMatch) {
         executionOrder = Number(titleMatch[1]);
       }
     }
 
     let executionStatus = "idle";
-    const combinedSignal = (buttonText + "\n" + promptText + "\n" + executionTitle).trim();
+    const combinedSignal = (buttonText + "\n" + promptText + "\n" + executionTitleRaw).trim();
     if (/Cell execution queued/i.test(combinedSignal)) {
       executionStatus = "queued";
     } else if (/Cell started execution/i.test(combinedSignal)) {
@@ -181,7 +187,7 @@ function scrapeNotebook() {
 
     return {
       execution_order: Number.isFinite(executionOrder) ? executionOrder : null,
-      execution_title: executionTitle,
+      execution_title: executionTitleNormalized,
       execution_status: executionStatus,
       execution_signal: buttonText,
     };
@@ -956,6 +962,8 @@ function getPort() {
         const frameAttempts = [];
 
         const isDeleteOp = payload?.type === 'DELETE_CELL';
+        const isClickCellDeleteOp = payload?.type === 'CLICK_CELL_DELETE_BUTTON';
+        const isClickCellMarkdownOp = payload?.type === 'CLICK_CELL_MARKDOWN_BUTTON';
         const isSelectOp = payload?.type === 'SELECT_CELL_BY_INDEX';
         const isInsertOp = payload?.type === 'INSERT_CELL';
         const isClickEditOp =
@@ -967,10 +975,19 @@ function getPort() {
         const isRunOp =
           payload?.type === 'RUN_CELL_BY_INDEX'
           || (payload?.type === 'CLICK_CELL_BY_INDEX' && payload?.runCell === true);
+        const isExecutionTitleOp = payload?.type === 'GET_CELL_EXECUTION_TITLE';
+        const isActiveCellOp = payload?.type === 'GET_ACTIVE_CELL_INDEX';
+        const isCellContentOp = payload?.type === 'GET_CELL_CONTENT';
         const frameTimeoutMs = isInsertOp
-          ? Math.max(10000, Number(payload?.maxWaitMs) || 1500) + 2500 + backgroundBoostMs
-          : isDeleteOp || isSelectOp || isClickEditOp
+          ? Math.max(12000, Number(payload?.maxWaitMs) || 2000) + 3500 + backgroundBoostMs
+          : isDeleteOp || isClickCellDeleteOp || isClickCellMarkdownOp || isSelectOp || isClickEditOp
           ? Math.max(800, Number(payload?.maxWaitMs) || 400) + 400 + backgroundBoostMs
+          : isExecutionTitleOp
+            ? Math.max(2000, Number(payload?.maxWaitMs) || 2000) + 800 + backgroundBoostMs
+          : isActiveCellOp
+            ? Math.max(400, Number(payload?.maxWaitMs) || 400) + 300 + backgroundBoostMs
+          : isCellContentOp
+            ? Math.max(600, Number(payload?.maxWaitMs) || 600) + 400 + backgroundBoostMs
           : isFastCellOp
             ? Math.max(160, Number(payload?.maxWaitMs) || 160) + 80 + backgroundBoostMs
             : isEditOp
@@ -978,7 +995,7 @@ function getPort() {
               : isRunOp
                 ? Math.max(600, Number(payload?.maxWaitMs) || 240) + 500 + backgroundBoostMs
                 : 12000;
-        const useFrameRace = (isInsertOp || isFastCellOp || isEditOp || isRunOp || isDeleteOp || isSelectOp || isClickEditOp) && orderedFrames.length > 0;
+        const useFrameRace = (isInsertOp || isFastCellOp || isEditOp || isRunOp || isDeleteOp || isClickCellDeleteOp || isClickCellMarkdownOp || isSelectOp || isClickEditOp || isExecutionTitleOp || isActiveCellOp || isCellContentOp) && orderedFrames.length > 0;
 
         const raceFramesForSuccess = (frames) =>
           new Promise((resolve) => {
@@ -1235,6 +1252,82 @@ function getPort() {
       return;
     }
 
+    if (msg?.type === "GET_CELL_CONTENT" && typeof msg?.tabId === "number") {
+      withResolvedHostTab(msg, (tabId, effectiveUrl) => {
+        const payload = {
+          type: "GET_CELL_CONTENT",
+          cellIndex: msg.cellIndex,
+          requestId: msg.requestId,
+          url: effectiveUrl,
+          maxWaitMs: msg.maxWaitMs || 600,
+        };
+
+        dispatchToFrames(tabId, payload, (result) => {
+          getPort().postMessage({
+            type: botResultMessageType(payload.type, Boolean(result?.ok)),
+            tabId,
+            url: effectiveUrl,
+            requestId: msg.requestId,
+            cellIndex: msg.cellIndex,
+            tunnel: payload.type,
+            diagnostics: result?.diagnostics || null,
+            result,
+          });
+        });
+      });
+      return;
+    }
+
+    if (msg?.type === "GET_ACTIVE_CELL_INDEX" && typeof msg?.tabId === "number") {
+      withResolvedHostTab(msg, (tabId, effectiveUrl) => {
+        const payload = {
+          type: "GET_ACTIVE_CELL_INDEX",
+          requestId: msg.requestId,
+          url: effectiveUrl,
+          maxWaitMs: msg.maxWaitMs || 400,
+        };
+
+        dispatchToFrames(tabId, payload, (result) => {
+          getPort().postMessage({
+            type: botResultMessageType(payload.type, Boolean(result?.ok)),
+            tabId,
+            url: effectiveUrl,
+            requestId: msg.requestId,
+            tunnel: payload.type,
+            diagnostics: result?.diagnostics || null,
+            result,
+          });
+        });
+      });
+      return;
+    }
+
+    if (msg?.type === "GET_CELL_EXECUTION_TITLE" && typeof msg?.tabId === "number") {
+      withResolvedHostTab(msg, (tabId, effectiveUrl) => {
+        const payload = {
+          type: "GET_CELL_EXECUTION_TITLE",
+          cellIndex: msg.cellIndex,
+          requestId: msg.requestId,
+          url: effectiveUrl,
+          maxWaitMs: msg.maxWaitMs || 2000,
+        };
+
+        dispatchToFrames(tabId, payload, (result) => {
+          getPort().postMessage({
+            type: botResultMessageType(payload.type, Boolean(result?.ok)),
+            tabId,
+            url: effectiveUrl,
+            requestId: msg.requestId,
+            cellIndex: msg.cellIndex,
+            tunnel: payload.type,
+            diagnostics: result?.diagnostics || null,
+            result,
+          });
+        });
+      });
+      return;
+    }
+
     if (msg?.type === "INSERT_CELL" && typeof msg?.tabId === "number") {
       withResolvedHostTab(msg, (tabId, effectiveUrl) => {
         const payload = {
@@ -1313,6 +1406,54 @@ function getPort() {
             url: effectiveUrl,
             requestId: msg.requestId,
             selector: msg.selector,
+            tunnel: payload.type,
+            diagnostics: result?.diagnostics || null,
+            result,
+          });
+        });
+      });
+      return;
+    }
+
+    if (msg?.type === "CLICK_CELL_DELETE_BUTTON" && typeof msg?.tabId === "number") {
+      withResolvedHostTab(msg, (tabId, effectiveUrl) => {
+        const payload = {
+          type: "CLICK_CELL_DELETE_BUTTON",
+          cellIndex: msg.cellIndex,
+          requestId: msg.requestId,
+          url: effectiveUrl,
+        };
+
+        dispatchToFrames(tabId, payload, (result) => {
+          getPort().postMessage({
+            type: botResultMessageType(payload.type, Boolean(result?.ok)),
+            tabId,
+            url: effectiveUrl,
+            requestId: msg.requestId,
+            cellIndex: msg.cellIndex,
+            tunnel: payload.type,
+            diagnostics: result?.diagnostics || null,
+            result,
+          });
+        });
+      });
+      return;
+    }
+
+    if (msg?.type === "CLICK_CELL_MARKDOWN_BUTTON" && typeof msg?.tabId === "number") {
+      withResolvedHostTab(msg, (tabId, effectiveUrl) => {
+        const payload = {
+          type: "CLICK_CELL_MARKDOWN_BUTTON",
+          requestId: msg.requestId,
+          url: effectiveUrl,
+        };
+
+        dispatchToFrames(tabId, payload, (result) => {
+          getPort().postMessage({
+            type: botResultMessageType(payload.type, Boolean(result?.ok)),
+            tabId,
+            url: effectiveUrl,
+            requestId: msg.requestId,
             tunnel: payload.type,
             diagnostics: result?.diagnostics || null,
             result,
@@ -1451,8 +1592,13 @@ function getPort() {
       "CLICK_CELL_BY_INDEX",
       "SELECT_CELL_BY_INDEX",
       "RUN_CELL_BY_INDEX",
+      "GET_CELL_EXECUTION_TITLE",
+      "GET_ACTIVE_CELL_INDEX",
+      "GET_CELL_CONTENT",
       "INSERT_CELL",
       "CLICK_SELECTOR",
+      "CLICK_CELL_DELETE_BUTTON",
+      "CLICK_CELL_MARKDOWN_BUTTON",
       "DELETE_CELL",
       "CREATING_MARKDOWN_BY_INDEX",
       "SEND_KEY",

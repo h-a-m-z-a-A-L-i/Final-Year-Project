@@ -3,7 +3,7 @@
 Set in .env:
   LLM_PROVIDER=google
   GEMINI_API_KEY=...
-  GEMINI_MODEL=gemini-2.0-flash
+  GEMINI_MODEL=gemini-3.1-flash-lite
 
 Install: pip install google-genai  (or openai if using compatibility endpoint)
 """

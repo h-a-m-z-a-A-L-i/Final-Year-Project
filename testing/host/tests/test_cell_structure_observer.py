@@ -212,6 +212,82 @@ def test_verify_delete_ok():
 
 
 
+def test_verify_delete_ok_with_empty_neighbors():
+
+    before = [
+
+        {"type": "code", "index": 1, "input": "start"},
+
+        {"type": "code", "index": 15, "input": ""},
+
+        {"type": "code", "index": 16, "input": ""},
+
+        {"type": "code", "index": 17, "input": ""},
+
+        {"type": "code", "index": 20, "input": "end"},
+
+    ]
+
+    after = [
+
+        {"type": "code", "index": 1, "input": "start"},
+
+        {"type": "code", "index": 15, "input": ""},
+
+        {"type": "code", "index": 16, "input": ""},
+
+        {"type": "code", "index": 19, "input": "end"},
+
+    ]
+
+    result = verify_cell_count_decreased(before, after, expected_delta=1, expected_indices=[16])
+
+    assert result["ok"] is True
+
+
+
+
+
+def test_verify_insert_ok_with_empty_neighbors():
+
+    before = [
+
+        {"type": "code", "index": 1, "input": "start"},
+
+        {"type": "code", "index": 15, "input": ""},
+
+        {"type": "code", "index": 16, "input": ""},
+
+        {"type": "code", "index": 17, "input": ""},
+
+        {"type": "code", "index": 20, "input": "end"},
+
+    ]
+
+    after = [
+
+        {"type": "code", "index": 1, "input": "start"},
+
+        {"type": "code", "index": 15, "input": ""},
+
+        {"type": "code", "index": 16, "input": ""},
+
+        {"type": "code", "index": 17, "input": ""},
+
+        {"type": "code", "index": 18, "input": ""},
+
+        {"type": "code", "index": 21, "input": "end"},
+
+    ]
+
+    result = verify_cell_count_increased(before, after, expected_delta=1, expected_indices=[17])
+
+    assert result["ok"] is True
+
+
+
+
+
 def test_tracker_ignores_content_only_churn():
 
     tracker = CellStructureTracker(settle_reads=1)

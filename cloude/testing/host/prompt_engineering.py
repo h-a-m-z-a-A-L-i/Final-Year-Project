@@ -234,7 +234,11 @@ def load_tool_prompt_sections(
             host_batch = _read_text(TOOL_PROMPTS_DIR / "react_agent_host_batch.txt")
             if host_batch:
                 react_tool = (react_tool + "\n\n" + host_batch).strip()
-            if str(LLM_PROVIDER or "").lower() == "cerebras" and mode == "agentic":
+            if str(LLM_PROVIDER or "").lower() == "google" and mode == "agentic":
+                gemini_addon = _read_text(TOOL_PROMPTS_DIR / "react_agent_gemini.txt")
+                if gemini_addon:
+                    react_tool = (react_tool + "\n\n" + gemini_addon).strip()
+            elif str(LLM_PROVIDER or "").lower() == "cerebras" and mode == "agentic":
                 try:
                     from .config import CEREBRAS_MODEL
                     from .llm_provider import cerebras_supports_native_parallel_tools

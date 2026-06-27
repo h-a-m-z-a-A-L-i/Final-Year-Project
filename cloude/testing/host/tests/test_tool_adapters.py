@@ -27,12 +27,12 @@ def test_adapters_call_registry(monkeypatch):
     # reload adapters to ensure they use the patched registry if needed
     importlib.reload(ta)
 
-    res = ta.click_cell({"cell_index": 10})
-    assert res["ok"] and res["name"] == "click_cell"
+    res = ta.select_cell_by_index({"cell_index": 10, "url": "https://example.com/edit"})
+    assert res["ok"] and res["name"] == "select_cell_by_index"
 
     res2 = ta.insert_cell({"index": 2, "direction": "below"})
     assert res2["ok"] and res2["name"] == "insert_cell"
 
     # verify dummy recorded calls
-    assert ("click_cell", {"cell_index": 10}) in dummy.calls
+    assert ("select_cell_by_index", {"cell_index": 10, "url": "https://example.com/edit"}) in dummy.calls
     assert ("insert_cell", {"index": 2, "direction": "below"}) in dummy.calls

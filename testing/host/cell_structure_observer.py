@@ -513,6 +513,53 @@ def diff_structures(
 
 
 
+def _insert_shift_consistent(
+    before: dict[int, CellObservation],
+    after: dict[int, CellObservation],
+    idx: int,
+) -> bool:
+    """True when a single insert at idx explains the index shift (handles identical empty neighbors)."""
+    if len(after) - len(before) != 1:
+        return False
+    if int(idx) not in after:
+        return False
+    for k, cell in before.items():
+        if k < idx:
+            other = after.get(k)
+            if other is None or _cell_content_key(cell) != _cell_content_key(other):
+                return False
+        else:
+            other = after.get(k + 1)
+            if other is None or _cell_content_key(cell) != _cell_content_key(other):
+                return False
+    return True
+
+
+
+
+def _delete_shift_consistent(
+    before: dict[int, CellObservation],
+    after: dict[int, CellObservation],
+    idx: int,
+) -> bool:
+    """True when a single delete at idx explains the index shift (handles identical empty neighbors)."""
+    if len(before) - len(after) != 1:
+        return False
+    if int(idx) not in before:
+        return False
+    for k, cell in before.items():
+        if k < idx:
+            other = after.get(k)
+            if other is None or _cell_content_key(cell) != _cell_content_key(other):
+                return False
+        else:
+            other = after.get(k - 1)
+            if other is None or _cell_content_key(cell) != _cell_content_key(other):
+                return False
+    return True
+
+
+
 
 def verify_cell_count_increased(
 
@@ -544,9 +591,11 @@ def verify_cell_count_increased(
 
         for idx in expected_indices:
 
-            if int(idx) not in diff.new_indices:
+            idx = int(idx)
 
-                missing.append(int(idx))
+            if idx not in diff.new_indices and not _insert_shift_consistent(before, after, idx):
+
+                missing.append(idx)
 
         if missing:
 
@@ -608,9 +657,11 @@ def verify_cell_count_decreased(
 
         for idx in expected_indices:
 
-            if int(idx) not in diff.removed_indices:
+            idx = int(idx)
 
-                missing.append(int(idx))
+            if idx not in diff.removed_indices and not _delete_shift_consistent(before, after, idx):
+
+                missing.append(idx)
 
         if missing:
 

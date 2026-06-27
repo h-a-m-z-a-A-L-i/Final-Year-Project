@@ -53,7 +53,7 @@ def cerebras_static_cache_enabled() -> bool:
         from .config import CEREBRAS_STATIC_NOTEBOOK_CACHE, LLM_PROVIDER
     except Exception:
         from config import CEREBRAS_STATIC_NOTEBOOK_CACHE, LLM_PROVIDER
-    if str(LLM_PROVIDER or "").lower() != "cerebras":
+    if str(LLM_PROVIDER or "").lower() not in ("cerebras", "google"):
         return False
     return bool(CEREBRAS_STATIC_NOTEBOOK_CACHE)
 

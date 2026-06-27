@@ -660,6 +660,9 @@ def handle_notebook_data(ctx: dict, msg: dict):
                 "input": str(cell.get("source") or cell.get("input") or ""),
                 "output": str(cell.get("output") or ""),
             }
+            cell_uuid = cell.get("uuid") or cell.get("data_uuid")
+            if cell_uuid:
+                code_cell["uuid"] = str(cell_uuid)
             if _execution_metadata_enabled():
                 execution_order = cell.get("execution_order")
                 try:
@@ -686,6 +689,9 @@ def handle_notebook_data(ctx: dict, msg: dict):
                 "input": str(cell.get("input") or ""),
                 "state": str(cell.get("state") or "open"),
             }
+            cell_uuid = cell.get("uuid") or cell.get("data_uuid")
+            if cell_uuid:
+                markdown_cell["uuid"] = str(cell_uuid)
             all_cells.append((cell_index, cell_type, markdown_cell))
             
             live_cell = dict(cell)

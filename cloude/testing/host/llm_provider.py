@@ -22,17 +22,22 @@ _CEREBRAS_TPM_DEFAULTS = {
 # API model IDs (Google AI Studio). User-facing names may differ from API strings.
 GEMINI_MODEL_ALIASES = {
     "gemini-3.5-flash": "gemini-2.5-flash",
-    "gemini-3.1-flash-lite": "gemini-2.5-flash-lite",
     "gemini-3.1-flash": "gemini-2.5-flash",
 }
 
 # Free-tier defaults per model (RPM / RPD). TPM is shared at 250k across models.
 _GEMINI_FREE_TIER = {
+    "gemini-1.5-flash": {"rpm": 15, "rpd": 1500},
+    "gemini-1.5-flash-8b": {"rpm": 15, "rpd": 1500},
+    "gemini-3.1-flash-lite": {"rpm": 15, "rpd": 1000},
     "gemini-2.5-flash-lite": {"rpm": 15, "rpd": 1000},
     "gemini-2.5-flash": {"rpm": 10, "rpd": 250},
     "gemini-2.5-pro": {"rpm": 5, "rpd": 100},
     "default": {"rpm": 15, "rpd": 1000},
 }
+
+GEMINI_DEFAULT_MODEL = "gemini-3.1-flash-lite"
+GEMINI_MAX_OUTPUT_DEFAULT = 8192
 
 
 def normalize_provider(raw: str | None) -> str:
@@ -58,7 +63,49 @@ def cerebras_uses_text_tool_batch(model: str | None = None) -> bool:
 
 def resolve_gemini_model_id(model: str) -> str:
     m = str(model or "").strip().lower()
-    return GEMINI_MODEL_ALIASES.get(m, m or "gemini-2.5-flash-lite")
+    return GEMINI_MODEL_ALIASES.get(m, m or GEMINI_DEFAULT_MODEL)
+
+
+def gemini_max_output_tokens() -> int:
+    return int(os.environ.get("GEMINI_MAX_OUTPUT_TOKENS", str(GEMINI_MAX_OUTPUT_DEFAULT)))
+
+
+def _system_text_from_messages(messages: list | None) -> str:
+    for msg in messages or []:
+        if isinstance(msg, dict) and msg.get("role") == "system":
+            return str(msg.get("content") or "")
+    return ""
+
+
+def gemini_cached_content_extra(*, messages: list | None = None, model: str | None = None) -> dict:
+    """Explicit Gemini context cache (google-genai SDK)."""
+    if os.environ.get("GEMINI_CONTEXT_CACHE", "1").strip().lower() not in ("1", "true", "yes"):
+        return {}
+    system_text = _system_text_from_messages(messages)
+    if not system_text.strip():
+        return {}
+    try:
+        from .gemini_context_cache import get_cached_content_name
+    except Exception:
+        from gemini_context_cache import get_cached_content_name
+    mid = resolve_gemini_model_id(model or os.environ.get("GEMINI_MODEL", GEMINI_DEFAULT_MODEL))
+    cache_name = get_cached_content_name(mid, system_text)
+    if not cache_name:
+        return {}
+    return {"extra_body": {"cached_content": cache_name}}
+
+
+def gemini_completion_extras(
+    *,
+    messages: list | None = None,
+    model: str | None = None,
+    session_id: str | None = None,
+    mode: str | None = None,
+) -> dict:
+    """Gemini API options: max output tokens + optional context cache."""
+    extra: dict = {"max_tokens": gemini_max_output_tokens()}
+    extra.update(gemini_cached_content_extra(messages=messages, model=model))
+    return extra
 
 
 def gemini_free_tier_limits(model: str) -> dict[str, int]:

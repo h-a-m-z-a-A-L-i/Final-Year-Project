@@ -1,0 +1,42 @@
+{
+  "format": "python testing/host/tools_testing/run.py <tool> url=<url> cell=<n>",
+  "format_tab": "python testing/host/tools_testing/run.py <tool> tab=<chrome_tab_id> cell=<n>",
+  "keys": {
+    "url": "notebook /edit URL (browser: url OR tab, not both required)",
+    "tab": "Chrome tab id (browser: url OR tab; must be >50000)",
+    "cell": "1-based cell label",
+    "index": "1-based anchor cell (insert/markdown)",
+    "content": "cell source text",
+    "direction": "below|above (insert_cell)",
+    "symbol": "Python symbol name",
+    "symbols": ["sym1", "sym2"],
+    "query": "search string",
+    "cells": [1, 2, 3]
+  },
+  "tools": {
+    "select_cell_by_index": { "need": ["url|tab", "cell"] },
+    "insert_cell": { "need": ["url|tab", "index"], "opt": ["direction"] },
+    "edit_cell_by_index": { "need": ["url|tab", "cell", "content"] },
+    "run_cell": { "need": ["url|tab", "cell"] },
+    "delete_by_index": { "need": ["url|tab", "cell"] },
+    "creating_markdown_by_index": { "need": ["url|tab", "index"] },
+    "verify_select_cell": { "need": ["url|tab", "cell"], "opt": ["timeout"] },
+    "verify_edit_cell": { "need": ["url|tab", "cell", "content"], "opt": ["timeout", "before_file", "capture_baseline"] },
+    "verify_run_cell": { "need": ["url|tab", "cell"], "opt": ["timeout", "before_file", "capture_baseline", "host_log_offset"] },
+    "verify_insert_cell": { "need": ["url|tab", "index"], "opt": ["direction", "content", "timeout", "before_file", "capture_baseline"] },
+    "verify_delete_cell": { "need": ["url|tab", "cell"], "opt": ["timeout", "before_file", "capture_baseline"] },
+    "verify_creating_markdown": { "need": ["url|tab", "index"], "opt": ["content", "timeout", "before_file", "capture_baseline"] },
+    "dispatch_verify": { "need": ["tool", "url|tab"], "opt": ["cell", "index", "content", "direction"] },
+    "notebook_snapshot_status": { "need": ["url"] },
+    "notebook_list_cells": { "need": ["url"] },
+    "notebook_graph_query": { "need": ["url"] },
+    "notebook_get_cell": { "need": ["url", "cell"] },
+    "notebook_get_cells": { "need": ["url", "cells"] },
+    "notebook_find_symbol": { "need": ["url", "symbol"] },
+    "notebook_search": { "need": ["url", "query"] },
+    "notebook_cell_neighbors": { "need": ["url", "cell"] },
+    "notebook_recommend_placement": { "need": ["url"], "opt": ["symbol", "symbols"] },
+    "notebook_overview": { "need": ["url"] },
+    "notebook_executed_cells": { "need": ["url"] }
+  }
+}

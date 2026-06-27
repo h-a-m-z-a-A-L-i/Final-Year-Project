@@ -1,6 +1,6 @@
 // Content script to relay kernel state updates from background to page scripts
 (function initKernelStateListener() {
-  const LISTENER_VERSION = '2026-06-16-insert-cell-clear-retry';
+  const LISTENER_VERSION = '2026-06-23-markdown-edit-verify';
   if (window.__kernelStateListenerVersion === LISTENER_VERSION) {
     return;
   }
@@ -35,9 +35,105 @@
         return true;
       }
 
+      if (msg.type === 'CLICK_CELL_DELETE_BUTTON') {
+        if (!frameOwnsNotebookCells()) {
+          sendResponse({ ok: false, frameSkip: true, result: { ok: false, error: 'No notebook cells in this frame.' } });
+          return true;
+        }
+        const cell =
+          document.querySelector('.jp-Cell.jp-mod-selected') ||
+          document.querySelector('.jp-CodeCell.jp-mod-selected') ||
+          document.querySelector('.jp-Cell.jp-mod-active') ||
+          document.querySelector('.jp-CodeCell.jp-mod-active');
+        const header = cell?.querySelector('.jp-CellHeader');
+        const shadow = header?.shadowRoot;
+        const deleteBtn =
+          shadow?.querySelector('.cell-context-menu .cell-context-menu-icon-button.delete') ||
+          shadow?.querySelector('button.cell-context-menu-icon-button.delete[aria-label="Delete Cell"]') ||
+          shadow?.querySelector('button[title="Delete Cell"]');
+        if (!deleteBtn) {
+          sendResponse({
+            ok: false,
+            result: {
+              ok: false,
+              error: 'Delete button not found in header shadow DOM.',
+              phase: 'delete_button_not_found',
+            },
+          });
+          return true;
+        }
+        deleteBtn.click();
+        sendResponse({ ok: true, result: { ok: true, phase: 'clicked' } });
+        return true;
+      }
+
+      if (msg.type === 'CLICK_CELL_MARKDOWN_BUTTON') {
+        if (!frameOwnsNotebookCells()) {
+          sendResponse({ ok: false, frameSkip: true, result: { ok: false, error: 'No notebook cells in this frame.' } });
+          return true;
+        }
+        const cell =
+          document.querySelector('.jp-Cell.jp-mod-selected') ||
+          document.querySelector('.jp-CodeCell.jp-mod-selected') ||
+          document.querySelector('.jp-Cell.jp-mod-active') ||
+          document.querySelector('.jp-CodeCell.jp-mod-active');
+        const footer = cell?.querySelector('.jp-CellFooter');
+        const shadow = footer?.shadowRoot;
+        const markdownBtn = shadow?.querySelector('button[title="Add a markdown text cell"]');
+        if (!markdownBtn) {
+          sendResponse({
+            ok: false,
+            result: {
+              ok: false,
+              error: 'Markdown button not found in footer shadow DOM.',
+              phase: 'markdown_button_not_found',
+            },
+          });
+          return true;
+        }
+        markdownBtn.click();
+        sendResponse({ ok: true, result: { ok: true, phase: 'clicked' } });
+        return true;
+      }
+
+      if (msg.type === 'GET_CELL_EXECUTION_TITLE') {
+        const domIdx = Number(msg.cellIndex);
+        const maxWaitMs = Number(msg.maxWaitMs) || 2000;
+        readCellExecutionTitleFromDomAsync(domIdx, { maxWaitMs })
+          .then((result) => sendResponse({ ok: Boolean(result?.ok), result }))
+          .catch((error) => sendResponse({ ok: false, error: error?.message || String(error) }));
+        return true;
+      }
+
+      if (msg.type === 'GET_ACTIVE_CELL_INDEX') {
+        const result = readActiveCellFromDom();
+        sendResponse({ ok: Boolean(result?.ok), result });
+        return true;
+      }
+
+      if (msg.type === 'GET_CELL_CONTENT') {
+        const domIdx = Number(msg.cellIndex);
+        const content = readCellContentAtDomIndex(domIdx);
+        sendResponse({
+          ok: true,
+          result: {
+            ok: true,
+            content: String(content ?? ''),
+            domIndex: domIdx,
+            appIndex: domIdx + 1,
+            chars: String(content ?? '').length,
+          },
+        });
+        return true;
+      }
+
       if (msg.type === 'INSERT_CELL') {
         const domIdx = Number(msg.cellIndex);
-        const maxWaitMs = Number(msg.maxWaitMs) || 160;
+        const maxWaitMs = Number(msg.maxWaitMs) || 1500;
+        if (!frameOwnsNotebookCells()) {
+          sendResponse({ ok: false, frameSkip: true, error: 'No notebook cells in this frame.' });
+          return true;
+        }
         insertCellAtAnchor(domIdx, msg.direction, {
           scrollIntoView: msg.scrollIntoView,
           maxWaitMs,
@@ -411,21 +507,35 @@
     return buildContentSetSuccess(domIdx, payload, inserted.strategy);
   }
 
-  function findCellEditorSurface(wrapper) {
+  function resolveNotebookCellElement(wrapper) {
     if (!wrapper) return null;
+    if (wrapper.classList.contains('jp-MarkdownCell') || wrapper.classList.contains('jp-CodeCell')) {
+      return wrapper;
+    }
+    return wrapper.querySelector('.jp-MarkdownCell, .jp-CodeCell') || wrapper;
+  }
+
+  function findCellEditorSurface(wrapper) {
+    const cell = resolveNotebookCellElement(wrapper);
+    if (!cell) return null;
+    const inputRoot =
+      cell.querySelector('.jp-Cell-inputWrapper, .jp-InputArea, .jp-MarkdownEditor') || cell;
     return (
-      wrapper.querySelector('.jp-InputArea-editor .cm-content') ||
-      wrapper.querySelector('.cm-editor .cm-content') ||
-      wrapper.querySelector('.cm-content') ||
-      wrapper.querySelector('[contenteditable="true"]')
+      inputRoot.querySelector('.jp-InputArea-editor .cm-content') ||
+      inputRoot.querySelector('.jp-MarkdownEditor .cm-content') ||
+      inputRoot.querySelector('.cm-editor .cm-content') ||
+      inputRoot.querySelector('.cm-scroller .cm-content') ||
+      inputRoot.querySelector('.cm-content') ||
+      inputRoot.querySelector('[contenteditable="true"]')
     );
   }
 
   async function enterCellEditMode(wrapper) {
     if (!wrapper) return;
-    const isMarkdown = wrapper.classList.contains('jp-MarkdownCell');
+    const cell = resolveNotebookCellElement(wrapper);
+    const isMarkdown = Boolean(cell?.classList.contains('jp-MarkdownCell'));
     if (isMarkdown) {
-      wrapper.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, detail: 2 }));
+      (cell || wrapper).dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, detail: 2 }));
       await sleep(15);
       return;
     }
@@ -841,6 +951,130 @@
     return null;
   }
 
+  function normalizeExecutionTitle(raw) {
+    const text = String(raw || '').trim();
+    if (!text) return '';
+    const durationMatch = text.match(/^(Cell executed in [\d.]+s)/i);
+    if (durationMatch) return durationMatch[1];
+    return text.replace(/\s+at\s+[\d:]+\s*(am|pm)?\s*$/i, '').trim();
+  }
+
+  function readCellExecutionTitleFromDom(domIdx) {
+    const idx = Number(domIdx);
+    if (!Number.isInteger(idx) || idx < 0) {
+      return { ok: false, error: 'Invalid DOM cell index (must be >= 0).' };
+    }
+    if (!frameOwnsNotebookCells()) {
+      return { ok: false, frameSkip: true, error: 'No notebook cells in this frame.' };
+    }
+    const cell = findCellByDomIndex(document, idx);
+    if (!cell) {
+      return {
+        ok: false,
+        error: 'Cell not found in this frame tree.',
+        domIndex: idx,
+        visibleDomIndices: collectVisibleDomIndices(document),
+      };
+    }
+
+    const promptCol = cell.querySelector('.nc-prompt-index-col');
+    let rawTitle = promptCol
+      ? String(
+          promptCol.getAttribute('title') ||
+          promptCol.title ||
+          promptCol.getAttribute('aria-label') ||
+          ''
+        ).trim()
+      : '';
+
+    if (!rawTitle) {
+      const promptEl = cell.querySelector(
+        '.jp-InputPrompt.jp-InputArea-prompt, .jp-InputPrompt, .input_prompt'
+      );
+      rawTitle = promptEl
+        ? String(
+            promptEl.getAttribute('title') ||
+            promptEl.title ||
+            promptEl.getAttribute('aria-label') ||
+            ''
+          ).trim()
+        : '';
+    }
+
+    const execution_title = normalizeExecutionTitle(rawTitle);
+    return {
+      ok: Boolean(execution_title),
+      execution_title,
+      raw_title: rawTitle || null,
+      domIndex: idx,
+      appIndex: idx + 1,
+      selector: '.nc-prompt-index-col',
+    };
+  }
+
+  function readCellExecutionTitleFromDomAsync(domIdx, { maxWaitMs = 2000 } = {}) {
+    const deadline = Date.now() + Math.max(50, Number(maxWaitMs) || 2000);
+    let last = { ok: false, error: 'Execution title not available yet.' };
+
+    const poll = () => {
+      const snap = readCellExecutionTitleFromDom(domIdx);
+      if (snap?.frameSkip) {
+        return Promise.resolve(snap);
+      }
+      last = snap || last;
+      const title = String(snap?.execution_title || snap?.raw_title || '').trim();
+      if (title && /Cell executed in [\d.]+s/i.test(title)) {
+        return Promise.resolve(snap);
+      }
+      if (Date.now() >= deadline) {
+        if (snap?.execution_title) {
+          return Promise.resolve(snap);
+        }
+        return Promise.resolve(last);
+      }
+      return new Promise((resolve) => setTimeout(resolve, 50)).then(poll);
+    };
+
+    return poll();
+  }
+
+  function readActiveCellFromDom() {
+    if (!frameOwnsNotebookCells()) {
+      return { ok: false, frameSkip: true, error: 'No notebook cells in this frame.' };
+    }
+
+    const active =
+      document.querySelector('.jp-Cell.jp-mod-active[data-windowed-list-index]') ||
+      document.querySelector('.jp-CodeCell.jp-mod-active[data-windowed-list-index]') ||
+      document.querySelector('[data-windowed-list-index].jp-mod-active');
+
+    const selected =
+      active ||
+      document.querySelector('.jp-Cell.jp-mod-selected[data-windowed-list-index]') ||
+      document.querySelector('.jp-CodeCell.jp-mod-selected[data-windowed-list-index]') ||
+      document.querySelector('[data-windowed-list-index].jp-mod-selected');
+
+    if (!selected) {
+      return { ok: false, error: 'No active/selected cell in this frame.' };
+    }
+
+    const raw = selected.getAttribute('data-windowed-list-index');
+    const domIdx = Number(raw);
+    if (!Number.isInteger(domIdx) || domIdx < 0) {
+      return { ok: false, error: 'Active cell missing data-windowed-list-index.' };
+    }
+
+    return {
+      ok: true,
+      domIndex: domIdx,
+      appIndex: domIdx + 1,
+      cellIndex: domIdx + 1,
+      dataWindowedListIndex: String(domIdx),
+      strategy: active ? 'jp-mod-active' : 'jp-mod-selected',
+      phase: 'selected',
+    };
+  }
+
   function scrollTowardDomIndex(targetDomIdx) {
     const visible = collectVisibleDomIndices(document);
     if (!visible.length) {
@@ -948,13 +1182,14 @@
     }
     const anchor = cell || target;
     const rect = anchor.getBoundingClientRect();
+    const view = anchor?.ownerDocument?.defaultView || window;
     const offsetX = Number.isFinite(Number(options.offsetX)) ? Number(options.offsetX) : Math.min(48, rect.width * 0.12);
     const offsetY = Number.isFinite(Number(options.offsetY)) ? Number(options.offsetY) : rect.height / 2;
     const eventInit = {
       bubbles: true,
       cancelable: true,
       composed: true,
-      view: window,
+      view,
       clientX: Math.max(0, Math.floor(rect.left + offsetX)),
       clientY: Math.max(0, Math.floor(rect.top + offsetY)),
       button: 0,
@@ -970,7 +1205,7 @@
     target.dispatchEvent(new PointerEvent('pointerup', eventInit));
     target.dispatchEvent(new MouseEvent('mouseup', eventInit));
     target.dispatchEvent(new MouseEvent('click', eventInit));
-    if (typeof target.click === 'function') {
+    if (options.nativeClick !== false && typeof target.click === 'function') {
       target.click();
     }
     return true;
@@ -1386,15 +1621,35 @@
       return null;
     })();
     if (viaModel !== null) {
+      // #region agent log
+      fetch('http://127.0.0.1:7425/ingest/41f06f51-bcf3-4d7f-8c9d-11dc94029b26',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f9d51b'},body:JSON.stringify({sessionId:'f9d51b',location:'kernel_state_listener.js:readCellContentAtDomIndex',message:'read via model',data:{domIdx,path:'viaModel',chars:viaModel.length,preview:viaModel.slice(0,40)},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+      // #endregion
       return viaModel;
     }
-    const wrapper = findCellByDomIndex(document, domIdx);
-    const editor = wrapper ? findCellEditorSurface(wrapper) : null;
-    return editor ? readEditorContent(editor) : '';
+    const indexed = findCellByDomIndex(document, domIdx);
+    const cell = resolveNotebookCellElement(indexed);
+    const editor = cell ? findCellEditorSurface(cell) : null;
+    const domContent = editor ? readEditorContent(editor) : '';
+    // #region agent log
+    fetch('http://127.0.0.1:7425/ingest/41f06f51-bcf3-4d7f-8c9d-11dc94029b26',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f9d51b'},body:JSON.stringify({sessionId:'f9d51b',location:'kernel_state_listener.js:readCellContentAtDomIndex',message:'read via dom',data:{domIdx,path:'dom',chars:domContent.length,preview:domContent.slice(0,40),isMarkdown:Boolean(cell?.classList?.contains('jp-MarkdownCell')),hadEditor:Boolean(editor)},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+    // #endregion
+    return domContent;
   }
 
   function cellContentMatchesAtDomIndex(domIdx, payload) {
     return normalizeEditorText(readCellContentAtDomIndex(domIdx)) === normalizeEditorText(payload);
+  }
+
+  function clearCellOutputAtDomIndex(domIdx) {
+    const wrapper = findCellByDomIndex(document, domIdx);
+    if (!wrapper) {
+      return { ok: false, error: 'cell wrapper not found' };
+    }
+    const area = wrapper.querySelector('.jp-OutputArea, .jp-Cell-outputArea');
+    if (area) {
+      area.innerHTML = '';
+    }
+    return { ok: true };
   }
 
   async function clearInsertedCellContent(newDomIndex, options = {}) {
@@ -1427,12 +1682,14 @@
       await sleep(100);
 
       const viaModel = setCellSourceViaNotebookModel(domIdx, payload);
+      clearCellOutputAtDomIndex(domIdx);
       if (viaModel?.ok && cellContentMatchesAtDomIndex(domIdx, payload)) {
         attempts.push({ phase, ok: true, strategy: viaModel.strategy, path: 'model' });
         return { ...viaModel, attempts, phase: 'content_cleared' };
       }
 
       const contentSet = await setCellEditorContent(domIdx, payload, { maxWaitMs });
+      clearCellOutputAtDomIndex(domIdx);
       attempts.push({ phase, ...contentSet, path: 'editor' });
       if (contentSet?.ok && cellContentMatchesAtDomIndex(domIdx, payload)) {
         return { ...contentSet, attempts, phase: 'content_cleared' };
@@ -1631,97 +1888,169 @@
     };
   }
 
-  async function insertCellAtAnchor(domIdx, direction, options = {}) {
-    const idx = Number(domIdx);
-    const normalizedDirection = String(direction || '').trim().toLowerCase();
-    const maxWaitMs = Number.isFinite(Number(options.maxWaitMs)) ? Number(options.maxWaitMs) : 1500;
-    const countBefore = getNotebookCellCount();
-    console.log('[insert_cell] phase=pre_insert', { domIndex: idx, direction: normalizedDirection, countBefore });
-
-    if (Number.isInteger(idx) && idx >= 0) {
-      const selected = await selectCellAtDomIndexAsync(idx, options);
-      if (!selected?.ok) {
-        return {
-          ok: false,
-          error: selected?.error || 'Failed to select anchor cell before insert.',
-          domIndex: idx,
-          phase: 'select_failed',
-        };
+  function walkAccessibleDocuments() {
+    const docs = [];
+    const seen = new Set();
+    let win = window;
+    while (win) {
+      try {
+        const doc = win.document;
+        if (doc && !seen.has(doc)) {
+          seen.add(doc);
+          docs.push(doc);
+        }
+        if (!win.parent || win.parent === win) {
+          break;
+        }
+        win = win.parent;
+      } catch (_) {
+        break;
       }
     }
+    return docs;
+  }
 
-    const insert = await insertCellByDirection(normalizedDirection, { maxWaitMs });
-    if (!insert?.ok) {
-      return { ...insert, phase: insert.phase || 'insert_failed' };
+  const INSERT_TOOLBAR_BUTTON_SELECTOR =
+    '#site-content > div.sc-bZIVci.fycqcn > div > div.sc-dZtDeN.kuQWcu > div > div.sc-jmrxpW.hbTSyO > span:nth-child(1) > button';
+  const INSERT_AFTER_SELECT_MS = 1000;
+  const INSERT_TOOLBAR_BUTTON_SELECTORS = [
+    INSERT_TOOLBAR_BUTTON_SELECTOR,
+    '#site-content div.sc-jmrxpW.hbTSyO > span:nth-child(1) > button',
+    '#site-content div.sc-jmrxpW span:nth-child(1) > button',
+  ];
+
+  function findInsertToolbarButton() {
+    for (const doc of walkAccessibleDocuments()) {
+      for (const selector of INSERT_TOOLBAR_BUTTON_SELECTORS) {
+        try {
+          const button = doc.querySelector(selector);
+          if (button) {
+            return { button, selector, document: doc };
+          }
+        } catch (_) {
+          /* invalid selector in this document */
+        }
+      }
     }
-    insert.phase = 'insert_command_sent';
+    return null;
+  }
 
-    const expectedCount = countBefore + 1;
-    const countWait = await waitForCellCountAtLeast(expectedCount, { maxWaitMs: Math.max(2000, maxWaitMs) });
-    console.log('[insert_cell] phase=post_insert_wait', countWait);
-    if (!countWait?.ok) {
-      console.warn('[insert_cell] proceeding without confirmed cell-count increase:', countWait?.error);
+  async function resolveInsertToolbarButton(maxWaitMs) {
+    const deadline = Date.now() + Math.max(300, Number(maxWaitMs) || 1500);
+    while (Date.now() < deadline) {
+      const resolved = findInsertToolbarButton();
+      if (resolved?.button) {
+        return resolved;
+      }
+      await sleep(80);
     }
+    return null;
+  }
 
-    await sleep(200);
+  function clickInsertToolbarButton(resolved) {
+    const button = resolved?.button;
+    if (!button) {
+      return { ok: false, error: 'Insert toolbar button not found.' };
+    }
+    if (typeof button.scrollIntoView === 'function') {
+      button.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
+    const rect = button.getBoundingClientRect();
+    const cx = Math.max(0, Math.floor(rect.left + rect.width / 2));
+    const cy = Math.max(0, Math.floor(rect.top + rect.height / 2));
+    const ownerDoc = button.ownerDocument || document;
+    const hit = ownerDoc.elementFromPoint(cx, cy);
+    const target = hit ? (hit.closest('button') || hit) : button;
+    dispatchSyntheticPointerClick(target, target, { nativeClick: false });
+    return {
+      ok: true,
+      strategy: 'toolbar-insert-below',
+      selector: resolved.selector || INSERT_TOOLBAR_BUTTON_SELECTOR,
+    };
+  }
 
-    const newDomIndex = normalizedDirection === 'below' ? idx + 1 : idx;
-    const newCellIndex = newDomIndex + 1;
-    const contentToApply = '';
-    const contentSet = await clearInsertedCellContent(newDomIndex, {
-      content: contentToApply,
-      maxWaitMs: Math.max(maxWaitMs, 1200),
-      retries: 3,
-      retryDelays: [200, 400, 600],
-    });
-    if (!contentSet?.ok) {
+  async function selectCellForInsert(domIdx, options = {}) {
+    const idx = Number(domIdx);
+    const cell = findCellByDomIndex(document, idx);
+    if (!cell) {
+      return { ok: false, error: 'Cell not found for insert.', domIndex: idx, phase: 'cell_missing' };
+    }
+    const selected = await dispatchCellSelectAction(cell, options);
+    if (!selected?.ok) {
       return {
-        ...insert,
         ok: false,
-        anchorDomIndex: idx,
-        insertedBelow: normalizedDirection === 'below' ? idx : Math.max(0, idx - 1),
-        newDomIndex,
-        domIndex: newDomIndex,
-        appIndex: newCellIndex,
-        cellIndex: newCellIndex,
-        new_cell_index: newCellIndex,
-        phase: 'content_set_failed',
-        countBefore,
-        countWait,
-        contentSet,
-        error: contentSet?.error || 'Failed to clear duplicated cell content after insert.',
+        error: selected?.error || 'Failed to select anchor cell before insert.',
+        domIndex: idx,
+        phase: 'select_failed',
+      };
+    }
+    return { ok: true, domIndex: idx, phase: 'selected', strategy: selected.strategy };
+  }
+
+  async function insertCellViaToolbarButton(maxWaitMs) {
+    const resolved = await resolveInsertToolbarButton(maxWaitMs);
+    if (!resolved?.button) {
+      return {
+        ok: false,
+        error: 'Insert toolbar button not found in outer HTML.',
+        phase: 'toolbar_button_missing',
+        selector: INSERT_TOOLBAR_BUTTON_SELECTOR,
+      };
+    }
+    const click = clickInsertToolbarButton(resolved);
+    if (!click?.ok) {
+      return click;
+    }
+    return { ...click, phase: 'toolbar_button_clicked' };
+  }
+
+  async function insertCellAtAnchor(domIdx, direction, options = {}) {
+    const idx = Number(domIdx);
+    const normalizedDirection = String(direction || 'below').trim().toLowerCase();
+    const maxWaitMs = Number.isFinite(Number(options.maxWaitMs)) ? Number(options.maxWaitMs) : 1500;
+
+    if (normalizedDirection !== 'below') {
+      return {
+        ok: false,
+        error: 'Outer toolbar insert only supports direction=below.',
+        domIndex: idx,
+        phase: 'unsupported_direction',
       };
     }
 
-    const result = {
+    console.log('[insert_cell] phase=pre_insert', { domIndex: idx, direction: normalizedDirection });
+
+    if (Number.isInteger(idx) && idx >= 0) {
+      const selected = await selectCellForInsert(idx, options);
+      if (!selected?.ok) {
+        return selected;
+      }
+    }
+
+    await sleep(INSERT_AFTER_SELECT_MS);
+
+    const insert = await insertCellViaToolbarButton(maxWaitMs);
+    if (!insert?.ok) {
+      return { ...insert, phase: insert.phase || 'insert_failed' };
+    }
+
+    const newDomIndex = idx + 1;
+    const newCellIndex = newDomIndex + 1;
+    return {
       ...insert,
       anchorDomIndex: idx,
-      insertedBelow: normalizedDirection === 'below' ? idx : Math.max(0, idx - 1),
+      insertedBelow: idx,
       newDomIndex,
       domIndex: newDomIndex,
       appIndex: newCellIndex,
       cellIndex: newCellIndex,
       new_cell_index: newCellIndex,
+      direction: 'below',
       phase: 'insert_complete',
-      countBefore,
       countAfter: getNotebookCellCount(),
-      countWait,
-      contentSet,
-      contentChars: contentToApply.length,
     };
-
-    if (options.toMarkdown === true) {
-      const parsedDelay = Number(options.markdownDelayMs);
-      const delayMs = Number.isFinite(parsedDelay) && parsedDelay >= 0 ? parsedDelay : 500;
-      await sleep(delayMs);
-      const markdownKeyResult = sendKey('m');
-      result.markdownDelayMs = delayMs;
-      result.markdownKeyResult = markdownKeyResult;
-      result.ok = Boolean(insert.ok && markdownKeyResult?.ok);
-    }
-
-    return result;
   }
+
 
   const DELETE_BUTTON_SELECTORS = [
     'button.cell-context-menu-icon-button.delete',
@@ -1730,8 +2059,19 @@
   ];
 
   function clickVisibleDeleteButton() {
-    // Kaggle renders one toolbar delete control for the active cell (not inside data-windowed-list-index).
-    // Reuse clickSelector — it searches shadow roots + iframes (proven in bot_results logs).
+    const cell =
+      document.querySelector('.jp-Cell.jp-mod-selected') ||
+      document.querySelector('.jp-CodeCell.jp-mod-selected') ||
+      document.querySelector('.jp-Cell.jp-mod-active') ||
+      document.querySelector('.jp-CodeCell.jp-mod-active');
+    const shadow = cell?.querySelector('.jp-CellHeader')?.shadowRoot;
+    const deleteBtn =
+      shadow?.querySelector('.cell-context-menu .cell-context-menu-icon-button.delete') ||
+      shadow?.querySelector('button[aria-label="Delete Cell"]');
+    if (deleteBtn) {
+      deleteBtn.click();
+      return { ok: true, strategy: 'shadow-context-menu-delete' };
+    }
     for (const selector of DELETE_BUTTON_SELECTORS) {
       const result = clickSelector(selector);
       if (result?.ok) {
@@ -2046,18 +2386,31 @@
       return null;
     };
 
-    const target = findElement(document, normalizedSelector);
+    const target = (() => {
+      for (const doc of walkAccessibleDocuments()) {
+        try {
+          const hit = doc.querySelector(normalizedSelector);
+          if (hit) {
+            return hit;
+          }
+        } catch (_) {
+          /* ignore */
+        }
+      }
+      return findElement(document, normalizedSelector);
+    })();
     if (!target) {
       console.error('[clickSelector] Target not found in any frame:', normalizedSelector);
       return { ok: false, error: 'Target not found.', selector: normalizedSelector };
     }
 
     const rect = target.getBoundingClientRect();
+    const view = target?.ownerDocument?.defaultView || window;
     const eventInit = {
       bubbles: true,
       cancelable: true,
       composed: true,
-      view: window,
+      view,
       clientX: Math.max(0, Math.floor(rect.left + rect.width / 2)),
       clientY: Math.max(0, Math.floor(rect.top + rect.height / 2)),
       button: 0,
@@ -2073,25 +2426,18 @@
         target.focus({ preventScroll: true });
       }
 
-      // Prefer native click for buttons/links to avoid duplicate activations.
+      // One activation: synthetic pointer sequence only (no stacked native .click()).
       try {
-        if (target.tagName && /^(BUTTON|A)$/i.test(target.tagName)) {
-          target.click();
-          console.log('[clickSelector] Native .click() dispatched on button/link:', normalizedSelector);
-          return { ok: true, selector: normalizedSelector, tagName: target.tagName, strategy: 'native-click' };
-        }
-
-        // Otherwise dispatch a single synthetic click sequence compatible with React.
-        target.dispatchEvent(new PointerEvent('pointerdown', eventInit));
-        target.dispatchEvent(new MouseEvent('mousedown', eventInit));
-        target.dispatchEvent(new PointerEvent('pointerup', eventInit));
-        target.dispatchEvent(new MouseEvent('mouseup', eventInit));
-        target.dispatchEvent(new MouseEvent('click', eventInit));
-
-        console.log('[clickSelector] Synthetic click sequence dispatched on:', normalizedSelector);
-        return { ok: true, selector: normalizedSelector, tagName: target.tagName, strategy: 'synthetic-click' };
+        dispatchSyntheticPointerClick(target, target, { nativeClick: false });
+        console.log('[clickSelector] Click dispatched on:', normalizedSelector);
+        return {
+          ok: true,
+          selector: normalizedSelector,
+          tagName: target.tagName,
+          strategy: 'synthetic-click',
+        };
       } catch (err) {
-        console.error('[clickSelector] Activation failed during single-click path:', err);
+        console.error('[clickSelector] Activation failed:', err);
         return { ok: false, error: err?.message || String(err), selector: normalizedSelector };
       }
     } catch (error) {
